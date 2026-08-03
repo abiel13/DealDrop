@@ -4,9 +4,7 @@ import type { TextInputProps } from "react-native";
 
 import { inputVariants } from "./Input.variants";
 
-export interface InputProps
-  extends TextInputProps,
-    VariantProps<typeof inputVariants> {
+export interface InputProps extends TextInputProps, VariantProps<typeof inputVariants> {
   label?: string;
   error?: string;
   leftIcon?: ReactNode;

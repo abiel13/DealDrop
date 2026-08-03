@@ -1,20 +1,27 @@
 import { ScrollView, View } from "react-native";
 
+import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Input } from "@/components/ui/Input";
+import { Loading } from "@/components/ui/Loading";
+import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 
 export default function HomeScreen() {
   return (
     <ScrollView
       className="flex-1 bg-background"
-      contentContainerClassName="p-6 gap-8"
+      contentContainerClassName="gap-8 p-6"
     >
       {/* Typography */}
 
       <View className="gap-2">
-        <AppText variant="display">DealDrop</AppText>
+        <AppText variant="display">
+          DealDrop
+        </AppText>
 
         <AppText variant="heading">
           Heading
@@ -29,19 +36,19 @@ export default function HomeScreen() {
         </AppText>
 
         <AppText variant="body">
-          Body text looks like this.
+          Never miss another marketplace deal.
         </AppText>
 
         <AppText variant="bodySmall">
-          Small body text.
+          Smaller body text.
         </AppText>
 
         <AppText variant="caption">
-          Caption text.
+          Posted 3 minutes ago
         </AppText>
 
         <AppText variant="error">
-          Something went wrong.
+          Invalid email address
         </AppText>
       </View>
 
@@ -69,7 +76,7 @@ export default function HomeScreen() {
         </Button>
 
         <Button loading>
-          Loading...
+          Loading
         </Button>
 
         <Button disabled>
@@ -95,6 +102,8 @@ export default function HomeScreen() {
           label="Email"
           error="Email is required"
         />
+
+        <SearchBar />
       </View>
 
       {/* Cards */}
@@ -105,7 +114,7 @@ export default function HomeScreen() {
         </AppText>
 
         <AppText variant="body">
-          Excellent condition.
+          Excellent condition
         </AppText>
 
         <AppText variant="heading">
@@ -114,14 +123,41 @@ export default function HomeScreen() {
       </Card>
 
       <Card padding="lg">
-        <AppText variant="title">
-          iPhone 15 Pro
-        </AppText>
+        <View className="flex-row items-center gap-4">
+          <Avatar
+            fallback="A"
+            size="lg"
+          />
 
-        <AppText variant="caption">
-          Posted 2 minutes ago
-        </AppText>
+          <View>
+            <AppText variant="title">
+              Abiel
+            </AppText>
+
+            <AppText variant="caption">
+              Premium User
+            </AppText>
+          </View>
+        </View>
       </Card>
+
+      {/* Empty State */}
+
+      <EmptyState
+        title="No Watchlists"
+        description="Create your first watchlist to start tracking deals."
+      />
+
+      {/* Error State */}
+
+      <ErrorState
+        title="Something went wrong"
+        description="Please try again in a few moments."
+      />
+
+      {/* Loading */}
+
+      <Loading />
     </ScrollView>
   );
 }

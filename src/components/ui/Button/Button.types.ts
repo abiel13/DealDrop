@@ -1,12 +1,7 @@
 import type { PressableProps } from "react-native";
 import type { ReactNode } from "react";
 
-export type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "outline"
-  | "ghost"
-  | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 
 export type ButtonSize = "sm" | "md" | "lg";
 

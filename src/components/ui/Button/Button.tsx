@@ -38,9 +38,7 @@ export function Button({
         <>
           {leftIcon}
 
-          <Text className={buttonTextVariants({ variant })}>
-            {children}
-          </Text>
+          <Text className={buttonTextVariants({ variant })}>{children}</Text>
 
           {rightIcon}
         </>

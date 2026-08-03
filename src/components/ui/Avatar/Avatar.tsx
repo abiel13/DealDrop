@@ -10,27 +10,14 @@ const sizes = {
   lg: "h-16 w-16",
 };
 
-export function Avatar({
-  uri,
-  fallback,
-  size = "md",
-}: AvatarProps) {
+export function Avatar({ uri, fallback, size = "md" }: AvatarProps) {
   if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        className={`${sizes[size]} rounded-full`}
-      />
-    );
+    return <Image source={{ uri }} className={`${sizes[size]} rounded-full`} />;
   }
 
   return (
-    <View
-      className={`${sizes[size]} rounded-full bg-primary items-center justify-center`}
-    >
-      <AppText className="text-white">
-        {fallback.charAt(0).toUpperCase()}
-      </AppText>
+    <View className={`${sizes[size]} rounded-full bg-primary items-center justify-center`}>
+      <AppText className="text-white">{fallback.charAt(0).toUpperCase()}</AppText>
     </View>
   );
 }

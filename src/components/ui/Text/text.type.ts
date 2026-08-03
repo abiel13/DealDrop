@@ -3,8 +3,6 @@ import type { TextProps as RNTextProps } from "react-native";
 
 import { textVariants } from "./text.variants";
 
-export interface TextProps
-  extends RNTextProps,
-    VariantProps<typeof textVariants> {
+export interface TextProps extends RNTextProps, VariantProps<typeof textVariants> {
   className?: string;
 }

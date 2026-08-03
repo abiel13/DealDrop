@@ -17,20 +17,12 @@ export function Input({
 }: InputProps) {
   return (
     <View className="gap-2">
-      {label && (
-        <AppText variant="label">
-          {label}
-        </AppText>
-      )}
+      {label && <AppText variant="label">{label}</AppText>}
 
       <View
         className={cn(
           inputVariants({
-            state: !editable
-              ? "disabled"
-              : error
-                ? "error"
-                : "default",
+            state: !editable ? "disabled" : error ? "error" : "default",
           }),
           className,
         )}
@@ -47,11 +39,7 @@ export function Input({
         {rightIcon}
       </View>
 
-      {error && (
-        <AppText variant="error">
-          {error}
-        </AppText>
-      )}
+      {error && <AppText variant="error">{error}</AppText>}
     </View>
   );
 }
