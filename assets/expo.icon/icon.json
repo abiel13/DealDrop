@@ -6,16 +6,12 @@
     {
       "layers": [
         {
-          "image-name": "expo-symbol 2.svg",
-          "name": "expo-symbol 2",
+          "image-name": "icon.png",
+          "name": "app-icon",
           "position": {
             "scale": 1,
-            "translation-in-points": [1.1008400065293245e-5, -16.046875]
+            "translation-in-points": [0, 0]
           }
-        },
-        {
-          "image-name": "grid.png",
-          "name": "grid"
         }
       ],
       "shadow": {

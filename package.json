@@ -51,6 +51,7 @@
     "eslint-config-expo": "~57.0.1",
     "husky": "^9.1.7",
     "prettier": "^3.9.6",
+    "supabase": "^2.111.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
