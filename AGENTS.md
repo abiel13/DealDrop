@@ -1,11 +1,8 @@
-
 # AGENTS.md
 
 # Expo HAS CHANGED
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
-
-
 
 ## Project
 
@@ -15,18 +12,18 @@ The initial marketplace is Facebook Marketplace. The architecture should allow a
 
 ## Current Stack
 
-* React Native
-* Expo
-* Expo Router
-* TypeScript
-* NativeWind
-* Supabase
-* TanStack Query
-* Zustand
-* React Hook Form
-* Zod
-* Class Variance Authority
-* OneSignal later for push notifications
+- React Native
+- Expo
+- Expo Router
+- TypeScript
+- NativeWind
+- Supabase
+- TanStack Query
+- Zustand
+- React Hook Form
+- Zod
+- Class Variance Authority
+- OneSignal later for push notifications
 
 ## Issue-Only Workflow
 
@@ -34,14 +31,14 @@ Only work on the GitHub issue explicitly provided in the current task.
 
 Do not:
 
-* Begin another issue.
-* Implement future milestone features.
-* Add speculative functionality.
-* Expand the scope because a related improvement seems useful.
-* Refactor unrelated files.
-* Create screens, services, database tables, or abstractions not required by the issue.
-* Add dependencies unless the issue requires them.
-* Complete unchecked work from another issue.
+- Begin another issue.
+- Implement future milestone features.
+- Add speculative functionality.
+- Expand the scope because a related improvement seems useful.
+- Refactor unrelated files.
+- Create screens, services, database tables, or abstractions not required by the issue.
+- Add dependencies unless the issue requires them.
+- Complete unchecked work from another issue.
 
 Before editing code:
 
@@ -71,11 +68,11 @@ Prefer the simplest implementation that satisfies the current issue.
 
 Avoid:
 
-* Premature optimization.
-* Unrequested abstractions.
-* Future-proofing without a current requirement.
-* Adding optional features.
-* Building systems that are not yet used.
+- Premature optimization.
+- Unrequested abstractions.
+- Future-proofing without a current requirement.
+- Adding optional features.
+- Building systems that are not yet used.
 
 A simple complete implementation is better than a complex speculative one.
 
@@ -133,16 +130,16 @@ src/components/ui/
 
 Existing reusable components include:
 
-* AppText
-* Avatar
-* Button
-* Card
-* Divider
-* EmptyState
-* ErrorState
-* Input
-* Loading
-* SearchBar
+- AppText
+- Avatar
+- Button
+- Card
+- Divider
+- EmptyState
+- ErrorState
+- Input
+- Loading
+- SearchBar
 
 Reuse these before creating feature-specific replacements.
 
@@ -178,13 +175,13 @@ TypeScript strict mode is enabled.
 
 Rules:
 
-* Do not use `any` without a documented reason.
-* Prefer explicit domain types.
-* Use `import type` for type-only imports.
-* Type component props.
-* Handle nullable values deliberately.
-* Do not silence errors using unsafe assertions unless the reason is clear.
-* Prefer small, readable interfaces over complicated generic types.
+- Do not use `any` without a documented reason.
+- Prefer explicit domain types.
+- Use `import type` for type-only imports.
+- Type component props.
+- Handle nullable values deliberately.
+- Do not silence errors using unsafe assertions unless the reason is clear.
+- Prefer small, readable interfaces over complicated generic types.
 
 ## Imports
 
@@ -218,10 +215,10 @@ Use Expo-compatible packages and installation commands where appropriate.
 
 Use:
 
-* TanStack Query for remote/server state.
-* Zustand for shared client-only state.
-* React state for local component state.
-* Supabase Auth for authentication state.
+- TanStack Query for remote/server state.
+- Zustand for shared client-only state.
+- React state for local component state.
+- Supabase Auth for authentication state.
 
 Do not copy server data into Zustand without a concrete requirement.
 
@@ -268,20 +265,20 @@ Do not replace existing libraries without an explicit request.
 
 Prefer:
 
-* Small focused functions.
-* Clear naming.
-* Composition.
-* Early returns.
-* Reusable existing components.
-* Straightforward control flow.
+- Small focused functions.
+- Clear naming.
+- Composition.
+- Early returns.
+- Reusable existing components.
+- Straightforward control flow.
 
 Avoid:
 
-* Clever one-liners that reduce readability.
-* Large components with unrelated responsibilities.
-* Duplicated business logic.
-* Unnecessary comments.
-* Generic junk-drawer files.
+- Clever one-liners that reduce readability.
+- Large components with unrelated responsibilities.
+- Duplicated business logic.
+- Unnecessary comments.
+- Generic junk-drawer files.
 
 Comments should explain intent or non-obvious constraints, not repeat what the code already says.
 
@@ -316,11 +313,11 @@ Do not suggest or begin the next issue unless explicitly asked.
 
 Work is complete only when:
 
-* Every requirement in the provided issue is satisfied.
-* The issue's definition of done is met.
-* The code compiles or type-checks.
-* Linting passes.
-* Formatting passes.
-* Existing architecture and conventions are followed.
-* No unrelated feature or refactor was introduced.
-* The final response accurately reports what was and was not verified.
+- Every requirement in the provided issue is satisfied.
+- The issue's definition of done is met.
+- The code compiles or type-checks.
+- Linting passes.
+- Formatting passes.
+- Existing architecture and conventions are followed.
+- No unrelated feature or refactor was introduced.
+- The final response accurately reports what was and was not verified.

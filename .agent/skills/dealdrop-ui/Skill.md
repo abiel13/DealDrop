@@ -1,8 +1,9 @@
 ---
-
 name: dealdrop-ui
 description: Design and implement polished, production-quality mobile interfaces for DealDrop using the existing React Native, Expo, NativeWind, and reusable component system. Use when creating or modifying screens, layouts, reusable UI components, visual states, navigation interfaces, forms, cards, feeds, watchlists, settings, onboarding, authentication, or other user-facing DealDrop interfaces.
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---
+
+---
 
 # DealDrop UI Skill
 
@@ -20,11 +21,11 @@ DealDrop helps users monitor online marketplaces and receive alerts when matchin
 
 The interface should communicate:
 
-* Speed
-* Trust
-* Simplicity
-* Opportunity
-* Calm confidence
+- Speed
+- Trust
+- Simplicity
+- Opportunity
+- Calm confidence
 
 The app should feel modern and consumer-friendly without resembling a finance dashboard, admin panel, developer tool, or generic AI application.
 
@@ -34,27 +35,27 @@ DealDrop uses a clean light interface with white and soft purple as its visual f
 
 Use:
 
-* White or near-white page backgrounds
-* Soft neutral surfaces
-* Light purple for selected and supportive elements
-* Stronger purple for primary actions
-* Dark neutral text
-* Subtle gray borders
-* Generous whitespace
-* Soft rounded corners
-* Restrained shadows
+- White or near-white page backgrounds
+- Soft neutral surfaces
+- Light purple for selected and supportive elements
+- Stronger purple for primary actions
+- Dark neutral text
+- Subtle gray borders
+- Generous whitespace
+- Soft rounded corners
+- Restrained shadows
 
 Do not:
 
-* Use dark green
-* Introduce unrelated brand colors
-* Cover every element in purple
-* Use excessive gradients
-* Use glowing effects throughout the interface
-* Use heavy shadows
-* Make every card float
-* Add decorative blobs without a functional reason
-* Create an AI-dashboard appearance
+- Use dark green
+- Introduce unrelated brand colors
+- Cover every element in purple
+- Use excessive gradients
+- Use glowing effects throughout the interface
+- Use heavy shadows
+- Make every card float
+- Add decorative blobs without a functional reason
+- Create an AI-dashboard appearance
 
 Purple should guide attention rather than dominate the screen.
 
@@ -68,16 +69,16 @@ src/components/ui/
 
 Existing components include:
 
-* AppText
-* Avatar
-* Button
-* Card
-* Divider
-* EmptyState
-* ErrorState
-* Input
-* Loading
-* SearchBar
+- AppText
+- Avatar
+- Button
+- Card
+- Divider
+- EmptyState
+- ErrorState
+- Input
+- Loading
+- SearchBar
 
 Reuse these components before creating alternatives.
 
@@ -129,18 +130,18 @@ Every screen should have one obvious primary purpose.
 
 A user should understand within a few seconds:
 
-* Where they are
-* What information matters most
-* What action they should take next
+- Where they are
+- What information matters most
+- What action they should take next
 
 Use visual hierarchy through:
 
-* Typography
-* Spacing
-* Grouping
-* Contrast
-* Position
-* Size
+- Typography
+- Spacing
+- Grouping
+- Contrast
+- Position
+- Size
 
 Do not solve hierarchy by applying purple to everything.
 
@@ -172,14 +173,14 @@ Do not import React Native's `Text` directly for normal user-facing content unle
 
 Use typography variants consistently:
 
-* Display for rare high-impact headings
-* Heading for screen titles
-* Title for sections and important card content
-* Subtitle for supporting headings
-* Body for normal content
-* Body-small or caption for metadata
-* Label for form labels
-* Error for validation messages
+- Display for rare high-impact headings
+- Heading for screen titles
+- Title for sections and important card content
+- Subtitle for supporting headings
+- Body for normal content
+- Body-small or caption for metadata
+- Label for form labels
+- Error for validation messages
 
 Do not use large bold text everywhere.
 
@@ -193,11 +194,11 @@ Each screen should normally have one visually dominant primary action.
 
 Use:
 
-* Primary for the main action
-* Secondary for supportive actions
-* Outline for lower-priority alternatives
-* Ghost for quiet actions
-* Danger only for destructive actions
+- Primary for the main action
+- Secondary for supportive actions
+- Outline for lower-priority alternatives
+- Ghost for quiet actions
+- Danger only for destructive actions
 
 Do not place several primary buttons beside each other.
 
@@ -205,17 +206,17 @@ Button labels should describe the action clearly:
 
 Good:
 
-* Create watchlist
-* Save changes
-* View listing
-* Enable alerts
+- Create watchlist
+- Save changes
+- View listing
+- Enable alerts
 
 Avoid vague labels:
 
-* Submit
-* Continue, when the next action is unclear
-* Click here
-* Okay
+- Submit
+- Continue, when the next action is unclear
+- Click here
+- Okay
 
 ## Forms
 
@@ -243,10 +244,10 @@ Use the existing `Card`.
 
 Cards should represent a meaningful grouped object, such as:
 
-* A listing
-* A watchlist
-* A subscription option
-* A profile summary
+- A listing
+- A watchlist
+- A subscription option
+- A profile summary
 
 Do not wrap every section in a card.
 
@@ -283,10 +284,10 @@ Use the existing `EmptyState`.
 
 Empty states should:
 
-* Clearly explain why the screen is empty
-* Tell the user what to do next
-* Avoid blaming the user
-* Include an action only when one is useful
+- Clearly explain why the screen is empty
+- Tell the user what to do next
+- Avoid blaming the user
+- Include an action only when one is useful
 
 Example:
 
@@ -346,10 +347,10 @@ Navigation labels should use language users understand.
 
 Do not expose internal technical names such as:
 
-* Match engine
-* Worker
-* Listing ingestion
-* Adapter
+- Match engine
+- Worker
+- Listing ingestion
+- Adapter
 
 ## Icons
 
@@ -379,10 +380,10 @@ Use animation sparingly.
 
 Animations should:
 
-* Confirm an action
-* Clarify a transition
-* Show state change
-* Improve perceived continuity
+- Confirm an action
+- Clarify a transition
+- Show state change
+- Improve perceived continuity
 
 Do not animate elements merely because animation is possible.
 
@@ -396,14 +397,14 @@ Avoid fixed widths for major containers.
 
 Consider:
 
-* Safe areas
-* Keyboard overlap
-* Long translations
-* Long listing titles
-* Large accessibility font sizes
-* Loading states
-* Network errors
-* Empty results
+- Safe areas
+- Keyboard overlap
+- Long translations
+- Long listing titles
+- Large accessibility font sizes
+- Loading states
+- Network errors
+- Empty results
 
 Use scrolling deliberately.
 
@@ -415,17 +416,17 @@ Do not produce interfaces that look like generic templates.
 
 Avoid repeatedly using:
 
-* Huge greeting headers
-* Random gradient banners
-* Decorative statistics with no product value
-* Oversized cards for tiny amounts of content
-* Excessive pill-shaped controls
-* A card around every block
-* Random emoji as primary visual design
-* Placeholder charts
-* Fake analytics
-* Generic copy such as “Welcome back! Ready to get started?”
-* Unrequested dashboards
+- Huge greeting headers
+- Random gradient banners
+- Decorative statistics with no product value
+- Oversized cards for tiny amounts of content
+- Excessive pill-shaped controls
+- A card around every block
+- Random emoji as primary visual design
+- Placeholder charts
+- Fake analytics
+- Generic copy such as “Welcome back! Ready to get started?”
+- Unrequested dashboards
 
 Every visual element must support the user's current task.
 
@@ -453,16 +454,16 @@ Leverage intelligent monitoring to optimize your marketplace discovery workflow.
 
 When implementing a user-facing feature, consider whether the issue requires:
 
-* Default
-* Loading
-* Empty
-* Error
-* Disabled
-* Selected
-* Pressed
-* Offline
-* Permission denied
-* Success
+- Default
+- Loading
+- Empty
+- Error
+- Disabled
+- Selected
+- Pressed
+- Offline
+- Permission denied
+- Success
 
 Do not implement unrelated states speculatively, but do not leave the required flow visually broken.
 
@@ -470,17 +471,17 @@ Do not implement unrelated states speculatively, but do not leave the required f
 
 Before completing UI work, inspect the result for:
 
-* Consistent spacing
-* Consistent alignment
-* Clear hierarchy
-* Correct component reuse
-* No hardcoded theme colors
-* No overflowing text
-* No duplicated UI primitives
-* Useful loading, empty, and error handling
-* Clear primary action
-* Reasonable behavior on a small phone screen
-* No unrelated feature work
+- Consistent spacing
+- Consistent alignment
+- Clear hierarchy
+- Correct component reuse
+- No hardcoded theme colors
+- No overflowing text
+- No duplicated UI primitives
+- Useful loading, empty, and error handling
+- Clear primary action
+- Reasonable behavior on a small phone screen
+- No unrelated feature work
 
 Run the relevant linting, formatting, and type-checking commands.
 

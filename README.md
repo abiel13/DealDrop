@@ -22,3 +22,15 @@ DealDrop continuously monitors Facebook Marketplace for items matching your save
 npm install
 npm start
 ```
+
+## Database Migrations
+
+The Supabase CLI is installed as a project dependency. Use the linked project for remote database changes:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase db push
+```
+
+Create and review new migrations with `npx supabase migration new <name>`, then apply them with `npx supabase db push`. Keep migrations in `supabase/migrations/`, never paste schema changes directly into the Dashboard, and do not commit access tokens or database passwords.
