@@ -3,12 +3,15 @@ import "../global.css";
 
 import { Loading } from "@/components/ui/Loading";
 import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
+import { AppQueryProvider } from "@/providers/QueryProvider";
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <AppQueryProvider>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
+    </AppQueryProvider>
   );
 }
 
