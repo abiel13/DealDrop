@@ -43,6 +43,18 @@ export function normalizePrice(value: number | null | undefined) {
   return Math.round(value * 100) / 100;
 }
 
+export function normalizeCoordinate(
+  value: number | null | undefined,
+  minimum: number,
+  maximum: number,
+) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return value >= minimum && value <= maximum ? value : null;
+}
+
 export function normalizeUrl(value: string | null | undefined) {
   const normalized = normalizeText(value);
 
@@ -76,6 +88,9 @@ export function normalizeListing(listing: MarketplaceListing): MarketplaceListin
     sellerName: normalizeText(listing.sellerName),
     location: normalizeText(listing.location),
     category: normalizeText(listing.category),
+    condition: normalizeText(listing.condition),
+    latitude: normalizeCoordinate(listing.latitude, -90, 90),
+    longitude: normalizeCoordinate(listing.longitude, -180, 180),
   };
 }
 
@@ -96,6 +111,9 @@ function mergeListings(existing: MarketplaceListing, incoming: MarketplaceListin
     sellerName: incoming.sellerName ?? existing.sellerName,
     location: incoming.location ?? existing.location,
     category: incoming.category ?? existing.category,
+    condition: incoming.condition ?? existing.condition,
+    latitude: incoming.latitude ?? existing.latitude,
+    longitude: incoming.longitude ?? existing.longitude,
     postedAt: incoming.postedAt ?? existing.postedAt,
     rawData: { ...existing.rawData, ...incoming.rawData },
   };

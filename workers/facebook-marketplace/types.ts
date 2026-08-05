@@ -2,7 +2,26 @@ export interface FacebookWatchlist {
   id: string;
   userId: string;
   searchQuery: string;
-  filters: Record<string, unknown>;
+  filters: WatchlistFilters;
+}
+
+export interface WatchlistPriceFilter {
+  min?: number;
+  max?: number;
+  currency?: string;
+}
+
+export interface WatchlistDistanceFilter {
+  maxKm?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface WatchlistFilters {
+  aliases?: string[];
+  price?: WatchlistPriceFilter;
+  distance?: WatchlistDistanceFilter;
+  conditions?: string[];
 }
 
 export interface RawListingCard {
@@ -24,6 +43,9 @@ export interface MarketplaceListing {
   sellerName: string | null;
   location: string | null;
   category: string | null;
+  condition: string | null;
+  latitude: number | null;
+  longitude: number | null;
   postedAt: string | null;
   rawData: Record<string, unknown>;
 }
