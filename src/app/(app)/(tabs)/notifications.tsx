@@ -1,4 +1,4 @@
-import { NotificationsScreen } from "@/features/notifications/screens/NotificationsScreen";
+import { NotificationsScreen } from "@/features/navigation/screens/NotificationsScreen";
 
 export default function NotificationsTab() {
   return <NotificationsScreen />;
