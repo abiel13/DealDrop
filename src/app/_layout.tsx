@@ -3,6 +3,8 @@ import "../global.css";
 
 import { Loading } from "@/components/ui/Loading";
 import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
+import { PremiumGateScreen } from "@/features/premium/screens/PremiumGateScreen";
+import { PremiumProvider, usePremium } from "@/features/premium/hooks/PremiumProvider";
 import {
   useNotificationObserver,
   usePushNotificationRegistration,
@@ -13,7 +15,9 @@ export default function RootLayout() {
   return (
     <AppQueryProvider>
       <AuthProvider>
-        <RootNavigator />
+        <PremiumProvider>
+          <RootNavigator />
+        </PremiumProvider>
       </AuthProvider>
     </AppQueryProvider>
   );
@@ -21,11 +25,20 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
+  const premium = usePremium();
   useNotificationObserver();
   usePushNotificationRegistration(user?.id);
 
   if (isLoading) {
     return <Loading />;
+  }
+
+  if (user && premium.isLoading) {
+    return <Loading />;
+  }
+
+  if (user && !premium.isPremium) {
+    return <PremiumGateScreen />;
   }
 
   return (
