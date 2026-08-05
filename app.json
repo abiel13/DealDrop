@@ -17,8 +17,7 @@
         "backgroundColor": "#E6F4FE"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.abiel13.DealDrop",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.abiel13.DealDrop"
     },
     "web": {
       "output": "static",
@@ -27,7 +26,6 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
       [
         "expo-splash-screen",
         {
@@ -40,13 +38,6 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "d0f495af-34f8-4c9f-b6a9-ec15e16094a8"
-      }
-    },
-    "owner": "abiel13"
+    }
   }
 }
