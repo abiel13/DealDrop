@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { TextInput, View } from "react-native";
 
-import { cn } from "@/lib/utils";
 import { AppText } from "@/components/ui/Text";
+import { appColors } from "@/styles/colors";
+import { cn } from "@/lib/utils";
 
 import { InputProps } from "./Input.types";
 import { inputVariants } from "./Input.variants";
@@ -13,8 +15,12 @@ export function Input({
   rightIcon,
   className,
   editable = true,
+  onBlur,
+  onFocus,
   ...props
 }: InputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <View className="gap-2">
       {label && <AppText variant="label">{label}</AppText>}
@@ -23,6 +29,7 @@ export function Input({
         className={cn(
           inputVariants({
             state: !editable ? "disabled" : error ? "error" : "default",
+            focused: isFocused && editable && !error,
           }),
           className,
         )}
@@ -32,7 +39,15 @@ export function Input({
         <TextInput
           className="flex-1 text-text"
           editable={editable}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={appColors.textTertiary}
+          onBlur={(event) => {
+            setIsFocused(false);
+            onBlur?.(event);
+          }}
+          onFocus={(event) => {
+            setIsFocused(true);
+            onFocus?.(event);
+          }}
           {...props}
         />
 
