@@ -1,5 +1,5 @@
-import { HomeScreen } from "@/features/auth/screens/HomeScreen";
+import { ListingFeedScreen } from "@/features/listings/screens/ListingFeedScreen";
 
-export default function HomeTab() {
-  return <HomeScreen />;
+export default function FeedTab() {
+  return <ListingFeedScreen />;
 }
