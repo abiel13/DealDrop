@@ -6,8 +6,9 @@ import {
 import ws from "ws";
 
 import type { FacebookWorkerConfig } from "./config";
+import { matchesWatchlist } from "./matching";
 import { deduplicateListings } from "./normalizer";
-import type { FacebookWatchlist, MarketplaceListing } from "./types";
+import type { FacebookWatchlist, MarketplaceListing, WatchlistFilters } from "./types";
 
 // ws supports the Realtime client at runtime, but its Node event types differ from the browser-shaped interface.
 const supabaseWebSocketTransport = ws as unknown as WebSocketLikeConstructor;
@@ -16,7 +17,7 @@ interface StoredWatchlist {
   id: string;
   user_id: string;
   search_query: string;
-  filters: Record<string, unknown>;
+  filters: WatchlistFilters;
 }
 
 interface StoredListing {
@@ -67,6 +68,9 @@ export class ListingRepository {
       seller_name: listing.sellerName,
       location: listing.location,
       category: listing.category,
+      condition: listing.condition,
+      latitude: listing.latitude,
+      longitude: listing.longitude,
       posted_at: listing.postedAt,
       last_seen_at: now,
       is_active: true,
@@ -84,6 +88,44 @@ export class ListingRepository {
     }
 
     return data ?? [];
+  }
+
+  async createMatches(
+    watchlist: FacebookWatchlist,
+    listings: MarketplaceListing[],
+    storedListings: StoredListing[],
+  ) {
+    const listingIdsByExternalId = new Map(
+      storedListings.map((listing) => [listing.external_id, listing.id]),
+    );
+    const rows = deduplicateListings(listings)
+      .filter((listing) => matchesWatchlist(watchlist, listing))
+      .map((listing) => ({
+        user_id: watchlist.userId,
+        watchlist_id: watchlist.id,
+        listing_id: listingIdsByExternalId.get(listing.externalId),
+      }))
+      .filter((match): match is { user_id: string; watchlist_id: string; listing_id: string } =>
+        Boolean(match.listing_id),
+      );
+
+    if (rows.length === 0) {
+      return 0;
+    }
+
+    const { data, error } = await this.client
+      .from("matches")
+      .upsert(rows, {
+        onConflict: "watchlist_id,listing_id",
+        ignoreDuplicates: true,
+      })
+      .select("id");
+
+    if (error) {
+      throw error;
+    }
+
+    return data?.length ?? 0;
   }
 
   async markWatchlistChecked(watchlistId: string) {

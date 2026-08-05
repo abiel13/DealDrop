@@ -4,6 +4,7 @@ import { ListingParseError } from "./errors";
 import {
   deduplicateListings,
   normalizeCurrency,
+  normalizeCoordinate,
   normalizePrice,
   normalizeText,
   normalizeUrl,
@@ -73,6 +74,11 @@ function getLabeledValue(raw: RawListingCard, labels: string[]) {
   return candidate ? normalizeText(candidate.replace(pattern, "$1")) : null;
 }
 
+function getLabeledNumber(raw: RawListingCard, labels: string[], minimum: number, maximum: number) {
+  const value = getLabeledValue(raw, labels);
+  return normalizeCoordinate(value ? Number.parseFloat(value) : null, minimum, maximum);
+}
+
 function getTitle(raw: RawListingCard) {
   const candidates = textCandidates(raw);
 
@@ -123,6 +129,9 @@ export function parseListingCard(raw: RawListingCard): MarketplaceListing {
     sellerName: getLabeledValue(raw, ["Seller", "Sold by"]),
     location: getLabeledValue(raw, ["Location", "Located in"]),
     category: getLabeledValue(raw, ["Category"]),
+    condition: getLabeledValue(raw, ["Condition"]),
+    latitude: getLabeledNumber(raw, ["Latitude"], -90, 90),
+    longitude: getLabeledNumber(raw, ["Longitude"], -180, 180),
     postedAt: null,
     rawData: {
       sourceText: raw.text,
