@@ -1,4 +1,4 @@
-import { WatchlistsScreen } from "@/features/navigation/screens/WatchlistsScreen";
+import { WatchlistsScreen } from "@/features/watchlists/screens/WatchlistsScreen";
 
 export default function WatchlistsTab() {
   return <WatchlistsScreen />;

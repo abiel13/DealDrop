@@ -7,4 +7,9 @@ export const authRoutes = {
   register: "/register" as Href,
   notifications: "/notifications" as Href,
   watchlists: "/watchlists" as Href,
+  watchlistForm: "/watchlist-form" as Href,
 };
+
+export function watchlistFormRoute(id?: string) {
+  return id ? (`/watchlist-form?id=${encodeURIComponent(id)}` as Href) : authRoutes.watchlistForm;
+}
