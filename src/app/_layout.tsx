@@ -3,6 +3,10 @@ import "../global.css";
 
 import { Loading } from "@/components/ui/Loading";
 import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
+import {
+  useNotificationObserver,
+  usePushNotificationRegistration,
+} from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
 
 export default function RootLayout() {
@@ -17,6 +21,8 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
+  useNotificationObserver();
+  usePushNotificationRegistration(user?.id);
 
   if (isLoading) {
     return <Loading />;

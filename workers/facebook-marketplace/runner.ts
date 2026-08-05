@@ -50,6 +50,9 @@ export async function runFacebookMarketplaceWorker(
       }
     }
 
+    const notificationDelivery = await repository.processNotificationQueue();
+    logger.info("Processed notification queue", { ...notificationDelivery });
+
     return summary;
   } finally {
     await session.context.close();
