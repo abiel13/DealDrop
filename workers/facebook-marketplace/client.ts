@@ -2,6 +2,7 @@ import type { BrowserContext, Page } from "playwright";
 
 import { ensureAuthenticated } from "./browser";
 import type { FacebookWorkerConfig } from "./config";
+import { deduplicateListings } from "./normalizer";
 import { LISTING_SELECTOR, extractRawListingCards, parseListingsFromPage } from "./parser";
 import { RateLimiter } from "./rate-limiter";
 import { withRetry } from "./retry";
@@ -68,7 +69,7 @@ export class FacebookMarketplaceClient {
         }
       }
 
-      return [...listings.values()];
+      return deduplicateListings([...listings.values()]);
     } finally {
       await page.close();
     }

@@ -1,10 +1,20 @@
 import type { Page } from "playwright";
 
 import { ListingParseError } from "./errors";
+import {
+  deduplicateListings,
+  normalizeCurrency,
+  normalizeCoordinate,
+  normalizePrice,
+  normalizeText,
+  normalizeUrl,
+} from "./normalizer";
 import type { MarketplaceListing, RawListingCard } from "./types";
 
 const LISTING_SELECTOR = 'a[href*="/marketplace/item/"]';
 const GENERIC_TITLE_LINES = new Set(["Marketplace", "Sponsored", "See more", "Share"]);
+const PRICE_PATTERN =
+  /(US\$|USD|\$|\u20AC|EUR|\u00A3|GBP|\u20A6|NGN|\u00E2\u201A\u00AC|\u00C2\u00A3|\u00E2\u201A\u00A6)\s*([\d,]+(?:\.\d{1,2})?)/i;
 
 export async function extractRawListingCards(page: Page, maximum: number) {
   return page.locator(LISTING_SELECTOR).evaluateAll((elements, limit) => {
@@ -13,7 +23,9 @@ export async function extractRawListingCards(page: Page, maximum: number) {
     const cards: RawListingCard[] = [];
 
     for (const anchor of anchors) {
-      if (cards.length >= limit || seen.has(anchor.href)) {
+      const listingId = anchor.href.match(/\/marketplace\/item\/([^/?#]+)/)?.[1] ?? anchor.href;
+
+      if (cards.length >= limit || seen.has(listingId)) {
         continue;
       }
 
@@ -30,7 +42,7 @@ export async function extractRawListingCards(page: Page, maximum: number) {
         .map((element) => element.getAttribute("src") || element.getAttribute("data-src"))
         .find((source): source is string => Boolean(source && !source.startsWith("data:")));
 
-      seen.add(anchor.href);
+      seen.add(listingId);
       cards.push({
         href: anchor.href,
         text: card.innerText,
@@ -47,17 +59,35 @@ function absoluteUrl(value: string) {
   return new URL(value, "https://www.facebook.com").toString();
 }
 
+function textCandidates(raw: RawListingCard) {
+  return [
+    ...(raw.ariaLabel?.split(/\s*[\u00B7\u2022\u00C2\u00B7]\s*/) ?? []),
+    ...raw.text.split(/\r?\n/),
+  ]
+    .map((candidate) => normalizeText(candidate))
+    .filter((candidate): candidate is string => Boolean(candidate));
+}
+
+function getLabeledValue(raw: RawListingCard, labels: string[]) {
+  const pattern = new RegExp(`^(?:${labels.join("|")})\\s*[:\\-]\\s*(.+)$`, "i");
+  const candidate = textCandidates(raw).find((line) => pattern.test(line));
+  return candidate ? normalizeText(candidate.replace(pattern, "$1")) : null;
+}
+
+function getLabeledNumber(raw: RawListingCard, labels: string[], minimum: number, maximum: number) {
+  const value = getLabeledValue(raw, labels);
+  return normalizeCoordinate(value ? Number.parseFloat(value) : null, minimum, maximum);
+}
+
 function getTitle(raw: RawListingCard) {
-  const candidates = [...(raw.ariaLabel?.split(" · ") ?? []), ...raw.text.split(/\r?\n/)].map(
-    (candidate) => candidate.trim(),
-  );
+  const candidates = textCandidates(raw);
 
   return (
     candidates.find(
       (candidate) =>
         candidate.length > 2 &&
         !GENERIC_TITLE_LINES.has(candidate) &&
-        !/^[$€£₦]|^US\$/i.test(candidate) &&
+        !PRICE_PATTERN.test(candidate) &&
         !/^\d[\d,.]*$/.test(candidate),
     ) ?? "Facebook Marketplace listing"
   );
@@ -65,23 +95,15 @@ function getTitle(raw: RawListingCard) {
 
 function getPrice(raw: RawListingCard) {
   const text = `${raw.ariaLabel ?? ""} ${raw.text}`;
-  const match = text.match(/(US\$|[$€£₦])\s*([\d,]+(?:\.\d{1,2})?)/);
+  const match = text.match(PRICE_PATTERN);
 
   if (!match) {
     return { price: null, currency: "USD" };
   }
 
-  const currency = {
-    $: "USD",
-    US$: "USD",
-    "€": "EUR",
-    "£": "GBP",
-    "₦": "NGN",
-  }[match[1]];
-
   return {
-    price: Number.parseFloat(match[2].replaceAll(",", "")),
-    currency: currency ?? "USD",
+    price: normalizePrice(Number.parseFloat(match[2].replaceAll(",", ""))),
+    currency: normalizeCurrency(match[1]),
   };
 }
 
@@ -97,15 +119,19 @@ export function parseListingCard(raw: RawListingCard): MarketplaceListing {
 
   return {
     marketplaceId: "facebook_marketplace",
-    externalId,
+    externalId: normalizeText(externalId) ?? externalId,
     title: getTitle(raw),
-    description: null,
+    description: getLabeledValue(raw, ["Description"]),
     price,
     currency,
     url,
-    imageUrl: raw.imageUrl ? absoluteUrl(raw.imageUrl) : null,
-    sellerName: null,
-    location: null,
+    imageUrl: normalizeUrl(raw.imageUrl ? absoluteUrl(raw.imageUrl) : null),
+    sellerName: getLabeledValue(raw, ["Seller", "Sold by"]),
+    location: getLabeledValue(raw, ["Location", "Located in"]),
+    category: getLabeledValue(raw, ["Category"]),
+    condition: getLabeledValue(raw, ["Condition"]),
+    latitude: getLabeledNumber(raw, ["Latitude"], -90, 90),
+    longitude: getLabeledNumber(raw, ["Longitude"], -180, 180),
     postedAt: null,
     rawData: {
       sourceText: raw.text,
@@ -131,7 +157,7 @@ export async function parseListingsFromPage(page: Page, maximum: number) {
     }
   }
 
-  return listings;
+  return deduplicateListings(listings);
 }
 
 export { LISTING_SELECTOR };

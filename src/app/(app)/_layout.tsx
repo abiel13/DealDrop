@@ -5,6 +5,7 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="watchlist-form" options={{ presentation: "modal" }} />
+      <Stack.Screen name="listing/[id]" />
     </Stack>
   );
 }
