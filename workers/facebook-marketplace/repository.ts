@@ -8,6 +8,10 @@ import ws from "ws";
 import type { FacebookWorkerConfig } from "./config";
 import { matchesWatchlist } from "./matching";
 import { deduplicateListings } from "./normalizer";
+import {
+  processNotificationQueue,
+  type NotificationDeliverySummary,
+} from "./notification-delivery";
 import type { FacebookWatchlist, MarketplaceListing, WatchlistFilters } from "./types";
 
 // ws supports the Realtime client at runtime, but its Node event types differ from the browser-shaped interface.
@@ -126,6 +130,10 @@ export class ListingRepository {
     }
 
     return data?.length ?? 0;
+  }
+
+  processNotificationQueue(): Promise<NotificationDeliverySummary> {
+    return processNotificationQueue(this.client);
   }
 
   async markWatchlistChecked(watchlistId: string) {
