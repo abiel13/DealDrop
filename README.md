@@ -34,3 +34,13 @@ npx supabase db push
 ```
 
 Create and review new migrations with `npx supabase migration new <name>`, then apply them with `npx supabase db push`. Keep migrations in `supabase/migrations/`, never paste schema changes directly into the Dashboard, and do not commit access tokens or database passwords.
+
+## Facebook Marketplace Worker
+
+The Playwright worker runs outside Expo, reads active Facebook watchlists from Supabase, and upserts normalized listings. Fill in the ignored `workers/facebook-marketplace/.env` file (or copy `workers/facebook-marketplace/.env.example`), install Chromium with `npx playwright install chromium`, then run:
+
+```bash
+npm run worker:facebook-marketplace
+```
+
+Prefer `FACEBOOK_STORAGE_STATE_PATH` for an authenticated browser session. Credentials and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.

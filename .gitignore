@@ -46,3 +46,6 @@ example
 .env
 .env.*
 !.env.example
+
+# Facebook Marketplace worker session state
+workers/facebook-marketplace/.auth/
