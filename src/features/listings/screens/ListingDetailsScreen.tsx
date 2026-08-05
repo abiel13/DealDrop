@@ -11,6 +11,7 @@ import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
+import { AppHeader } from "@/features/navigation/components";
 
 import {
   getListing,
@@ -69,7 +70,7 @@ export function ListingDetailsScreen() {
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
-        contentContainerClassName="gap-5 px-6 py-6"
+        contentContainerClassName="gap-5 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
             refreshing={listingQuery.isRefetching}
@@ -77,9 +78,7 @@ export function ListingDetailsScreen() {
           />
         }
       >
-        <Button variant="ghost" size="sm" className="self-start" onPress={() => router.back()}>
-          Back
-        </Button>
+        <AppHeader title="Listing details" onBack={() => router.back()} />
 
         {listing.images.length > 0 ? (
           <ScrollView

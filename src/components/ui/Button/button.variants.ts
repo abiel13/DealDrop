@@ -6,8 +6,8 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-primary shadow-card",
-        secondary: "bg-primary-light shadow-card",
-        outline: "border border-primary bg-transparent",
+        secondary: "bg-primary-soft",
+        outline: "bg-surface-muted",
         ghost: "bg-transparent",
         danger: "bg-error shadow-card",
       },

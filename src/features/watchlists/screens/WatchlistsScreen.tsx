@@ -12,6 +12,7 @@ import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, watchlistFormRoute } from "@/features/auth/routes";
+import { AppHeader } from "@/features/navigation/components";
 
 import { WatchlistCard } from "../components/WatchlistCard";
 import {
@@ -135,22 +136,18 @@ export function WatchlistsScreen() {
       <FlatList
         data={filteredWatchlists}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="grow gap-4 px-6 py-8"
+        contentContainerClassName="grow gap-4 px-5 pb-8 pt-6"
         ListHeaderComponent={
           <View className="mb-4 gap-5">
-            <View className="flex-row items-end justify-between gap-4">
-              <View className="flex-1">
-                <AppText variant="heading" className="mb-3">
-                  Watchlists
-                </AppText>
-                <AppText variant="body" className="text-text-secondary">
-                  Save searches and we&apos;ll watch for matching listings.
-                </AppText>
-              </View>
-              <Button size="sm" onPress={() => router.push(watchlistFormRoute())}>
-                New
-              </Button>
-            </View>
+            <AppHeader
+              title="Watchlists"
+              subtitle="Save searches and we'll watch for matching listings."
+              action={
+                <Button size="sm" onPress={() => router.push(watchlistFormRoute())}>
+                  New
+                </Button>
+              }
+            />
 
             <SearchBar
               accessibilityLabel="Search watchlists"

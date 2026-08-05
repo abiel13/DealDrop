@@ -8,21 +8,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#7C3AED",
-        "primary-light": "#A78BFA",
-        "primary-dark": "#5B21B6",
-        "primary-soft": "#EDE9FE",
+        primary: "#8B5CF6",
+        "primary-light": "#C4B5FD",
+        "primary-dark": "#6D28D9",
+        "primary-soft": "#F0EBFF",
 
-        background: "#F8F7FC",
-        "background-muted": "#F1EFF8",
+        background: "#F5F4F8",
+        "background-muted": "#ECEAF1",
         surface: "#FFFFFF",
-        "surface-muted": "#FBFAFE",
+        "surface-muted": "#FAF9FC",
 
         card: "#FFFFFF",
 
-        text: "#181426",
-        "text-secondary": "#6B6478",
-        "text-tertiary": "#9891A6",
+        text: "#17151D",
+        "text-secondary": "#6F6A78",
+        "text-tertiary": "#9B96A5",
 
         success: "#16A36A",
         warning: "#D97706",
@@ -35,8 +35,8 @@ module.exports = {
         xl: "24px",
       },
       boxShadow: {
-        card: "0 8px 24px rgba(54, 36, 91, 0.07)",
-        elevated: "0 16px 40px rgba(54, 36, 91, 0.12)",
+        card: "0 4px 16px rgba(35, 27, 51, 0.06)",
+        elevated: "0 10px 28px rgba(35, 27, 51, 0.10)",
       },
     },
   },

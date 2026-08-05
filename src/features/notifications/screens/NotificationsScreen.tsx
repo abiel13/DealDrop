@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { AppHeader } from "@/features/navigation/components";
 
 import {
   getNotificationPreferences,
@@ -111,7 +112,7 @@ export function NotificationsScreen() {
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
-        contentContainerClassName="grow gap-5 px-6 py-8"
+        contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
             refreshing={notificationsQuery.isRefetching}
@@ -119,14 +120,10 @@ export function NotificationsScreen() {
           />
         }
       >
-        <View>
-          <AppText variant="heading" className="mb-3">
-            Notifications
-          </AppText>
-          <AppText variant="body" className="text-text-secondary">
-            DealDrop will let you know when a listing matches one of your watchlists.
-          </AppText>
-        </View>
+        <AppHeader
+          title="Alerts"
+          subtitle="DealDrop will let you know when a listing matches one of your watchlists."
+        />
 
         <Card padding="md" className="gap-4">
           <AppText variant="title">Preferences</AppText>
@@ -163,10 +160,7 @@ export function NotificationsScreen() {
           <View className="gap-3">
             {notifications.map((notification) => (
               <Pressable key={notification.id} onPress={() => openNotification(notification)}>
-                <Card
-                  padding="md"
-                  className={notification.read_at ? undefined : "border border-primary"}
-                >
+                <Card padding="md" className={notification.read_at ? undefined : "bg-primary-soft"}>
                   <View className="gap-2">
                     <View className="flex-row items-start justify-between gap-3">
                       <AppText variant="title" className="flex-1">

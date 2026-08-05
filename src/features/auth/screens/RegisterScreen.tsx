@@ -84,8 +84,8 @@ export function RegisterScreen() {
 
   return (
     <AuthShell
-      title="Create your DealDrop account."
-      description="Save searches and let DealDrop watch the marketplace for you."
+      title="Start finding better deals."
+      description="Create an account to save searches and let DealDrop watch the marketplace for you."
     >
       <View className="gap-5">
         <Controller
