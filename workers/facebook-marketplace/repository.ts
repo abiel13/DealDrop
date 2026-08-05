@@ -6,6 +6,7 @@ import {
 import ws from "ws";
 
 import type { FacebookWorkerConfig } from "./config";
+import { deduplicateListings } from "./normalizer";
 import type { FacebookWatchlist, MarketplaceListing } from "./types";
 
 // ws supports the Realtime client at runtime, but its Node event types differ from the browser-shaped interface.
@@ -54,7 +55,7 @@ export class ListingRepository {
     }
 
     const now = new Date().toISOString();
-    const rows = listings.map((listing) => ({
+    const rows = deduplicateListings(listings).map((listing) => ({
       marketplace_id: listing.marketplaceId,
       external_id: listing.externalId,
       title: listing.title,
@@ -65,6 +66,7 @@ export class ListingRepository {
       image_url: listing.imageUrl,
       seller_name: listing.sellerName,
       location: listing.location,
+      category: listing.category,
       posted_at: listing.postedAt,
       last_seen_at: now,
       is_active: true,

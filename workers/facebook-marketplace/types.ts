@@ -23,6 +23,7 @@ export interface MarketplaceListing {
   imageUrl: string | null;
   sellerName: string | null;
   location: string | null;
+  category: string | null;
   postedAt: string | null;
   rawData: Record<string, unknown>;
 }

@@ -2,6 +2,7 @@ export { loadWorkerConfig } from "./config";
 export { createBrowserSession, ensureAuthenticated } from "./browser";
 export { FacebookMarketplaceClient } from "./client";
 export { parseListingCard, parseListingsFromPage } from "./parser";
+export { deduplicateListings, normalizeListing } from "./normalizer";
 export { ListingRepository, createListingRepository } from "./repository";
 export { runFacebookMarketplaceWorker } from "./runner";
 export { RateLimiter } from "./rate-limiter";
