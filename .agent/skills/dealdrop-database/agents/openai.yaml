@@ -1,0 +1,7 @@
+interface:
+  display_name: "DealDrop Database"
+  short_description: "Use DealDrop Supabase schema safely"
+  default_prompt: "Use $dealdrop-database to work with the established DealDrop Supabase schema, RLS, triggers, and database conventions."
+
+policy:
+  allow_implicit_invocation: true
