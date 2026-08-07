@@ -15,6 +15,7 @@ const symbols: Record<AppIconName, { ios: SFSymbol; android: AndroidSymbol }> = 
   filter: { ios: "line.3.horizontal.decrease", android: "filter_list" },
   heart: { ios: "heart", android: "favorite" },
   home: { ios: "house.fill", android: "home" },
+  image: { ios: "photo", android: "image" },
   info: { ios: "info.circle", android: "info" },
   lock: { ios: "lock.fill", android: "lock" },
   mail: { ios: "envelope.fill", android: "mail" },

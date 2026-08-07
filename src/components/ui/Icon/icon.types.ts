@@ -10,6 +10,7 @@ export type AppIconName =
   | "filter"
   | "heart"
   | "home"
+  | "image"
   | "info"
   | "lock"
   | "mail"

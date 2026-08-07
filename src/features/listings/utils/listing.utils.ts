@@ -27,3 +27,42 @@ export function formatListingDate(value: string | null) {
     day: "numeric",
   });
 }
+
+export function formatListingRecency(value: string | null) {
+  if (!value) {
+    return "Recently matched";
+  }
+
+  const elapsed = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(elapsed) || elapsed < 0) {
+    return "Recently listed";
+  }
+
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) {
+    return "Just now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return days < 7 ? `${days}d ago` : formatListingDate(value);
+}
+
+export function formatMarketplaceName(marketplaceId: string) {
+  if (marketplaceId === "facebook_marketplace") {
+    return "Facebook Marketplace";
+  }
+
+  return marketplaceId
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
