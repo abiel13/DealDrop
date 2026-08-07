@@ -1,10 +1,16 @@
 import { Image, Pressable, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
+import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
+import { appColors } from "@/styles/colors";
 
 import type { Listing } from "../types/listing.types";
-import { formatListingDate, formatListingPrice } from "../utils/listing.utils";
+import {
+  formatListingPrice,
+  formatListingRecency,
+  formatMarketplaceName,
+} from "../utils/listing.utils";
 
 interface ListingCardProps {
   listing: Listing;
@@ -19,69 +25,82 @@ export function ListingCard({
   onPress,
   onFavoriteToggle,
 }: ListingCardProps) {
+  const image = listing.images[0] ?? listing.image_url;
+
   return (
     <Pressable
       accessibilityLabel={`Open ${listing.title}`}
       accessibilityRole="button"
-      disabled={disabled}
       onPress={onPress}
     >
-      <Card padding="md" className="gap-3">
-        {listing.image_url ? (
-          <Image
-            accessibilityLabel={`${listing.title} image`}
-            className="h-48 w-full rounded-xl bg-background"
-            resizeMode="cover"
-            source={{ uri: listing.image_url }}
-          />
-        ) : (
-          <View className="h-32 items-center justify-center rounded-xl bg-background">
-            <AppText variant="caption">No image available</AppText>
-          </View>
-        )}
+      <Card padding="none" className="overflow-hidden">
+        <View className="h-60 w-full items-center justify-center bg-surface-muted">
+          {image ? (
+            <Image
+              accessibilityLabel={`${listing.title} image`}
+              className="h-full w-full"
+              resizeMode="contain"
+              source={{ uri: image }}
+            />
+          ) : (
+            <View className="items-center gap-2">
+              <AppIcon name="image" size={26} color={appColors.textTertiary} />
+              <AppText variant="caption">No image available</AppText>
+            </View>
+          )}
 
-        <View className="gap-2">
-          <View className="flex-row items-start justify-between gap-3">
-            <AppText variant="title" className="flex-1" numberOfLines={2}>
-              {listing.title}
-            </AppText>
-            <Pressable
-              accessibilityLabel={
-                listing.is_favorite ? "Remove listing favorite" : "Favorite listing"
-              }
-              accessibilityRole="button"
-              disabled={disabled}
-              hitSlop={8}
-              onPress={(event) => {
-                event.stopPropagation();
-                onFavoriteToggle();
-              }}
-            >
-              <AppText
-                variant="bodySmall"
-                className={
-                  listing.is_favorite ? "font-semibold text-primary" : "text-text-secondary"
-                }
-              >
-                {listing.is_favorite ? "Saved" : "Save"}
-              </AppText>
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityLabel={listing.is_favorite ? "Remove listing favorite" : "Save listing"}
+            accessibilityRole="button"
+            accessibilityState={{ selected: listing.is_favorite, disabled }}
+            className={`absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-full shadow-card ${
+              listing.is_favorite ? "bg-primary" : "bg-surface"
+            }`}
+            disabled={disabled}
+            hitSlop={8}
+            onPress={(event) => {
+              event.stopPropagation();
+              onFavoriteToggle();
+            }}
+          >
+            <AppIcon
+              name="heart"
+              size={21}
+              color={listing.is_favorite ? "white" : appColors.textSecondary}
+              weight="semibold"
+            />
+          </Pressable>
+        </View>
 
+        <View className="gap-2.5 p-4">
           <AppText variant="heading" className="text-primary">
             {formatListingPrice(listing)}
           </AppText>
 
-          <View className="flex-row flex-wrap gap-x-2 gap-y-1">
-            {listing.location && <AppText variant="bodySmall">{listing.location}</AppText>}
-            {listing.condition && <AppText variant="bodySmall">{listing.condition}</AppText>}
-            {listing.category && <AppText variant="bodySmall">{listing.category}</AppText>}
-          </View>
-
-          <AppText variant="caption">
-            {listing.seller_name ? `${listing.seller_name} · ` : ""}
-            Listed {formatListingDate(listing.posted_at ?? listing.matched_at)}
+          <AppText variant="title" numberOfLines={2}>
+            {listing.title}
           </AppText>
+
+          {listing.location && (
+            <View className="flex-row items-center gap-1.5">
+              <AppIcon name="place" size={15} color={appColors.textSecondary} />
+              <AppText variant="bodySmall" numberOfLines={1}>
+                {listing.location}
+              </AppText>
+            </View>
+          )}
+
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="flex-1 flex-row items-center gap-1.5">
+              <AppIcon name="storefront" size={14} color={appColors.textTertiary} />
+              <AppText variant="caption" numberOfLines={1}>
+                {formatMarketplaceName(listing.marketplace_id)}
+              </AppText>
+            </View>
+            <AppText variant="caption">
+              {formatListingRecency(listing.posted_at ?? listing.matched_at)}
+            </AppText>
+          </View>
         </View>
       </Card>
     </Pressable>
