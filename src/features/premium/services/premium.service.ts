@@ -59,6 +59,10 @@ export async function presentPremiumPaywall(): Promise<PAYWALL_RESULT> {
   });
 }
 
+export async function presentPremiumCustomerCenter() {
+  return RevenueCatUI.presentCustomerCenter();
+}
+
 export async function logOutPremiumUser() {
   return Purchases.logOut();
 }

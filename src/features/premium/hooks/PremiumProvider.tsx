@@ -13,6 +13,7 @@ import {
   identifyPremiumUser,
   logOutPremiumUser,
   presentPremiumPaywall,
+  presentPremiumCustomerCenter,
   restorePremiumPurchases,
 } from "../services/premium.service";
 
@@ -119,6 +120,11 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     return result;
   }
 
+  async function manageSubscription() {
+    await presentPremiumCustomerCenter();
+    await refresh();
+  }
+
   async function restorePurchases() {
     const nextCustomerInfo = await restorePremiumPurchases();
     setCustomerInfo(nextCustomerInfo);
@@ -130,6 +136,7 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     error,
     presentPaywall,
+    manageSubscription,
     restorePurchases,
     refresh,
   };

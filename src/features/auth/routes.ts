@@ -7,6 +7,7 @@ export const authRoutes = {
   register: "/register" as Href,
   welcome: "/welcome" as Href,
   notifications: "/notifications" as Href,
+  profile: "/profile" as Href,
   watchlists: "/watchlists" as Href,
   watchlistForm: "/watchlist-form" as Href,
   listing: "/listing" as Href,

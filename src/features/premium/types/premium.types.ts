@@ -6,6 +6,7 @@ export interface PremiumContextValue {
   isLoading: boolean;
   error: string | null;
   presentPaywall: () => Promise<PAYWALL_RESULT | null>;
+  manageSubscription: () => Promise<void>;
   restorePurchases: () => Promise<CustomerInfo | null>;
   refresh: () => Promise<void>;
 }
