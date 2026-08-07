@@ -8,13 +8,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { AppIcon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
+import { appColors } from "@/styles/colors";
 
 import {
   createWatchlist,
@@ -47,6 +50,7 @@ export function WatchlistFormScreen() {
   } = useForm<WatchlistFormValues>({
     resolver: zodResolver(watchlistSchema),
     defaultValues: { name: "", searchQuery: "" },
+    mode: "onBlur",
   });
 
   const existingWatchlistQuery = useQuery({
@@ -90,14 +94,17 @@ export function WatchlistFormScreen() {
 
   if (isEditing && existingWatchlistQuery.isError) {
     return (
-      <SafeAreaView className="flex-1 bg-background px-6">
-        <ErrorState
-          title="Watchlist unavailable"
-          description="We couldn't load this watchlist. Please go back and try again."
-        />
-        <Button variant="outline" onPress={() => router.back()}>
-          Go back
-        </Button>
+      <SafeAreaView className="flex-1 bg-background px-5">
+        <View className="flex-1 gap-5 pt-6">
+          <AppHeader title="Edit watchlist" onBack={() => router.back()} />
+          <ErrorState
+            title="Watchlist unavailable"
+            description="We couldn't load this watchlist. Please go back and try again."
+          />
+          <Button variant="outline" onPress={() => router.back()}>
+            Go back
+          </Button>
+        </View>
       </SafeAreaView>
     );
   }
@@ -110,17 +117,25 @@ export function WatchlistFormScreen() {
       >
         <ScrollView
           className="flex-1"
-          contentContainerClassName="grow px-5 pb-8 pt-6"
+          contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
           keyboardShouldPersistTaps="handled"
         >
           <AppHeader
             title={isEditing ? "Edit watchlist" : "Create a watchlist"}
-            subtitle="DealDrop will use these details to find matching listings."
+            subtitle={
+              isEditing
+                ? "Keep your monitor focused on the right search."
+                : "Set up a search and DealDrop will watch for matching listings."
+            }
             onBack={() => router.back()}
           />
 
-          <View className="mt-8 gap-5">
-            <Input label="Marketplace" value="Facebook Marketplace" editable={false} />
+          <Card padding="md" className="gap-5">
+            <FormSectionHeader
+              eyebrow="01"
+              title="Name your monitor"
+              description="Give this search a name you will recognize at a glance."
+            />
 
             <Controller
               control={control}
@@ -129,6 +144,7 @@ export function WatchlistFormScreen() {
                 <Input
                   label="Watchlist name"
                   placeholder="e.g. Camera gear"
+                  leftIcon={<AppIcon name="star" size={18} color={appColors.textTertiary} />}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -136,14 +152,30 @@ export function WatchlistFormScreen() {
                 />
               )}
             />
+          </Card>
+
+          <Card padding="md" className="gap-5">
+            <FormSectionHeader
+              eyebrow="02"
+              title="Choose what to watch"
+              description="DealDrop will search this marketplace for your term."
+            />
+
+            <Input
+              label="Marketplace"
+              value="Facebook Marketplace"
+              editable={false}
+              leftIcon={<AppIcon name="storefront" size={18} color={appColors.textTertiary} />}
+            />
 
             <Controller
               control={control}
               name="searchQuery"
               render={({ field: { onBlur, onChange, value } }) => (
                 <Input
-                  label="Search for"
+                  label="Search term"
                   placeholder="e.g. Sony A7 III"
+                  leftIcon={<AppIcon name="search" size={18} color={appColors.textTertiary} />}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -151,11 +183,24 @@ export function WatchlistFormScreen() {
                 />
               )}
             />
+          </Card>
 
-            {saveMutation.isError && (
-              <AppText variant="error">{getWatchlistErrorMessage(saveMutation.error)}</AppText>
-            )}
+          <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
+            <AppIcon name="info" size={19} color={appColors.primary} />
+            <View className="flex-1 gap-1">
+              <AppText variant="label">How matching works</AppText>
+              <AppText variant="bodySmall">
+                We compare your search term with new Facebook Marketplace listings and notify you
+                when there is a match.
+              </AppText>
+            </View>
+          </View>
 
+          {saveMutation.isError && (
+            <AppText variant="error">{getWatchlistErrorMessage(saveMutation.error)}</AppText>
+          )}
+
+          <View className="gap-3">
             <Button
               loading={saveMutation.isPending}
               onPress={handleSubmit((values) => saveMutation.mutate(values))}
@@ -169,5 +214,25 @@ export function WatchlistFormScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function FormSectionHeader({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <View className="gap-1">
+      <AppText variant="caption" className="font-semibold uppercase tracking-[1.5px] text-primary">
+        {eyebrow}
+      </AppText>
+      <AppText variant="title">{title}</AppText>
+      <AppText variant="bodySmall">{description}</AppText>
+    </View>
   );
 }
