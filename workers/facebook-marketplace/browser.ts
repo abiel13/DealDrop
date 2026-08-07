@@ -21,6 +21,23 @@ export async function createBrowserSession(config: FacebookWorkerConfig) {
   return { browser, context } satisfies FacebookBrowserSession;
 }
 
+const AUTH_BLOCK_PATTERN = /captcha|checkpoint|challenge|security check|confirm your identity/i;
+
+export async function getFacebookAuthBlock(page: Page) {
+  if (AUTH_BLOCK_PATTERN.test(page.url())) {
+    return "Facebook presented a CAPTCHA, checkpoint, or security challenge.";
+  }
+
+  const bodyText = await page
+    .locator("body")
+    .innerText({ timeout: 1000 })
+    .catch(() => "");
+
+  return AUTH_BLOCK_PATTERN.test(bodyText)
+    ? "Facebook presented a CAPTCHA, checkpoint, or security challenge."
+    : null;
+}
+
 async function loginFormVisible(page: Page) {
   return (
     /\/login(?:\/|$)/i.test(page.url()) ||
@@ -28,18 +45,28 @@ async function loginFormVisible(page: Page) {
       .locator('input[name="email"]')
       .first()
       .isVisible()
+      .catch(() => false)) ||
+    (await page
+      .getByRole("button", { name: /log\s*in/i })
+      .first()
+      .isVisible()
       .catch(() => false))
   );
 }
 
 export async function ensureAuthenticated(page: Page, config: FacebookWorkerConfig) {
+  const authBlock = await getFacebookAuthBlock(page);
+  if (authBlock && config.facebookAuthMode !== "interactive") {
+    throw new FacebookAuthenticationError(authBlock);
+  }
+
   if (!(await loginFormVisible(page))) {
     return false;
   }
 
-  if (!config.facebookEmail || !config.facebookPassword) {
+  if (config.facebookAuthMode === "storage") {
     throw new FacebookAuthenticationError(
-      "Facebook requires authentication. Provide FACEBOOK_STORAGE_STATE_PATH or both FACEBOOK_EMAIL and FACEBOOK_PASSWORD.",
+      "Facebook storage state is missing or expired. Run the interactive auth bootstrap once, then restart the worker.",
     );
   }
 
@@ -47,17 +74,28 @@ export async function ensureAuthenticated(page: Page, config: FacebookWorkerConf
     waitUntil: "domcontentloaded",
     timeout: config.requestTimeoutMs,
   });
-  await page.locator('input[name="email"]').fill(config.facebookEmail);
-  await page.locator('input[name="pass"]').fill(config.facebookPassword);
-  await page.locator('button[name="login"], button[type="submit"]').first().click();
-  await page
-    .waitForLoadState("domcontentloaded", { timeout: config.requestTimeoutMs })
-    .catch(() => undefined);
 
-  if ((await loginFormVisible(page)) || /checkpoint|challenge/i.test(page.url())) {
-    throw new FacebookAuthenticationError(
-      "Facebook login did not complete. A checkpoint, challenge, or additional verification may be required.",
+  if (config.facebookAuthMode === "interactive") {
+    await waitForAuthentication(page, config);
+  } else {
+    await page.locator('input[name="email"]').fill(config.facebookEmail!);
+    await page.locator('input[name="pass"]').fill(config.facebookPassword!);
+
+    const submit = page.locator(
+      'button[name="login"], button[type="submit"], input[type="submit"]',
     );
+    if (
+      await submit
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await submit.first().click();
+    } else {
+      await page.locator('input[name="pass"]').press("Enter");
+    }
+
+    await waitForAuthentication(page, config);
   }
 
   if (config.facebookStorageStatePath) {
@@ -66,4 +104,26 @@ export async function ensureAuthenticated(page: Page, config: FacebookWorkerConf
   }
 
   return true;
+}
+
+async function waitForAuthentication(page: Page, config: FacebookWorkerConfig) {
+  const deadline = Date.now() + config.authTimeoutMs;
+
+  while (Date.now() < deadline) {
+    const authBlock = await getFacebookAuthBlock(page);
+    if (authBlock && config.facebookAuthMode !== "interactive") {
+      throw new FacebookAuthenticationError(authBlock);
+    }
+
+    const cookies = await page.context().cookies();
+    if (cookies.some((cookie) => cookie.name === "c_user")) {
+      return;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  throw new FacebookAuthenticationError(
+    `Facebook authentication did not complete within ${Math.round(config.authTimeoutMs / 1000)} seconds.`,
+  );
 }

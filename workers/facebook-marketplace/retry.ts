@@ -15,9 +15,7 @@ export function isRetryableError(error: unknown) {
   }
 
   const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
-  return /429|5\d\d|timeout|timed out|net::|econn|connection reset|target closed|rate limit/i.test(
-    message,
-  );
+  return /429|5\d\d|timeout|timed out|net::|econn|connection reset|rate limit/i.test(message);
 }
 
 export async function withRetry<T>(operation: () => Promise<T>, options: RetryOptions) {
