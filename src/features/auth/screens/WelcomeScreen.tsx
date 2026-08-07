@@ -11,18 +11,18 @@ import { appColors } from "@/styles/colors";
 const benefits = [
   {
     icon: "tune" as const,
-    title: "Tell us what to watch",
-    description: "Create simple watchlists for the things you actually want.",
+    title: "Tell us what you want",
+    description: "Create a watchlist for the item you are looking for.",
   },
   {
-    icon: "star" as const,
-    title: "Keep the best matches",
-    description: "Save promising listings so they are easy to find later.",
+    icon: "storefront" as const,
+    title: "We watch supported marketplaces",
+    description: "DealDrop checks supported marketplaces for new listings.",
   },
   {
     icon: "notifications" as const,
-    title: "Hear when deals appear",
-    description: "Get notified when a new listing matches your search.",
+    title: "Open the deal when it matches",
+    description: "Get an alert when a listing matches and open it from the alert.",
   },
 ];
 
@@ -82,10 +82,9 @@ export function WelcomeScreen() {
         </View>
 
         <View className="mt-9 gap-3">
-          <AppText variant="display">Find the deal before it’s gone.</AppText>
+          <AppText variant="display">Tell us what to find. We will watch for it.</AppText>
           <AppText variant="body" className="text-text-secondary">
-            DealDrop watches the marketplace for you and brings the right listings straight to your
-            attention.
+            DealDrop monitors supported marketplaces and brings matching listings to your attention.
           </AppText>
         </View>
 
@@ -106,7 +105,7 @@ export function WelcomeScreen() {
         <View className="mt-9 gap-3">
           <Link href={authRoutes.register} asChild>
             <Button accessibilityLabel="Create a DealDrop account">
-              Start your 7-day free trial
+              Create your first watchlist
             </Button>
           </Link>
           <Link href={authRoutes.login} asChild>

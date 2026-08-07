@@ -8,10 +8,7 @@ import { Loading } from "@/components/ui/Loading";
 import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
 import { PremiumGateScreen } from "@/features/premium/screens/PremiumGateScreen";
 import { PremiumProvider, usePremium } from "@/features/premium/hooks/PremiumProvider";
-import {
-  useNotificationObserver,
-  usePushNotificationRegistration,
-} from "@/features/notifications/hooks/useNotificationSetup";
+import { useNotificationObserver } from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
 import { appColors } from "@/styles/colors";
 
@@ -37,7 +34,6 @@ function RootNavigator() {
   const premium = usePremium();
   const isReady = !isLoading && (!user || !premium.isLoading);
   useNotificationObserver();
-  usePushNotificationRegistration(user?.id);
 
   useEffect(() => {
     if (isReady) {
