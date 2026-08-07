@@ -1,6 +1,6 @@
 import { cva } from "class-variance-authority";
 
-export const buttonTextVariants = cva("font-semibold text-base", {
+export const buttonTextVariants = cva("text-[15px] font-semibold", {
   variants: {
     variant: {
       primary: "text-white",

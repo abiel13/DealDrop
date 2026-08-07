@@ -8,26 +8,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#8B5CF6",
+        primary: "#7C3AED",
         "primary-light": "#A78BFA",
-        "primary-dark": "#7C3AED",
+        "primary-dark": "#5B21B6",
+        "primary-soft": "#EDE9FE",
 
-        background: "#FAFAFC",
+        background: "#F8F7FC",
+        "background-muted": "#F1EFF8",
         surface: "#FFFFFF",
+        "surface-muted": "#FBFAFE",
 
         card: "#FFFFFF",
 
-        text: "#111827",
-        "text-secondary": "#6B7280",
+        text: "#181426",
+        "text-secondary": "#6B6478",
+        "text-tertiary": "#9891A6",
 
-        success: "#22C55E",
-        warning: "#F59E0B",
-        error: "#EF4444",
+        success: "#16A36A",
+        warning: "#D97706",
+        error: "#DC3D5A",
       },
       borderRadius: {
-        sm: "8px",
-        md: "12px",
-        lg: "16px",
+        sm: "10px",
+        md: "14px",
+        lg: "20px",
+        xl: "24px",
+      },
+      boxShadow: {
+        card: "0 8px 24px rgba(54, 36, 91, 0.07)",
+        elevated: "0 16px 40px rgba(54, 36, 91, 0.12)",
       },
     },
   },
