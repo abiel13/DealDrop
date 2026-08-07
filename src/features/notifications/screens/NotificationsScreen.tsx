@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
 import { type Href, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import {
   getNotificationPreferences,
   getNotifications,
   markNotificationRead,
+  registerPushToken,
   updateNotificationPreferences,
 } from "../services/notification.service";
 import type { AppNotification, NotificationPreferences } from "../types/notification.types";
@@ -33,6 +34,10 @@ export function NotificationsScreen() {
   const notificationId = Array.isArray(params.notificationId)
     ? params.notificationId[0]
     : params.notificationId;
+  const [pushSetupStatus, setPushSetupStatus] = useState<
+    "idle" | "enabled" | "unavailable" | "error"
+  >("idle");
+  const [isSettingUpPush, setIsSettingUpPush] = useState(false);
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", user?.id],
@@ -108,6 +113,31 @@ export function NotificationsScreen() {
     preferencesMutation.mutate({ ...preferences, ...next });
   }
 
+  async function enablePushNotifications() {
+    if (!user) return;
+
+    setIsSettingUpPush(true);
+    setPushSetupStatus("idle");
+
+    try {
+      const token = await registerPushToken(user.id);
+
+      if (!token) {
+        setPushSetupStatus("unavailable");
+        return;
+      }
+
+      const nextPreferences = { ...preferences, push_enabled: true };
+      const savedPreferences = await updateNotificationPreferences(user.id, nextPreferences);
+      queryClient.setQueryData(["notification-preferences", user.id], savedPreferences);
+      setPushSetupStatus("enabled");
+    } catch {
+      setPushSetupStatus("error");
+    } finally {
+      setIsSettingUpPush(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -124,6 +154,30 @@ export function NotificationsScreen() {
           title="Alerts"
           subtitle="DealDrop will let you know when a listing matches one of your watchlists."
         />
+
+        <Card padding="md" className="gap-3 bg-primary-soft">
+          <AppText variant="title">Never miss a match</AppText>
+          <AppText variant="bodySmall">
+            Enable notifications so DealDrop can alert you when a new listing matches, even when the
+            app is closed.
+          </AppText>
+          <Button
+            variant={pushSetupStatus === "enabled" ? "outline" : "primary"}
+            loading={isSettingUpPush}
+            disabled={pushSetupStatus === "enabled"}
+            onPress={() => void enablePushNotifications()}
+          >
+            {pushSetupStatus === "enabled" ? "Notifications enabled" : "Enable notifications"}
+          </Button>
+          {pushSetupStatus === "unavailable" && (
+            <AppText variant="caption">
+              Notifications are off on this device. You can enable them in your device settings.
+            </AppText>
+          )}
+          {pushSetupStatus === "error" && (
+            <AppText variant="error">We could not enable notifications. Please try again.</AppText>
+          )}
+        </Card>
 
         <Card padding="md" className="gap-4">
           <AppText variant="title">Preferences</AppText>

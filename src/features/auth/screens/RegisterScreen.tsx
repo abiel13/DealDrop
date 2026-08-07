@@ -67,7 +67,7 @@ export function RegisterScreen() {
         return;
       }
 
-      router.replace(authRoutes.home);
+      router.replace(authRoutes.watchlists);
       return;
     }
 
