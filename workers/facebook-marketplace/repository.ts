@@ -24,10 +24,31 @@ interface StoredWatchlist {
   filters: WatchlistFilters;
 }
 
-interface StoredListing {
+export interface StoredListing {
   id: string;
   marketplace_id: string;
   external_id: string;
+  title: string;
+  description: string | null;
+  price: number | null;
+  currency: string;
+  url: string;
+  image_url: string | null;
+  seller_name: string | null;
+  location: string | null;
+  category: string | null;
+  condition: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  posted_at: string | null;
+  raw_data: Record<string, unknown>;
+}
+
+export type StoredListingReference = Pick<StoredListing, "id" | "marketplace_id" | "external_id">;
+
+export interface ActiveStoredListing {
+  stored: StoredListing;
+  listing: MarketplaceListing;
 }
 
 export class ListingRepository {
@@ -85,7 +106,7 @@ export class ListingRepository {
       .from("listings")
       .upsert(rows, { onConflict: "marketplace_id,external_id" })
       .select("id,marketplace_id,external_id")
-      .returns<StoredListing[]>();
+      .returns<StoredListingReference[]>();
 
     if (error) {
       throw error;
@@ -94,10 +115,27 @@ export class ListingRepository {
     return data ?? [];
   }
 
+  async getActiveListings(): Promise<ActiveStoredListing[]> {
+    const { data, error } = await this.client
+      .from("listings")
+      .select(
+        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,raw_data",
+      )
+      .eq("marketplace_id", "facebook_marketplace")
+      .eq("is_active", true)
+      .returns<StoredListing[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((stored) => ({ stored, listing: toMarketplaceListing(stored) }));
+  }
+
   async createMatches(
     watchlist: FacebookWatchlist,
     listings: MarketplaceListing[],
-    storedListings: StoredListing[],
+    storedListings: StoredListingReference[],
   ) {
     const listingIdsByExternalId = new Map(
       storedListings.map((listing) => [listing.external_id, listing.id]),
@@ -146,6 +184,27 @@ export class ListingRepository {
       throw error;
     }
   }
+}
+
+function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
+  return {
+    marketplaceId: "facebook_marketplace",
+    externalId: stored.external_id,
+    title: stored.title,
+    description: stored.description,
+    price: stored.price,
+    currency: stored.currency,
+    url: stored.url,
+    imageUrl: stored.image_url,
+    sellerName: stored.seller_name,
+    location: stored.location,
+    category: stored.category,
+    condition: stored.condition,
+    latitude: stored.latitude,
+    longitude: stored.longitude,
+    postedAt: stored.posted_at,
+    rawData: stored.raw_data,
+  };
 }
 
 export function createListingRepository(config: FacebookWorkerConfig) {

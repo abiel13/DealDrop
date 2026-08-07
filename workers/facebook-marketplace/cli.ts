@@ -10,10 +10,22 @@ loadEnv({ path: resolve(process.cwd(), "workers/facebook-marketplace/.env") });
 
 async function main() {
   try {
-    const summary = await runFacebookMarketplaceWorker(loadWorkerConfig(), consoleLogger);
-    console.info(JSON.stringify(summary, null, 2));
+    const workerConfig = loadWorkerConfig();
+    let hasFailures = false;
 
-    if (summary.failures.length > 0) {
+    do {
+      const summary = await runFacebookMarketplaceWorker(workerConfig, consoleLogger);
+      console.info(JSON.stringify(summary, null, 2));
+      hasFailures ||= summary.failures.length > 0;
+
+      if (summary.fatalError || workerConfig.pollIntervalMs === 0) {
+        break;
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, workerConfig.pollIntervalMs));
+    } while (true);
+
+    if (hasFailures) {
       process.exitCode = 1;
     }
   } catch (error) {

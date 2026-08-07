@@ -1,7 +1,8 @@
 import type { BrowserContext, Page } from "playwright";
 
-import { ensureAuthenticated } from "./browser";
+import { ensureAuthenticated, getFacebookAuthBlock } from "./browser";
 import type { FacebookWorkerConfig } from "./config";
+import { FacebookAuthenticationError } from "./errors";
 import { deduplicateListings } from "./normalizer";
 import { LISTING_SELECTOR, extractRawListingCards, parseListingsFromPage } from "./parser";
 import { RateLimiter } from "./rate-limiter";
@@ -44,9 +45,16 @@ export class FacebookMarketplaceClient {
       const listings = new Map<string, MarketplaceListing>();
 
       for (let pageNumber = 1; pageNumber <= this.config.maxPages; pageNumber += 1) {
-        await this.runWithRetry(page, `load page ${pageNumber}`, () =>
-          page.waitForSelector(LISTING_SELECTOR, { timeout: this.config.requestTimeoutMs }),
-        );
+        await this.runWithRetry(page, `load page ${pageNumber}`, async () => {
+          const authBlock = await getFacebookAuthBlock(page);
+          if (authBlock) {
+            throw new FacebookAuthenticationError(authBlock);
+          }
+
+          await page.waitForSelector(LISTING_SELECTOR, {
+            timeout: this.config.requestTimeoutMs,
+          });
+        });
 
         const pageListings = await parseListingsFromPage(page, this.config.maxListingsPerPage);
         for (const listing of pageListings) {
