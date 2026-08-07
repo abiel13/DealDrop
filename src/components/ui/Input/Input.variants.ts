@@ -10,7 +10,7 @@ export const inputVariants = cva(
         disabled: "opacity-50",
       },
       focused: {
-        true: "border-primary bg-surface shadow-card",
+        true: "border-primary bg-surface",
         false: "",
       },
     },
