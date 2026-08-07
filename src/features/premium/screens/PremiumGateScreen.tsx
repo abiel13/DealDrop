@@ -1,40 +1,69 @@
-import { useEffect, useRef, useState } from "react";
 import { Redirect, useRouter } from "expo-router";
+import { useState } from "react";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { AppIcon } from "@/components/ui/Icon";
+import type { AppIconName } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { supabase } from "@/lib/supabase";
+import { appColors } from "@/styles/colors";
 
 import { usePremium } from "../hooks/PremiumProvider";
+
+const premiumBenefits: {
+  icon: AppIconName;
+  title: string;
+  description: string;
+}[] = [
+  {
+    icon: "tune",
+    title: "Monitor multiple searches",
+    description: "Keep separate watchlists for the things you are looking for.",
+  },
+  {
+    icon: "filter",
+    title: "Use useful listing filters",
+    description: "Narrow matches by price, distance, and condition when supported.",
+  },
+  {
+    icon: "notifications",
+    title: "Get matching listings as alerts",
+    description: "Know when a new listing matches instead of checking manually.",
+  },
+];
 
 export function PremiumGateScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { error, presentPaywall, restorePurchases } = usePremium();
-  const hasPresentedPaywall = useRef(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isOpeningPaywall, setIsOpeningPaywall] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-
-  useEffect(() => {
-    if (!error && !hasPresentedPaywall.current) {
-      hasPresentedPaywall.current = true;
-      void presentPaywall().catch((paywallError: unknown) => {
-        setActionError(
-          paywallError instanceof Error
-            ? paywallError.message
-            : "We couldn't open the subscription screen.",
-        );
-      });
-    }
-  }, [error, presentPaywall]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
+  }
+
+  async function handleStartTrial() {
+    setActionError(null);
+    setIsOpeningPaywall(true);
+
+    try {
+      await presentPaywall();
+    } catch (paywallError: unknown) {
+      setActionError(
+        paywallError instanceof Error
+          ? paywallError.message
+          : "We couldn't open subscription options. Please try again.",
+      );
+    } finally {
+      setIsOpeningPaywall(false);
+    }
   }
 
   async function handleRestore() {
@@ -43,11 +72,11 @@ export function PremiumGateScreen() {
 
     try {
       await restorePurchases();
-    } catch (restoreError) {
+    } catch (restoreError: unknown) {
       setActionError(
         restoreError instanceof Error
           ? restoreError.message
-          : "We couldn't restore your subscription.",
+          : "We couldn't restore your subscription. Please try again.",
       );
     } finally {
       setIsRestoring(false);
@@ -60,45 +89,99 @@ export function PremiumGateScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background px-6">
-      <View className="flex-1 justify-center gap-5">
-        <View className="gap-3">
-          <AppText variant="caption" className="uppercase tracking-widest text-primary">
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow gap-6 px-5 pb-10 pt-6"
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="gap-2">
+          <AppText
+            variant="caption"
+            className="font-semibold uppercase tracking-[2px] text-primary"
+          >
             DealDrop Premium
           </AppText>
-          <AppText variant="heading">Start your 7-day free trial</AppText>
+          <AppText variant="display">Stay ready for the right deal.</AppText>
           <AppText variant="body" className="text-text-secondary">
-            Subscribe to continue using DealDrop after your trial. You can restore an existing
-            subscription at any time.
+            Try the full DealDrop experience for 7 days. After the trial, an active subscription is
+            required to continue using the app.
           </AppText>
         </View>
 
-        <Card padding="lg" className="gap-3">
-          <AppText variant="title">Premium access required</AppText>
-          <AppText variant="bodySmall">
-            Your watchlists, matched listings, and alerts are available with an active Premium
-            subscription.
-          </AppText>
+        <Card padding="lg" className="gap-5 bg-primary-soft">
+          <View className="flex-row items-start justify-between gap-4">
+            <View className="flex-row items-center gap-3">
+              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
+                <AppIcon name="star" size={21} color={appColors.primary} weight="bold" />
+              </View>
+              <View className="gap-1">
+                <AppText variant="title">Premium access</AppText>
+                <AppText variant="caption">7-day free trial</AppText>
+              </View>
+            </View>
+            <View className="rounded-full bg-surface px-3 py-1">
+              <AppText variant="caption" className="font-semibold text-primary">
+                Full access
+              </AppText>
+            </View>
+          </View>
+
+          <View className="gap-4">
+            {premiumBenefits.map((benefit) => (
+              <View key={benefit.title} className="flex-row items-start gap-3">
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface">
+                  <AppIcon name={benefit.icon} size={18} color={appColors.primary} />
+                </View>
+                <View className="flex-1 gap-1">
+                  <AppText variant="label">{benefit.title}</AppText>
+                  <AppText variant="bodySmall">{benefit.description}</AppText>
+                </View>
+              </View>
+            ))}
+          </View>
         </Card>
+
+        <View className="gap-2 rounded-2xl bg-surface-muted px-4 py-4">
+          <AppText variant="label">Trial and billing</AppText>
+          <AppText variant="bodySmall">
+            Start with 7 days at no charge. The subscription checkout shows the available plan
+            price, renewal terms, and confirmation details before you subscribe.
+          </AppText>
+        </View>
 
         {(error || actionError) && <AppText variant="error">{actionError ?? error}</AppText>}
 
+        <View className="gap-3">
+          <Button
+            loading={isOpeningPaywall}
+            disabled={isRestoring}
+            onPress={() => void handleStartTrial()}
+          >
+            Start 7-day free trial
+          </Button>
+          <Button
+            variant="outline"
+            loading={isRestoring}
+            disabled={isOpeningPaywall}
+            onPress={() => void handleRestore()}
+          >
+            Restore purchases
+          </Button>
+        </View>
+
+        <AppText variant="caption" className="text-center">
+          Already subscribed? Restore purchases to check this account for an active plan.
+        </AppText>
+
         <Button
-          onPress={() =>
-            void presentPaywall().catch(() =>
-              setActionError("We couldn't open the subscription screen."),
-            )
-          }
+          variant="ghost"
+          disabled={isOpeningPaywall || isRestoring}
+          onPress={() => void handleSignOut()}
         >
-          View subscription options
-        </Button>
-        <Button variant="outline" loading={isRestoring} onPress={() => void handleRestore()}>
-          Restore purchases
-        </Button>
-        <Button variant="ghost" disabled={isRestoring} onPress={() => void handleSignOut()}>
           Log out
         </Button>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
