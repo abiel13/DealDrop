@@ -20,6 +20,10 @@ export default function TabsLayout() {
         name="notifications"
         options={{ title: "Alerts", tabBarAccessibilityLabel: "Notifications" }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: "Profile", tabBarAccessibilityLabel: "Profile" }}
+      />
     </Tabs>
   );
 }

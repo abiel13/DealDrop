@@ -11,6 +11,7 @@ const tabPresentation: Record<string, { label: string; icon: AppIconName }> = {
   index: { label: "Feed", icon: "home" },
   watchlists: { label: "Watchlists", icon: "star" },
   notifications: { label: "Alerts", icon: "notifications" },
+  profile: { label: "Profile", icon: "person" },
 };
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
