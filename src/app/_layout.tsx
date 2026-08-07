@@ -1,4 +1,7 @@
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import "../global.css";
 
 import { Loading } from "@/components/ui/Loading";
@@ -10,24 +13,37 @@ import {
   usePushNotificationRegistration,
 } from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
+import { appColors } from "@/styles/colors";
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <AppQueryProvider>
-      <AuthProvider>
-        <PremiumProvider>
-          <RootNavigator />
-        </PremiumProvider>
-      </AuthProvider>
-    </AppQueryProvider>
+    <>
+      <StatusBar style="dark" />
+      <AppQueryProvider>
+        <AuthProvider>
+          <PremiumProvider>
+            <RootNavigator />
+          </PremiumProvider>
+        </AuthProvider>
+      </AppQueryProvider>
+    </>
   );
 }
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
   const premium = usePremium();
+  const isReady = !isLoading && (!user || !premium.isLoading);
   useNotificationObserver();
   usePushNotificationRegistration(user?.id);
+
+  useEffect(() => {
+    if (isReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [isReady]);
 
   if (isLoading) {
     return <Loading />;
@@ -42,12 +58,20 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      initialRouteName={user ? "(app)" : "welcome"}
+      screenOptions={{
+        headerShown: false,
+        animation: "fade",
+        contentStyle: { backgroundColor: appColors.background },
+      }}
+    >
       <Stack.Protected guard={Boolean(user)}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
 
       <Stack.Protected guard={!user}>
+        <Stack.Screen name="welcome" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="forgot-password" />

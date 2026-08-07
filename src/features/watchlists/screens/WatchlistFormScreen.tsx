@@ -14,6 +14,7 @@ import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
+import { AppHeader } from "@/features/navigation/components";
 
 import {
   createWatchlist,
@@ -109,15 +110,14 @@ export function WatchlistFormScreen() {
       >
         <ScrollView
           className="flex-1"
-          contentContainerClassName="grow px-6 py-8"
+          contentContainerClassName="grow px-5 pb-8 pt-6"
           keyboardShouldPersistTaps="handled"
         >
-          <AppText variant="heading" className="mb-3">
-            {isEditing ? "Edit watchlist" : "Create a watchlist"}
-          </AppText>
-          <AppText variant="body" className="text-text-secondary">
-            DealDrop will use these details to find matching listings.
-          </AppText>
+          <AppHeader
+            title={isEditing ? "Edit watchlist" : "Create a watchlist"}
+            subtitle="DealDrop will use these details to find matching listings."
+            onBack={() => router.back()}
+          />
 
           <View className="mt-8 gap-5">
             <Input label="Marketplace" value="Facebook Marketplace" editable={false} />

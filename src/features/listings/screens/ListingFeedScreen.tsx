@@ -12,6 +12,7 @@ import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, listingRoute } from "@/features/auth/routes";
+import { AppHeader } from "@/features/navigation/components";
 
 import { ListingCard } from "../components/ListingCard";
 import {
@@ -32,7 +33,7 @@ function OptionPill({ label, selected, onPress }: OptionPillProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      className={`rounded-full border px-4 py-2 ${selected ? "border-primary bg-primary" : "border-border bg-surface"}`}
+      className={`rounded-full px-4 py-2 ${selected ? "bg-primary" : "bg-surface"}`}
       onPress={onPress}
     >
       <AppText className={selected ? "font-semibold text-white" : "text-text-secondary"}>
@@ -150,7 +151,7 @@ export function ListingFeedScreen() {
       <FlatList
         data={visibleListings}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="grow gap-4 px-6 py-8"
+        contentContainerClassName="grow gap-4 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
             refreshing={listingsQuery.isRefetching}
@@ -159,14 +160,7 @@ export function ListingFeedScreen() {
         }
         ListHeaderComponent={
           <View className="mb-2 gap-4">
-            <View>
-              <AppText variant="heading" className="mb-2">
-                Your feed
-              </AppText>
-              <AppText variant="body" className="text-text-secondary">
-                Browse listings matched to your watchlists.
-              </AppText>
-            </View>
+            <AppHeader title="Your feed" subtitle="Browse listings matched to your watchlists." />
 
             <SearchBar
               accessibilityLabel="Search matched listings"

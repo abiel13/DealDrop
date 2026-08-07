@@ -59,7 +59,7 @@ export function LoginScreen() {
 
   return (
     <AuthShell
-      title="Find your next great deal."
+      title="Welcome back."
       description="Sign in to keep your watchlists and deal alerts in one place."
     >
       <View className="gap-5">
