@@ -3,6 +3,7 @@ import type { WatchlistFilters } from "../../types/backend";
 export const MARKETPLACE_IDS = {
   facebookMarketplace: "facebook_marketplace",
   ebay: "ebay",
+  etsy: "etsy",
 } as const;
 
 export type MarketplaceSource = (typeof MARKETPLACE_IDS)[keyof typeof MARKETPLACE_IDS];
