@@ -14,6 +14,8 @@ import { MARKETPLACE_IDS } from "../shared/types";
 import type { RawListingCard } from "./types";
 
 export const LISTING_SELECTOR = 'a[href*="/marketplace/item/"]';
+
+export type ListingParseReporter = (error: ListingParseError) => void;
 const GENERIC_TITLE_LINES = new Set(["Marketplace", "Sponsored", "See more", "Share"]);
 const PRICE_PATTERN = /(US\$|USD|\$|€|EUR|£|GBP|₦|NGN|Â‚¬|Â£|Â‚¦)\s*([\d,]+(?:\.\d{1,2})?)/i;
 
@@ -39,16 +41,16 @@ export async function extractRawListingCards(page: Page, maximum: number) {
         card = card.parentElement;
       }
 
-      const image = Array.from(card.querySelectorAll("img"))
+      const imageUrls = Array.from(card.querySelectorAll("img"))
         .map((element) => element.getAttribute("src") || element.getAttribute("data-src"))
-        .find((source): source is string => Boolean(source && !source.startsWith("data:")));
+        .filter((source): source is string => Boolean(source && !source.startsWith("data:")));
 
       seen.add(listingId);
       cards.push({
         href: anchor.href,
         text: card.innerText,
         ariaLabel: anchor.getAttribute("aria-label") ?? card.getAttribute("aria-label"),
-        imageUrl: image ?? null,
+        imageUrls: [...new Set(imageUrls)],
       });
     }
 
@@ -105,6 +107,16 @@ function getPrice(raw: RawListingCard) {
   };
 }
 
+function getPostedAt(raw: RawListingCard) {
+  const value = getLabeledValue(raw, ["Posted", "Posted at", "Listed", "Listed at"]);
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : new Date(timestamp).toISOString();
+}
+
 export function parseListingCard(raw: RawListingCard): MarketplaceListing {
   const url = absoluteUrl(raw.href);
   const externalId = url.match(/\/marketplace\/item\/([^/?#]+)/)?.[1];
@@ -128,23 +140,29 @@ export function parseListingCard(raw: RawListingCard): MarketplaceListing {
     price,
     currency,
     url,
-    imageUrl: normalizeUrl(raw.imageUrl ? absoluteUrl(raw.imageUrl) : null),
+    imageUrls: raw.imageUrls
+      .map((imageUrl) => normalizeUrl(absoluteUrl(imageUrl)))
+      .filter((imageUrl): imageUrl is string => Boolean(imageUrl)),
     sellerName: getLabeledValue(raw, ["Seller", "Sold by"]),
     location: getLabeledValue(raw, ["Location", "Located in"]),
     category: getLabeledValue(raw, ["Category"]),
     condition: getLabeledValue(raw, ["Condition"]),
     latitude: getLabeledNumber(raw, ["Latitude"], -90, 90),
     longitude: getLabeledNumber(raw, ["Longitude"], -180, 180),
-    postedAt: null,
+    postedAt: getPostedAt(raw),
     metadata: {
       sourceText: raw.text,
       ariaLabel: raw.ariaLabel,
-      imageUrl: raw.imageUrl,
+      imageUrls: raw.imageUrls,
     },
   };
 }
 
-export async function parseListingsFromPage(page: Page, maximum: number) {
+export async function parseListingsFromPage(
+  page: Page,
+  maximum: number,
+  onParseError?: ListingParseReporter,
+) {
   const rawCards = await extractRawListingCards(page, maximum);
   const listings: MarketplaceListing[] = [];
 
@@ -153,6 +171,7 @@ export async function parseListingsFromPage(page: Page, maximum: number) {
       listings.push(parseListingCard(card));
     } catch (error) {
       if (error instanceof ListingParseError) {
+        onParseError?.(error);
         continue;
       }
 

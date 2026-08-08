@@ -88,7 +88,13 @@ export function normalizeListing(listing: MarketplaceListing): MarketplaceListin
     price: normalizePrice(listing.price),
     currency: normalizeCurrency(listing.currency),
     url: normalizeUrl(listing.url) ?? listing.url.trim(),
-    imageUrl: normalizeUrl(listing.imageUrl),
+    imageUrls: [
+      ...new Set(
+        listing.imageUrls
+          .map((imageUrl) => normalizeUrl(imageUrl))
+          .filter((imageUrl): imageUrl is string => Boolean(imageUrl)),
+      ),
+    ],
     sellerName: normalizeText(listing.sellerName),
     location: normalizeText(listing.location),
     category: normalizeText(listing.category),
@@ -111,7 +117,7 @@ function mergeListings(existing: MarketplaceListing, incoming: MarketplaceListin
     currency: incoming.price === null ? existing.currency : incoming.currency,
     url: incoming.url || existing.url,
     description: incoming.description ?? existing.description,
-    imageUrl: incoming.imageUrl ?? existing.imageUrl,
+    imageUrls: [...new Set([...existing.imageUrls, ...incoming.imageUrls])],
     sellerName: incoming.sellerName ?? existing.sellerName,
     location: incoming.location ?? existing.location,
     category: incoming.category ?? existing.category,

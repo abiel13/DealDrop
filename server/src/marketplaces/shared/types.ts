@@ -14,7 +14,7 @@ export interface MarketplaceListing {
   price: number | null;
   currency: string | null;
   url: string;
-  imageUrl: string | null;
+  imageUrls: string[];
   sellerName: string | null;
   location: string | null;
   category: string | null;
