@@ -1,11 +1,24 @@
-import type { MarketplaceListing, MarketplaceSource, WatchlistFilters } from "../../types/backend";
-
-export interface MarketplaceSearchRequest {
-  searchQuery: string;
-  filters: WatchlistFilters;
-}
+import type {
+  MarketplaceCapabilities,
+  MarketplaceSearchRequest,
+  MarketplaceSearchResponse,
+  MarketplaceSource,
+} from "./types";
 
 export interface MarketplaceAdapter {
   readonly source: MarketplaceSource;
-  search(request: MarketplaceSearchRequest): Promise<MarketplaceListing[]>;
+  readonly capabilities: MarketplaceCapabilities;
+  search(request: MarketplaceSearchRequest): Promise<MarketplaceSearchResponse>;
 }
+
+export type {
+  MarketplaceCapabilities,
+  MarketplaceErrorCategory,
+  MarketplaceListing,
+  MarketplacePagination,
+  MarketplaceSearchRequest,
+  MarketplaceSearchResponse,
+  MarketplaceSource,
+} from "./types";
+
+export { MarketplaceError } from "./errors";

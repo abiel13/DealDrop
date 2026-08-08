@@ -7,8 +7,8 @@ import { deduplicateListings } from "./normalizer";
 import { extractRawListingCards, LISTING_SELECTOR, parseListingsFromPage } from "./parser";
 import { RateLimiter } from "./rate-limiter";
 import { withRetry } from "./retry";
-import type { MarketplaceListing, WorkerLogger } from "../../types/backend";
-import type { MarketplaceSearchRequest } from "../shared/adapter";
+import type { MarketplaceListing, MarketplaceSearchRequest } from "../shared/adapter";
+import type { WorkerLogger } from "../../types/backend";
 
 export class FacebookMarketplaceClient {
   private readonly rateLimiter: RateLimiter;

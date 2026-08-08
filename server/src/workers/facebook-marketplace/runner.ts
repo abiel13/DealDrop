@@ -39,7 +39,7 @@ export async function runFacebookMarketplaceWorker(
   try {
     for (const watchlist of watchlists) {
       try {
-        const listings = await adapter.search(watchlist);
+        const { listings } = await adapter.search(watchlist);
         const storedListings = await repository.upsertListings(listings);
         const candidateListings = deduplicateListings([
           ...listings,

@@ -1,7 +1,7 @@
 import { normalizeCurrency, normalizeText } from "../marketplaces/facebook/normalizer";
+import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import type {
   FacebookWatchlist,
-  MarketplaceListing,
   WatchlistDistanceFilter,
   WatchlistPriceFilter,
 } from "../types/backend";
