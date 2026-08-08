@@ -4,10 +4,11 @@ import { ensureAuthenticated, getFacebookAuthBlock } from "./browser";
 import type { FacebookWorkerConfig } from "./config";
 import { FacebookAuthenticationError } from "./errors";
 import { deduplicateListings } from "./normalizer";
-import { LISTING_SELECTOR, extractRawListingCards, parseListingsFromPage } from "./parser";
+import { extractRawListingCards, LISTING_SELECTOR, parseListingsFromPage } from "./parser";
 import { RateLimiter } from "./rate-limiter";
 import { withRetry } from "./retry";
-import type { FacebookWatchlist, MarketplaceListing, WorkerLogger } from "./types";
+import type { MarketplaceListing, WorkerLogger } from "../../types/backend";
+import type { MarketplaceSearchRequest } from "../shared/adapter";
 
 export class FacebookMarketplaceClient {
   private readonly rateLimiter: RateLimiter;
@@ -20,7 +21,7 @@ export class FacebookMarketplaceClient {
     this.rateLimiter = new RateLimiter(config.rateLimitMs);
   }
 
-  async search(watchlist: FacebookWatchlist) {
+  async search(watchlist: MarketplaceSearchRequest) {
     const page = await this.context.newPage();
 
     try {

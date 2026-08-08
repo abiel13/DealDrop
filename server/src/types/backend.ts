@@ -1,3 +1,5 @@
+export type MarketplaceSource = "facebook_marketplace";
+
 export interface FacebookWatchlist {
   id: string;
   userId: string;
@@ -32,7 +34,7 @@ export interface RawListingCard {
 }
 
 export interface MarketplaceListing {
-  marketplaceId: "facebook_marketplace";
+  marketplaceId: MarketplaceSource;
   externalId: string;
   title: string;
   description: string | null;
@@ -55,15 +57,3 @@ export interface WorkerLogger {
   warn(message: string, context?: Record<string, unknown>): void;
   error(message: string, context?: Record<string, unknown>): void;
 }
-
-export const consoleLogger: WorkerLogger = {
-  info(message, context) {
-    console.info(message, context ?? "");
-  },
-  warn(message, context) {
-    console.warn(message, context ?? "");
-  },
-  error(message, context) {
-    console.error(message, context ?? "");
-  },
-};

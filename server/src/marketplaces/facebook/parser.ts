@@ -3,18 +3,17 @@ import type { Page } from "playwright";
 import { ListingParseError } from "./errors";
 import {
   deduplicateListings,
-  normalizeCurrency,
   normalizeCoordinate,
+  normalizeCurrency,
   normalizePrice,
   normalizeText,
   normalizeUrl,
 } from "./normalizer";
-import type { MarketplaceListing, RawListingCard } from "./types";
+import type { MarketplaceListing, RawListingCard } from "../../types/backend";
 
-const LISTING_SELECTOR = 'a[href*="/marketplace/item/"]';
+export const LISTING_SELECTOR = 'a[href*="/marketplace/item/"]';
 const GENERIC_TITLE_LINES = new Set(["Marketplace", "Sponsored", "See more", "Share"]);
-const PRICE_PATTERN =
-  /(US\$|USD|\$|\u20AC|EUR|\u00A3|GBP|\u20A6|NGN|\u00E2\u201A\u00AC|\u00C2\u00A3|\u00E2\u201A\u00A6)\s*([\d,]+(?:\.\d{1,2})?)/i;
+const PRICE_PATTERN = /(US\$|USD|\$|€|EUR|£|GBP|₦|NGN|Â‚¬|Â£|Â‚¦)\s*([\d,]+(?:\.\d{1,2})?)/i;
 
 export async function extractRawListingCards(page: Page, maximum: number) {
   return page.locator(LISTING_SELECTOR).evaluateAll((elements, limit) => {
@@ -60,10 +59,7 @@ function absoluteUrl(value: string) {
 }
 
 function textCandidates(raw: RawListingCard) {
-  return [
-    ...(raw.ariaLabel?.split(/\s*[\u00B7\u2022\u00C2\u00B7]\s*/) ?? []),
-    ...raw.text.split(/\r?\n/),
-  ]
+  return [...(raw.ariaLabel?.split(/\s*[·•Â·]\s*/) ?? []), ...raw.text.split(/\r?\n/)]
     .map((candidate) => normalizeText(candidate))
     .filter((candidate): candidate is string => Boolean(candidate));
 }
@@ -159,5 +155,3 @@ export async function parseListingsFromPage(page: Page, maximum: number) {
 
   return deduplicateListings(listings);
 }
-
-export { LISTING_SELECTOR };

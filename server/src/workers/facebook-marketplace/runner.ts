@@ -1,10 +1,11 @@
-import { createBrowserSession } from "./browser";
-import type { FacebookWorkerConfig } from "./config";
-import { FacebookMarketplaceClient } from "./client";
-import { FacebookAuthenticationError, getErrorMessage } from "./errors";
-import { deduplicateListings } from "./normalizer";
-import { createListingRepository } from "./repository";
-import type { WorkerLogger } from "./types";
+import { createBrowserSession } from "../../marketplaces/facebook/browser";
+import type { FacebookWorkerConfig } from "../../marketplaces/facebook/config";
+import { FacebookMarketplaceAdapter } from "../../marketplaces/facebook/adapter";
+import { FacebookAuthenticationError, getErrorMessage } from "../../marketplaces/facebook/errors";
+import { deduplicateListings } from "../../marketplaces/facebook/normalizer";
+import { createServerDatabaseClient } from "../../database/client";
+import { ListingRepository } from "../../database/listing-repository";
+import type { WorkerLogger } from "../../types/backend";
 
 export interface WorkerRunSummary {
   watchlists: number;
@@ -18,11 +19,16 @@ export async function runFacebookMarketplaceWorker(
   config: FacebookWorkerConfig,
   logger: WorkerLogger,
 ): Promise<WorkerRunSummary> {
-  const repository = createListingRepository(config);
+  const repository = new ListingRepository(
+    createServerDatabaseClient({
+      supabaseUrl: config.supabaseUrl,
+      supabaseServiceRoleKey: config.supabaseServiceRoleKey,
+    }),
+  );
   const watchlists = await repository.getActiveWatchlists();
   const existingListings = watchlists.length > 0 ? await repository.getActiveListings() : [];
   const session = await createBrowserSession(config);
-  const client = new FacebookMarketplaceClient(session.context, config, logger);
+  const adapter = new FacebookMarketplaceAdapter(session.context, config, logger);
   const summary: WorkerRunSummary = {
     watchlists: watchlists.length,
     listings: 0,
@@ -33,7 +39,7 @@ export async function runFacebookMarketplaceWorker(
   try {
     for (const watchlist of watchlists) {
       try {
-        const listings = await client.search(watchlist);
+        const listings = await adapter.search(watchlist);
         const storedListings = await repository.upsertListings(listings);
         const candidateListings = deduplicateListings([
           ...listings,
