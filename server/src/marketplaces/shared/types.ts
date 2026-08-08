@@ -2,6 +2,7 @@ import type { WatchlistFilters } from "../../types/backend";
 
 export const MARKETPLACE_IDS = {
   facebookMarketplace: "facebook_marketplace",
+  ebay: "ebay",
 } as const;
 
 export type MarketplaceSource = (typeof MARKETPLACE_IDS)[keyof typeof MARKETPLACE_IDS];
@@ -28,6 +29,12 @@ export interface MarketplaceListing {
 export interface MarketplaceSearchRequest {
   searchQuery: string;
   filters: WatchlistFilters;
+  pagination?: MarketplacePaginationRequest;
+}
+
+export interface MarketplacePaginationRequest {
+  cursor?: string | null;
+  limit?: number;
 }
 
 export interface MarketplacePagination {
