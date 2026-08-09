@@ -2,6 +2,7 @@ import type { MarketplaceAdapter } from "../shared/adapter";
 import { MarketplaceError } from "../shared/errors";
 import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
+import { deduplicateMarketplaceListings } from "../../listings/deduplication";
 import { decodeMarketplaceSearchCursor, encodeMarketplaceSearchCursor } from "./cursor";
 import { MarketplaceSearchCoordinatorError } from "./errors";
 import type {
@@ -94,8 +95,8 @@ export class MarketplaceSearchCoordinator {
       nextCursors[source] = sourceCursors[source] ?? null;
     });
 
-    const uniqueListings = deduplicateListings(listings);
-    const sortedListings = sortListings(uniqueListings).slice(0, limit);
+    const deduplicated = deduplicateMarketplaceListings(listings);
+    const sortedListings = sortListings(deduplicated.listings).slice(0, limit);
     const hasMore =
       partialFailures.length > 0 || sources.some((source) => nextCursors[source] !== null);
 
@@ -107,6 +108,7 @@ export class MarketplaceSearchCoordinator {
       },
       sources,
       partialFailures,
+      deduplication: deduplicated.summary,
     };
   }
 
@@ -228,15 +230,6 @@ function toPartialFailure(
     category: "unavailable",
     message: `${source} marketplace search is unavailable.`,
   };
-}
-
-function deduplicateListings(listings: MarketplaceListing[]) {
-  const unique = new Map<string, MarketplaceListing>();
-  for (const listing of listings) {
-    unique.set(`${listing.source}:${listing.externalId}`, listing);
-  }
-
-  return [...unique.values()];
 }
 
 export function sortListings(listings: MarketplaceListing[]) {

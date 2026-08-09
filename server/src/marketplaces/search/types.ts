@@ -5,6 +5,7 @@ import type {
   MarketplaceSearchRequest,
   MarketplaceSource,
 } from "../shared/types";
+import type { MarketplaceDuplicateGroup } from "../../listings/deduplication";
 
 export type MarketplaceSearchSourceSelection = MarketplaceSource[] | "all";
 
@@ -23,6 +24,10 @@ export interface MarketplaceSearchCoordinatorResponse {
   pagination: MarketplacePagination;
   sources: MarketplaceSource[];
   partialFailures: MarketplaceSearchPartialFailure[];
+  deduplication: {
+    duplicateGroups: MarketplaceDuplicateGroup[];
+    suppressedCount: number;
+  };
 }
 
 export interface MarketplaceSearchCoordinatorOptions {
