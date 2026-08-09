@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { EtsyMarketplaceAdapter } from "../../src/marketplaces/etsy/adapter";
-import { buildEtsySearchUrl, EtsyMarketplaceClient } from "../../src/marketplaces/etsy/client";
+import {
+  buildEtsyListingBatchUrl,
+  buildEtsySearchUrl,
+  EtsyMarketplaceClient,
+} from "../../src/marketplaces/etsy/client";
 import type { EtsyMarketplaceConfig } from "../../src/marketplaces/etsy/config";
 import { EtsyUnsupportedFilterError } from "../../src/marketplaces/etsy/errors";
 import { normalizeEtsyListing } from "../../src/marketplaces/etsy/normalizer";
@@ -116,6 +120,62 @@ test("builds Etsy keyword, price, location, and pagination requests", () => {
   assert.equal(url.searchParams.get("shop_location"), "Lagos");
   assert.equal(url.searchParams.get("offset"), "24");
   assert.equal(url.searchParams.get("limit"), "12");
+});
+
+test("enriches active Etsy listings with images through the batch endpoint", async () => {
+  const urls: string[] = [];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+
+    if (url.includes("/application/listings/active")) {
+      return new Response(
+        JSON.stringify({
+          count: 1,
+          results: [
+            {
+              listing_id: 123,
+              title: "Handmade camera strap",
+              url: "https://www.etsy.com/listing/123/handmade-camera-strap",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        count: 1,
+        results: [
+          {
+            listing_id: 123,
+            images: [{ url_fullxfull: "https://images.example.com/strap.jpg" }],
+          },
+        ],
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+
+  const client = new EtsyMarketplaceClient(config, logger, fetchImpl);
+  const response = await client.search({ searchQuery: "camera strap", filters: {} });
+
+  assert.equal(urls.length, 2);
+  const batchUrl = new URL(urls[1]!);
+  assert.equal(batchUrl.pathname, "/v3/application/listings/batch");
+  assert.equal(batchUrl.searchParams.get("listing_ids"), "123");
+  assert.equal(batchUrl.searchParams.get("includes"), "Images");
+  assert.deepEqual((response as { results: Array<{ images: unknown[] }> }).results[0]?.images, [
+    { url_fullxfull: "https://images.example.com/strap.jpg" },
+  ]);
+});
+
+test("builds the Etsy image enrichment batch request", () => {
+  const url = new URL(buildEtsyListingBatchUrl(config, ["123", "456"]));
+
+  assert.equal(url.searchParams.get("listing_ids"), "123,456");
+  assert.equal(url.searchParams.get("includes"), "Images");
 });
 
 test("reports unsupported Etsy filters through capabilities and errors", () => {

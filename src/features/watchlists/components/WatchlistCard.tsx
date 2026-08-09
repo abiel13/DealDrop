@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { appColors } from "@/styles/colors";
+import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 
 import type { Watchlist } from "../types/watchlist.types";
 
@@ -85,6 +86,16 @@ function formatLastChecked(value: string | null) {
   })}`;
 }
 
+function formatWatchlistMarketplaces(watchlist: Watchlist) {
+  if (watchlist.marketplace_scope === "all") {
+    return "All marketplaces";
+  }
+
+  return watchlist.marketplace_ids.length > 0
+    ? watchlist.marketplace_ids.map(formatMarketplaceName).join(", ")
+    : "Marketplace unavailable";
+}
+
 export function WatchlistCard({
   watchlist,
   disabled = false,
@@ -155,7 +166,7 @@ export function WatchlistCard({
         </View>
 
         <View className="flex-row flex-wrap gap-2">
-          <SummaryPill icon="storefront" label="Facebook Marketplace" />
+          <SummaryPill icon="storefront" label={formatWatchlistMarketplaces(watchlist)} />
           {filterSummary.map((summary) => (
             <SummaryPill key={summary} label={summary} />
           ))}

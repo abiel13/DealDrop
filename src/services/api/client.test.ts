@@ -66,6 +66,33 @@ test("does not send an authorization header for public marketplace metadata", as
   assert.deepEqual(receivedHeaders, { Accept: "application/json" });
 });
 
+test("sends stable marketplace selection when saving a watchlist", async () => {
+  let requestBody: unknown;
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(init?.body as string) as unknown;
+      return response(201, envelope({ id: "watchlist-1" }));
+    },
+  });
+
+  await client.createWatchlist({
+    name: "Camera gear",
+    searchQuery: "Sony A7",
+    marketplaceScope: "selected",
+    marketplaceIds: ["ebay", "facebook_marketplace"],
+  });
+
+  assert.deepEqual(requestBody, {
+    name: "Camera gear",
+    searchQuery: "Sony A7",
+    marketplaceScope: "selected",
+    marketplaceIds: ["ebay", "facebook_marketplace"],
+    filters: {},
+  });
+});
+
 test("refreshes the session once after an unauthorized response", async () => {
   let requestCount = 0;
   let refreshCount = 0;

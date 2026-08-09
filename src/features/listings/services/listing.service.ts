@@ -1,10 +1,13 @@
 import { apiClient, type ApiListing, type ApiMatch } from "@/services/api";
 
-import type { Listing } from "../types/listing.types";
+import type { Listing, ListingSearchResult } from "../types/listing.types";
 
-function toListing(listing: ApiListing, matchedAt: string | null = listing.matchedAt): Listing {
+function toListing(
+  listing: ApiListing,
+  matchedAt: string | null = listing.matchedAt,
+): Listing | null {
   if (!listing.id) {
-    throw new Error("The API listing is missing its DealDrop ID.");
+    return null;
   }
 
   return {
@@ -40,6 +43,10 @@ export async function getMatchedListings() {
 
   for (const match of response.data) {
     const listing = toMatchedListing(match);
+    if (!listing) {
+      continue;
+    }
+
     if (!uniqueListings.has(listing.id)) {
       uniqueListings.set(listing.id, listing);
     }
@@ -50,7 +57,26 @@ export async function getMatchedListings() {
 
 export async function getListing(listingId: string) {
   const response = await apiClient.getListing(listingId);
-  return toListing(response.data);
+  const listing = toListing(response.data);
+  if (!listing) {
+    throw new Error("The API listing is missing its DealDrop ID.");
+  }
+
+  return listing;
+}
+
+export async function searchListings(searchQuery: string): Promise<ListingSearchResult> {
+  const response = await apiClient.search({ searchQuery: searchQuery.trim() });
+  const listings = response.data.listings
+    .map((listing) => toListing(listing))
+    .filter((listing): listing is Listing => Boolean(listing));
+
+  return {
+    listings,
+    sources: response.data.sources,
+    partialFailures: response.data.partialFailures,
+    pagination: response.data.pagination,
+  };
 }
 
 export async function setListingFavorite(listingId: string, isFavorite: boolean) {

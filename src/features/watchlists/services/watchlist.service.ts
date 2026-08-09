@@ -34,6 +34,8 @@ export async function createWatchlist(input: WatchlistInput) {
   const response = await apiClient.createWatchlist({
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
+    marketplaceScope: input.marketplaceScope,
+    marketplaceIds: input.marketplaceIds,
   });
   return toWatchlist(response.data);
 }
@@ -42,8 +44,15 @@ export async function updateWatchlist(watchlistId: string, input: WatchlistInput
   const response = await apiClient.updateWatchlist(watchlistId, {
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
+    marketplaceScope: input.marketplaceScope,
+    marketplaceIds: input.marketplaceIds,
   });
   return toWatchlist(response.data);
+}
+
+export async function getSupportedMarketplaces() {
+  const response = await apiClient.getMarketplaces();
+  return response.data.filter((marketplace) => marketplace.enabled);
 }
 
 export async function setWatchlistActive(watchlistId: string, isActive: boolean) {

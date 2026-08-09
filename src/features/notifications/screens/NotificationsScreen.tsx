@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
-import { type Href, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -21,6 +21,7 @@ import {
   updateNotificationPreferences,
 } from "../services/notification.service";
 import type { AppNotification, NotificationPreferences } from "../types/notification.types";
+import { getNotificationRoute } from "../utils/notification.utils";
 
 function formatNotificationDate(value: string) {
   return new Date(value).toLocaleString();
@@ -103,9 +104,9 @@ export function NotificationsScreen() {
       readMutation.mutate(notification.id);
     }
 
-    const url = notification.data.url;
-    if (typeof url === "string") {
-      router.push(url as Href);
+    const route = getNotificationRoute(notification.data);
+    if (route) {
+      router.push(route);
     }
   }
 
