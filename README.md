@@ -47,9 +47,20 @@ npm run server:dev
 Check `http://localhost:3000/health` after providing the server-only Supabase variables.
 For a production build, use `npm run server:build` followed by `npm run server:start`.
 
-## Facebook Marketplace Worker
+## Production Watchlist Monitoring Worker
 
-The Playwright worker runs inside the server runtime, reads active Facebook watchlists from Supabase, and upserts normalized listings. Fill in the ignored `server/.env` file (or copy `server/.env.example`), install Chromium with `npx playwright install chromium`, then run:
+The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only marketplace variables in `server/.env`, install Chromium for Facebook monitoring, and run:
+
+```bash
+npm run worker:watchlists
+```
+
+Set `WATCHLIST_MONITOR_INTERVAL_MS=0` for a single run. The default interval is five minutes. Use `WATCHLIST_MONITOR_ENABLED_SOURCES` with stable marketplace IDs to disable a configured source without changing the watchlist schema.
+For a compiled production process, run `npm run server:build` and then `npm run server:worker:watchlists:prod`.
+
+## Facebook Marketplace Worker (legacy single-source command)
+
+The original Facebook-only Playwright command remains available for compatibility. Fill in the ignored `server/.env` file (or copy `server/.env.example`), install Chromium with `npx playwright install chromium`, then run:
 
 ```bash
 npm run worker:facebook-marketplace
