@@ -5,6 +5,7 @@ import {
   processNotificationQueue,
   type NotificationDeliverySummary,
 } from "../notifications/delivery";
+import { deduplicateIngestionListings } from "./listing-ingestion";
 import { deduplicateListings } from "../marketplaces/facebook/normalizer";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { MARKETPLACE_IDS } from "../marketplaces/shared/types";
@@ -24,7 +25,7 @@ export interface StoredListing {
   title: string;
   description: string | null;
   price: number | null;
-  currency: string;
+  currency: string | null;
   url: string;
   image_url: string | null;
   seller_name: string | null;
@@ -34,6 +35,7 @@ export interface StoredListing {
   latitude: number | null;
   longitude: number | null;
   posted_at: string | null;
+  fetched_at: string;
   raw_data: Record<string, unknown>;
 }
 
@@ -74,13 +76,13 @@ export class ListingRepository {
     }
 
     const now = new Date().toISOString();
-    const rows = deduplicateListings(listings).map((listing) => ({
+    const rows = deduplicateIngestionListings(listings).map((listing) => ({
       marketplace_id: listing.source,
       external_id: listing.externalId,
       title: listing.title,
       description: listing.description,
       price: listing.price,
-      currency: listing.currency ?? "USD",
+      currency: listing.currency,
       url: listing.url,
       image_url: listing.imageUrls[0] ?? null,
       seller_name: listing.sellerName,
@@ -90,6 +92,7 @@ export class ListingRepository {
       latitude: listing.latitude,
       longitude: listing.longitude,
       posted_at: listing.postedAt,
+      fetched_at: now,
       last_seen_at: now,
       is_active: true,
       raw_data: {
@@ -100,7 +103,7 @@ export class ListingRepository {
 
     const { data, error } = await this.client
       .from("listings")
-      .upsert(rows, { onConflict: "marketplace_id,external_id" })
+      .upsert(rows, { onConflict: "marketplace_id,external_id", ignoreDuplicates: false })
       .select("id,marketplace_id,external_id")
       .returns<StoredListingReference[]>();
 
@@ -115,7 +118,7 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("listings")
       .select(
-        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,raw_data",
+        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data",
       )
       .eq("marketplace_id", MARKETPLACE_IDS.facebookMarketplace)
       .eq("is_active", true)
@@ -184,7 +187,7 @@ export class ListingRepository {
 
 function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
   return {
-    source: MARKETPLACE_IDS.facebookMarketplace,
+    source: marketplaceSource(stored.marketplace_id),
     externalId: stored.external_id,
     title: stored.title,
     description: stored.description,
@@ -201,6 +204,15 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     postedAt: stored.posted_at,
     metadata: stored.raw_data,
   };
+}
+
+function marketplaceSource(value: string) {
+  const source = Object.values(MARKETPLACE_IDS).find((marketplaceId) => marketplaceId === value);
+  if (!source) {
+    throw new Error(`Stored listing references an unsupported marketplace: ${value}.`);
+  }
+
+  return source;
 }
 
 function extractImageUrls(stored: StoredListing) {

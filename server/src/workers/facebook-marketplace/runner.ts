@@ -5,6 +5,7 @@ import { FacebookMarketplaceAdapter } from "../../marketplaces/facebook/adapter"
 import { FacebookAuthenticationError, getErrorMessage } from "../../marketplaces/facebook/errors";
 import { deduplicateListings } from "../../marketplaces/facebook/normalizer";
 import { createServerDatabaseClient } from "../../database/client";
+import { ListingIngestionPipeline } from "../../database/listing-ingestion";
 import { ListingRepository } from "../../database/listing-repository";
 import type { WorkerLogger } from "../../types/backend";
 
@@ -31,6 +32,7 @@ export async function runFacebookMarketplaceWorker(
   const session = await createBrowserSession(config);
   const client = new FacebookMarketplaceClient(session.context, config, logger);
   const adapter = new FacebookMarketplaceAdapter(client);
+  const ingestion = new ListingIngestionPipeline(repository, logger);
   const summary: WorkerRunSummary = {
     watchlists: watchlists.length,
     listings: 0,
@@ -42,7 +44,8 @@ export async function runFacebookMarketplaceWorker(
     for (const watchlist of watchlists) {
       try {
         const { listings } = await adapter.search(watchlist);
-        const storedListings = await repository.upsertListings(listings);
+        const ingestionResult = await ingestion.ingest(listings);
+        const storedListings = ingestionResult.storedListings;
         const candidateListings = deduplicateListings([
           ...listings,
           ...existingListings.map(({ listing }) => listing),
@@ -57,10 +60,10 @@ export async function runFacebookMarketplaceWorker(
           candidateStoredListings,
         );
         await repository.markWatchlistChecked(watchlist.id);
-        summary.listings += listings.length;
+        summary.listings += ingestionResult.uniqueCount;
         summary.matches += matches;
         logger.info("Synced Facebook Marketplace watchlist", {
-          listings: listings.length,
+          listings: ingestionResult.uniqueCount,
           matches,
           watchlistId: watchlist.id,
         });
