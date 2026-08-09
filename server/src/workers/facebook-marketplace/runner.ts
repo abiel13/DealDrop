@@ -7,6 +7,7 @@ import { deduplicateListings } from "../../marketplaces/facebook/normalizer";
 import { createServerDatabaseClient } from "../../database/client";
 import { ListingIngestionPipeline } from "../../database/listing-ingestion";
 import { ListingRepository } from "../../database/listing-repository";
+import { MARKETPLACE_IDS } from "../../marketplaces/shared/types";
 import type { WorkerLogger } from "../../types/backend";
 
 export interface WorkerRunSummary {
@@ -27,7 +28,9 @@ export async function runFacebookMarketplaceWorker(
       supabaseServiceRoleKey: config.supabaseServiceRoleKey,
     }),
   );
-  const watchlists = await repository.getActiveWatchlists();
+  const watchlists = await repository.getActiveWatchlists(MARKETPLACE_IDS.facebookMarketplace, [
+    MARKETPLACE_IDS.facebookMarketplace,
+  ]);
   const existingListings = watchlists.length > 0 ? await repository.getActiveListings() : [];
   const session = await createBrowserSession(config);
   const client = new FacebookMarketplaceClient(session.context, config, logger);
