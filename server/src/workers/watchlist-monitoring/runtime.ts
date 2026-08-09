@@ -24,10 +24,15 @@ export interface WatchlistMonitoringRuntime {
   close(): Promise<void>;
 }
 
+export interface WatchlistMonitoringRuntimeOptions {
+  requireAdapter?: boolean;
+}
+
 export async function createWatchlistMonitoringRuntime(
   config: WatchlistMonitoringConfig,
   logger: WorkerLogger,
   env: NodeJS.ProcessEnv = process.env,
+  options: WatchlistMonitoringRuntimeOptions = {},
 ): Promise<WatchlistMonitoringRuntime> {
   const adapters: Record<string, MarketplaceAdapter | undefined> = {};
   let facebookSession: FacebookBrowserSession | undefined;
@@ -74,7 +79,7 @@ export async function createWatchlistMonitoringRuntime(
   }
 
   const availableSources = getEnabledMarketplaceSources(adapters);
-  if (availableSources.length === 0) {
+  if (availableSources.length === 0 && options.requireAdapter !== false) {
     await closeFacebookSession(facebookSession);
     throw new Error("No configured marketplace adapters are available for watchlist monitoring.");
   }
