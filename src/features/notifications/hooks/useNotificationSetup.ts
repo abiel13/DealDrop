@@ -11,7 +11,7 @@ export function usePushNotificationRegistration(userId: string | undefined) {
       return;
     }
 
-    void registerPushToken(userId).catch((error: unknown) => {
+    void registerPushToken().catch((error: unknown) => {
       console.warn("Push notification registration failed", error);
     });
   }, [userId]);

@@ -55,7 +55,7 @@ export function WatchlistFormScreen() {
 
   const existingWatchlistQuery = useQuery({
     queryKey: ["watchlists", user?.id, watchlistId],
-    queryFn: () => getWatchlist(user!.id, watchlistId!),
+    queryFn: () => getWatchlist(watchlistId!),
     enabled: Boolean(user && watchlistId),
   });
 
@@ -74,9 +74,7 @@ export function WatchlistFormScreen() {
         throw new Error("You need to be signed in to manage watchlists.");
       }
 
-      return isEditing
-        ? updateWatchlist(user.id, watchlistId!, input)
-        : createWatchlist(user.id, input);
+      return isEditing ? updateWatchlist(watchlistId!, input) : createWatchlist(input);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["watchlists", user?.id] });

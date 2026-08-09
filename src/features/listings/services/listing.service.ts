@@ -1,163 +1,60 @@
-import { supabase } from "@/lib/supabase";
+import { apiClient, type ApiListing, type ApiMatch } from "@/services/api";
 
 import type { Listing } from "../types/listing.types";
 
-const LISTING_COLUMNS =
-  "id,marketplace_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,first_seen_at,last_seen_at,is_active,raw_data";
+function toListing(listing: ApiListing, matchedAt: string | null = listing.matchedAt): Listing {
+  if (!listing.id) {
+    throw new Error("The API listing is missing its DealDrop ID.");
+  }
 
-interface RawListing {
-  id: string;
-  marketplace_id: string;
-  title: string;
-  description: string | null;
-  price: number | null;
-  currency: string;
-  url: string;
-  image_url: string | null;
-  seller_name: string | null;
-  location: string | null;
-  category: string | null;
-  condition: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  posted_at: string | null;
-  first_seen_at: string;
-  last_seen_at: string;
-  is_active: boolean;
-  raw_data: Record<string, unknown>;
-}
-
-interface MatchedListingRow {
-  matched_at: string;
-  listing: RawListing | RawListing[] | null;
-}
-
-function extractImages(listing: RawListing) {
-  const rawImages = listing.raw_data.images ?? listing.raw_data.image_urls;
-  const additionalImages = Array.isArray(rawImages)
-    ? rawImages.filter((image): image is string => typeof image === "string")
-    : [];
-
-  return [
-    ...new Set(
-      [listing.image_url, ...additionalImages].filter((image): image is string => Boolean(image)),
-    ),
-  ];
-}
-
-function toListing(
-  listing: RawListing,
-  matchedAt: string | null,
-  favoriteIds: Set<string>,
-): Listing {
   return {
-    ...listing,
-    images: extractImages(listing),
+    id: listing.id,
+    marketplace_id: listing.source,
+    title: listing.title,
+    description: listing.description,
+    price: listing.price,
+    currency: listing.currency,
+    url: listing.url,
+    image_url: listing.imageUrls[0] ?? null,
+    images: listing.imageUrls,
+    seller_name: listing.sellerName,
+    location: listing.location,
+    category: listing.category,
+    condition: listing.condition,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+    posted_at: listing.listedAt,
+    fetched_at: listing.fetchedAt,
     matched_at: matchedAt,
-    is_favorite: favoriteIds.has(listing.id),
+    is_favorite: listing.isFavorite,
   };
 }
 
-async function getFavoriteIds(userId: string, listingIds: string[]) {
-  if (listingIds.length === 0) {
-    return new Set<string>();
-  }
-
-  const { data, error } = await supabase
-    .from("favorites")
-    .select("listing_id")
-    .eq("user_id", userId)
-    .in("listing_id", listingIds)
-    .returns<{ listing_id: string }[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return new Set((data ?? []).map((favorite) => favorite.listing_id));
+function toMatchedListing(match: ApiMatch) {
+  return toListing(match.listing, match.matchedAt);
 }
 
-function unwrapListing(listing: RawListing | RawListing[] | null) {
-  return Array.isArray(listing) ? (listing[0] ?? null) : listing;
-}
+export async function getMatchedListings() {
+  const response = await apiClient.getMatches();
+  const uniqueListings = new Map<string, Listing>();
 
-export async function getMatchedListings(userId: string) {
-  const { data, error } = await supabase
-    .from("matches")
-    .select(`matched_at,listing:listings!inner(${LISTING_COLUMNS})`)
-    .eq("user_id", userId)
-    .neq("status", "dismissed")
-    .order("matched_at", { ascending: false })
-    .returns<MatchedListingRow[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = (data ?? [])
-    .map((row) => {
-      const listing = unwrapListing(row.listing);
-      return listing ? { listing, matchedAt: row.matched_at } : null;
-    })
-    .filter((row): row is { listing: RawListing; matchedAt: string } => Boolean(row));
-  const uniqueRows = Array.from(
-    rows.reduce((listings, row) => {
-      if (!listings.has(row.listing.id)) {
-        listings.set(row.listing.id, row);
-      }
-
-      return listings;
-    }, new Map<string, { listing: RawListing; matchedAt: string }>()),
-  ).map(([, row]) => row);
-  const favoriteIds = await getFavoriteIds(
-    userId,
-    uniqueRows.map((row) => row.listing.id),
-  );
-
-  return uniqueRows.map((row) => toListing(row.listing, row.matchedAt, favoriteIds));
-}
-
-export async function getListing(userId: string, listingId: string) {
-  const { data, error } = await supabase
-    .from("listings")
-    .select(LISTING_COLUMNS)
-    .eq("id", listingId)
-    .single()
-    .returns<RawListing>();
-
-  if (error) {
-    throw error;
-  }
-
-  const favoriteIds = await getFavoriteIds(userId, [listingId]);
-  return toListing(data, null, favoriteIds);
-}
-
-export async function setListingFavorite(userId: string, listingId: string, isFavorite: boolean) {
-  if (isFavorite) {
-    const { error } = await supabase
-      .from("favorites")
-      .upsert(
-        { user_id: userId, listing_id: listingId },
-        { onConflict: "user_id,listing_id", ignoreDuplicates: true },
-      );
-
-    if (error) {
-      throw error;
+  for (const match of response.data) {
+    const listing = toMatchedListing(match);
+    if (!uniqueListings.has(listing.id)) {
+      uniqueListings.set(listing.id, listing);
     }
-
-    return;
   }
 
-  const { error } = await supabase
-    .from("favorites")
-    .delete()
-    .eq("user_id", userId)
-    .eq("listing_id", listingId);
+  return [...uniqueListings.values()];
+}
 
-  if (error) {
-    throw error;
-  }
+export async function getListing(listingId: string) {
+  const response = await apiClient.getListing(listingId);
+  return toListing(response.data);
+}
+
+export async function setListingFavorite(listingId: string, isFavorite: boolean) {
+  await apiClient.setListingFavorite(listingId, isFavorite);
 }
 
 export function getListingErrorMessage() {

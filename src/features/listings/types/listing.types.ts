@@ -8,7 +8,7 @@ export interface Listing {
   title: string;
   description: string | null;
   price: number | null;
-  currency: string;
+  currency: string | null;
   url: string;
   image_url: string | null;
   images: string[];
@@ -19,10 +19,7 @@ export interface Listing {
   latitude: number | null;
   longitude: number | null;
   posted_at: string | null;
-  first_seen_at: string;
-  last_seen_at: string;
-  is_active: boolean;
-  raw_data: Record<string, unknown>;
+  fetched_at: string | null;
   matched_at: string | null;
   is_favorite: boolean;
 }
