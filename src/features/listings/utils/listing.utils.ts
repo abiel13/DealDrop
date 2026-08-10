@@ -61,12 +61,11 @@ export function formatListingRecency(value: string | null) {
 }
 
 export function formatMarketplaceName(marketplaceId: string) {
-  if (marketplaceId === "facebook_marketplace") {
-    return "Facebook Marketplace";
-  }
+  const marketplaceNames: Record<string, string> = {
+    ebay: "eBay",
+    etsy: "Etsy",
+    facebook_marketplace: "Facebook Marketplace",
+  };
 
-  return marketplaceId
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  return marketplaceNames[marketplaceId] ?? marketplaceId;
 }

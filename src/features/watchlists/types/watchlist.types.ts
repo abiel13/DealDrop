@@ -1,9 +1,11 @@
+import type { MarketplaceSource } from "@/services/api";
+
 export interface Watchlist {
   id: string;
   user_id: string | null;
-  marketplace_id: string | null;
+  marketplace_id: MarketplaceSource | null;
   marketplace_scope: "selected" | "all";
-  marketplace_ids: string[];
+  marketplace_ids: MarketplaceSource[];
   name: string;
   search_query: string;
   filters: Record<string, unknown>;
@@ -17,4 +19,6 @@ export interface Watchlist {
 export interface WatchlistInput {
   name: string;
   searchQuery: string;
+  marketplaceScope: "selected" | "all";
+  marketplaceIds: MarketplaceSource[];
 }

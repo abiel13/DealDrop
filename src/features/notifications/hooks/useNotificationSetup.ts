@@ -1,9 +1,12 @@
 import { useEffect } from "react";
 import { Platform } from "react-native";
-import { type Href, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 
-import { registerPushToken } from "../services/notification.service";
+import { useAuth } from "@/features/auth/hooks/AuthProvider";
+
+import { markNotificationRead, registerPushToken } from "../services/notification.service";
+import { getNotificationId, getNotificationRoute } from "../utils/notification.utils";
 
 export function usePushNotificationRegistration(userId: string | undefined) {
   useEffect(() => {
@@ -18,6 +21,7 @@ export function usePushNotificationRegistration(userId: string | undefined) {
 }
 
 export function useNotificationObserver() {
+  const { user } = useAuth();
   const navigation = useRouter();
 
   useEffect(() => {
@@ -35,9 +39,18 @@ export function useNotificationObserver() {
     });
 
     const redirect = (notification: Notifications.Notification) => {
-      const url = notification.request.content.data?.url;
-      if (typeof url === "string") {
-        navigation.push(url as Href);
+      const data = notification.request.content.data;
+      const route = getNotificationRoute(data);
+      const notificationId = getNotificationId(data);
+
+      if (user && notificationId) {
+        void markNotificationRead(notificationId).catch((error: unknown) => {
+          console.warn("Notification read state update failed", error);
+        });
+      }
+
+      if (route) {
+        navigation.push(route);
       }
     };
 
@@ -51,5 +64,5 @@ export function useNotificationObserver() {
     });
 
     return () => subscription.remove();
-  }, [navigation]);
+  }, [navigation, user]);
 }

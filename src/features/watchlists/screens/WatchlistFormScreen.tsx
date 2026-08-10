@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -18,19 +18,36 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { appColors } from "@/styles/colors";
+import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 
 import {
   createWatchlist,
   getWatchlist,
   getWatchlistErrorMessage,
+  getSupportedMarketplaces,
   updateWatchlist,
 } from "../services/watchlist.service";
+import type { MarketplaceSource } from "@/services/api";
+
 import type { WatchlistInput } from "../types/watchlist.types";
 
-const watchlistSchema = z.object({
-  name: z.string().trim().min(2, "Give your watchlist a name."),
-  searchQuery: z.string().trim().min(2, "Enter something to search for."),
-});
+const marketplaceSourceSchema = z.enum(["facebook_marketplace", "ebay", "etsy"]);
+const watchlistSchema = z
+  .object({
+    name: z.string().trim().min(2, "Give your watchlist a name."),
+    searchQuery: z.string().trim().min(2, "Enter something to search for."),
+    marketplaceScope: z.enum(["selected", "all"]),
+    marketplaceIds: z.array(marketplaceSourceSchema),
+  })
+  .superRefine((values, context) => {
+    if (values.marketplaceScope === "selected" && values.marketplaceIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose at least one marketplace.",
+        path: ["marketplaceIds"],
+      });
+    }
+  });
 
 type WatchlistFormValues = z.infer<typeof watchlistSchema>;
 
@@ -46,10 +63,11 @@ export function WatchlistFormScreen() {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<WatchlistFormValues>({
     resolver: zodResolver(watchlistSchema),
-    defaultValues: { name: "", searchQuery: "" },
+    defaultValues: { name: "", searchQuery: "", marketplaceScope: "all", marketplaceIds: [] },
     mode: "onBlur",
   });
 
@@ -58,15 +76,43 @@ export function WatchlistFormScreen() {
     queryFn: () => getWatchlist(watchlistId!),
     enabled: Boolean(user && watchlistId),
   });
+  const marketplacesQuery = useQuery({
+    queryKey: ["marketplaces"],
+    queryFn: getSupportedMarketplaces,
+    enabled: Boolean(user),
+    staleTime: 5 * 60 * 1000,
+  });
+  const marketplaceScope = useWatch({ control, name: "marketplaceScope" });
+  const marketplaceIds = useWatch({ control, name: "marketplaceIds" });
 
   useEffect(() => {
     if (existingWatchlistQuery.data) {
       reset({
         name: existingWatchlistQuery.data.name,
         searchQuery: existingWatchlistQuery.data.search_query,
+        marketplaceScope: existingWatchlistQuery.data.marketplace_scope,
+        marketplaceIds: existingWatchlistQuery.data.marketplace_ids,
       });
     }
   }, [existingWatchlistQuery.data, reset]);
+
+  function selectAllMarketplaces() {
+    setValue("marketplaceScope", "all", { shouldValidate: true });
+    setValue("marketplaceIds", [], { shouldValidate: true });
+  }
+
+  function toggleMarketplace(source: MarketplaceSource) {
+    const nextIds = marketplaceIds.includes(source)
+      ? marketplaceIds.filter((marketplaceId) => marketplaceId !== source)
+      : [...marketplaceIds, source];
+
+    if (nextIds.length === 0) {
+      return;
+    }
+
+    setValue("marketplaceScope", "selected", { shouldValidate: true });
+    setValue("marketplaceIds", nextIds, { shouldValidate: true });
+  }
 
   const saveMutation = useMutation({
     mutationFn: (input: WatchlistInput) => {
@@ -156,15 +202,56 @@ export function WatchlistFormScreen() {
             <FormSectionHeader
               eyebrow="02"
               title="Choose what to watch"
-              description="DealDrop will search this marketplace for your term."
+              description="DealDrop will search your selected marketplaces for this term."
             />
 
-            <Input
-              label="Marketplace"
-              value="Facebook Marketplace"
-              editable={false}
-              leftIcon={<AppIcon name="storefront" size={18} color={appColors.textTertiary} />}
-            />
+            {marketplacesQuery.isLoading && <Loading size="small" />}
+
+            {marketplacesQuery.isError && (
+              <View className="gap-3">
+                <ErrorState
+                  title="Marketplaces unavailable"
+                  description="We couldn't load the available marketplaces."
+                />
+                <Button variant="outline" onPress={() => void marketplacesQuery.refetch()}>
+                  Try again
+                </Button>
+              </View>
+            )}
+
+            {marketplacesQuery.isSuccess && marketplacesQuery.data.length === 0 && (
+              <ErrorState
+                title="No marketplaces available"
+                description="DealDrop cannot monitor this watchlist right now."
+              />
+            )}
+
+            {marketplacesQuery.isSuccess && marketplacesQuery.data.length > 0 && (
+              <View className="gap-3">
+                <AppText variant="label">Marketplaces</AppText>
+                <View className="flex-row flex-wrap gap-2">
+                  <MarketplaceOption
+                    label="All marketplaces"
+                    selected={marketplaceScope === "all"}
+                    onPress={selectAllMarketplaces}
+                  />
+                  {marketplacesQuery.data.map((marketplace) => (
+                    <MarketplaceOption
+                      key={marketplace.source}
+                      label={formatMarketplaceName(marketplace.source)}
+                      selected={
+                        marketplaceScope === "selected" &&
+                        marketplaceIds.includes(marketplace.source)
+                      }
+                      onPress={() => toggleMarketplace(marketplace.source)}
+                    />
+                  ))}
+                </View>
+                {errors.marketplaceIds?.message && (
+                  <AppText variant="error">{errors.marketplaceIds.message}</AppText>
+                )}
+              </View>
+            )}
 
             <Controller
               control={control}
@@ -188,8 +275,8 @@ export function WatchlistFormScreen() {
             <View className="flex-1 gap-1">
               <AppText variant="label">How matching works</AppText>
               <AppText variant="bodySmall">
-                We compare your search term with new Facebook Marketplace listings and notify you
-                when there is a match.
+                We compare your search term with new listings from the selected marketplaces and
+                notify you when there is a match.
               </AppText>
             </View>
           </View>
@@ -201,6 +288,11 @@ export function WatchlistFormScreen() {
           <View className="gap-3">
             <Button
               loading={saveMutation.isPending}
+              disabled={
+                marketplacesQuery.isLoading ||
+                marketplacesQuery.isError ||
+                marketplacesQuery.data?.length === 0
+              }
               onPress={handleSubmit((values) => saveMutation.mutate(values))}
             >
               {isEditing ? "Save changes" : "Create watchlist"}
@@ -212,6 +304,39 @@ export function WatchlistFormScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function MarketplaceOption({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      className={`flex-row items-center gap-2 rounded-full px-3 py-2.5 ${
+        selected ? "bg-primary" : "bg-surface-muted"
+      }`}
+      onPress={onPress}
+    >
+      <AppIcon
+        name={selected ? "check" : "storefront"}
+        size={15}
+        color={selected ? "white" : appColors.textSecondary}
+      />
+      <AppText
+        variant="bodySmall"
+        className={selected ? "font-semibold text-white" : "font-medium text-text-secondary"}
+      >
+        {label}
+      </AppText>
+    </Pressable>
   );
 }
 

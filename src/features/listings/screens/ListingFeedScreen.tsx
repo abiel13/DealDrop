@@ -18,9 +18,16 @@ import { ListingCard } from "../components/ListingCard";
 import {
   getListingErrorMessage,
   getMatchedListings,
+  searchListings,
   setListingFavorite,
 } from "../services/listing.service";
-import type { Listing, ListingFilter, ListingSort } from "../types/listing.types";
+import type {
+  Listing,
+  ListingFilter,
+  ListingSearchResult,
+  ListingSort,
+} from "../types/listing.types";
+import { formatMarketplaceName } from "../utils/listing.utils";
 
 interface OptionPillProps {
   label: string;
@@ -118,25 +125,65 @@ export function ListingFeedScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [submittedSearch, setSubmittedSearch] = useState("");
   const [sort, setSort] = useState<ListingSort>("newest");
   const [filter, setFilter] = useState<ListingFilter>("all");
   const [operationError, setOperationError] = useState<string | null>(null);
   const userId = user?.id ?? "";
   const matchedListingsQueryKey = ["matched-listings", userId] as const;
+  const marketplaceSearchQueryKey = ["marketplace-search", userId, submittedSearch] as const;
 
   const listingsQuery = useQuery({
     queryKey: matchedListingsQueryKey,
     queryFn: getMatchedListings,
     enabled: Boolean(userId),
   });
+  const marketplaceSearchQuery = useQuery({
+    queryKey: marketplaceSearchQueryKey,
+    queryFn: () => searchListings(submittedSearch),
+    enabled: Boolean(userId && submittedSearch),
+  });
+  const isMarketplaceSearch = Boolean(submittedSearch);
+  const activeQueryIsLoading = isMarketplaceSearch
+    ? marketplaceSearchQuery.isLoading
+    : listingsQuery.isLoading;
+  const activeQueryIsError = isMarketplaceSearch
+    ? marketplaceSearchQuery.isError
+    : listingsQuery.isError;
+  const activeQueryIsRefetching = isMarketplaceSearch
+    ? marketplaceSearchQuery.isRefetching
+    : listingsQuery.isRefetching;
+  const activeQueryRefetch = isMarketplaceSearch
+    ? marketplaceSearchQuery.refetch
+    : listingsQuery.refetch;
+  const activeQueryKey = isMarketplaceSearch ? marketplaceSearchQueryKey : matchedListingsQueryKey;
+  const partialFailures = isMarketplaceSearch
+    ? (marketplaceSearchQuery.data?.partialFailures ?? [])
+    : [];
   const favoriteMutation = useMutation({
     mutationFn: ({ listingId, isFavorite }: { listingId: string; isFavorite: boolean }) =>
       setListingFavorite(listingId, isFavorite),
     onMutate: async ({ listingId, isFavorite }) => {
       setOperationError(null);
-      await queryClient.cancelQueries({ queryKey: matchedListingsQueryKey });
-      const previousListings = queryClient.getQueryData<Listing[]>(matchedListingsQueryKey);
+      await queryClient.cancelQueries({ queryKey: activeQueryKey });
 
+      if (isMarketplaceSearch) {
+        const previousSearch =
+          queryClient.getQueryData<ListingSearchResult>(marketplaceSearchQueryKey);
+        queryClient.setQueryData<ListingSearchResult>(marketplaceSearchQueryKey, (currentSearch) =>
+          currentSearch
+            ? {
+                ...currentSearch,
+                listings: currentSearch.listings.map((listing) =>
+                  listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
+                ),
+              }
+            : currentSearch,
+        );
+        return { previousSearch };
+      }
+
+      const previousListings = queryClient.getQueryData<Listing[]>(matchedListingsQueryKey);
       queryClient.setQueryData<Listing[]>(matchedListingsQueryKey, (currentListings) =>
         currentListings?.map((listing) =>
           listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
@@ -149,16 +196,23 @@ export function ListingFeedScreen() {
       if (context?.previousListings) {
         queryClient.setQueryData(matchedListingsQueryKey, context.previousListings);
       }
+      if (context?.previousSearch) {
+        queryClient.setQueryData(marketplaceSearchQueryKey, context.previousSearch);
+      }
       setOperationError(getListingErrorMessage());
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: matchedListingsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: marketplaceSearchQueryKey });
     },
   });
 
   const visibleListings = useMemo(() => {
-    const filtered = (listingsQuery.data ?? []).filter((listing) => {
-      if (!listingMatchesSearch(listing, search)) {
+    const activeListings = isMarketplaceSearch
+      ? (marketplaceSearchQuery.data?.listings ?? [])
+      : (listingsQuery.data ?? []);
+    const filtered = activeListings.filter((listing) => {
+      if (!listingMatchesSearch(listing, isMarketplaceSearch ? "" : search)) {
         return false;
       }
 
@@ -170,17 +224,17 @@ export function ListingFeedScreen() {
     });
 
     return sortListings(filtered, sort);
-  }, [filter, listingsQuery.data, search, sort]);
+  }, [filter, isMarketplaceSearch, listingsQuery.data, marketplaceSearchQuery.data, search, sort]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
   }
 
-  if (listingsQuery.isLoading) {
+  if (activeQueryIsLoading) {
     return <FeedSkeleton />;
   }
 
-  if (listingsQuery.isError) {
+  if (activeQueryIsError) {
     return (
       <SafeAreaView className="flex-1 bg-background px-5">
         <View className="flex-1 gap-5 pt-6">
@@ -191,7 +245,9 @@ export function ListingFeedScreen() {
             >
               DEALDROP
             </AppText>
-            <AppText variant="heading">Your matches</AppText>
+            <AppText variant="heading">
+              {isMarketplaceSearch ? "Marketplace search" : "Your matches"}
+            </AppText>
           </View>
           <ErrorState
             title="Couldn't load listings"
@@ -200,7 +256,7 @@ export function ListingFeedScreen() {
           <Button
             variant="outline"
             leftIcon={<AppIcon name="refresh" size={18} color={appColors.primary} />}
-            onPress={() => void listingsQuery.refetch()}
+            onPress={() => void activeQueryRefetch()}
           >
             Try again
           </Button>
@@ -221,9 +277,9 @@ export function ListingFeedScreen() {
           <RefreshControl
             colors={[appColors.primary]}
             progressBackgroundColor={appColors.surface}
-            refreshing={listingsQuery.isRefetching}
+            refreshing={activeQueryIsRefetching}
             tintColor={appColors.primary}
-            onRefresh={() => void listingsQuery.refetch()}
+            onRefresh={() => void activeQueryRefetch()}
           />
         }
         ListHeaderComponent={
@@ -236,8 +292,14 @@ export function ListingFeedScreen() {
                 >
                   DEALDROP
                 </AppText>
-                <AppText variant="heading">Your matches</AppText>
-                <AppText variant="bodySmall">Fresh finds from your watchlists.</AppText>
+                <AppText variant="heading">
+                  {isMarketplaceSearch ? "Marketplace search" : "Your matches"}
+                </AppText>
+                <AppText variant="bodySmall">
+                  {isMarketplaceSearch
+                    ? "Search across DealDrop's enabled marketplaces."
+                    : "Fresh finds from your watchlists."}
+                </AppText>
               </View>
               <View className="items-center rounded-2xl bg-primary-soft px-3 py-2">
                 <AppText variant="caption" className="font-semibold uppercase text-primary">
@@ -250,12 +312,32 @@ export function ListingFeedScreen() {
             </View>
 
             <SearchBar
-              accessibilityLabel="Search matched listings"
+              accessibilityLabel="Search all marketplaces"
               leftIcon={<AppIcon name="search" size={19} color={appColors.textTertiary} />}
-              placeholder="Search your matches"
+              placeholder="Search all marketplaces"
+              returnKeyType="search"
               value={search}
-              onChangeText={setSearch}
+              onChangeText={(value) => {
+                setSearch(value);
+                if (value.trim() !== submittedSearch) {
+                  setSubmittedSearch("");
+                }
+              }}
+              onSubmitEditing={() => setSubmittedSearch(search.trim())}
             />
+
+            {isMarketplaceSearch && partialFailures.length > 0 && (
+              <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
+                <AppIcon name="info" size={19} color={appColors.primary} />
+                <AppText variant="bodySmall" className="flex-1">
+                  Some marketplaces could not be searched right now (
+                  {partialFailures
+                    .map((failure) => formatMarketplaceName(failure.source))
+                    .join(", ")}
+                  ). Results from the available sources are still shown.
+                </AppText>
+              </View>
+            )}
 
             <View className="gap-3">
               <View className="flex-row items-center justify-between">
@@ -266,6 +348,7 @@ export function ListingFeedScreen() {
                     accessibilityRole="button"
                     onPress={() => {
                       setSearch("");
+                      setSubmittedSearch("");
                       setFilter("all");
                       setSort("newest");
                     }}
@@ -322,11 +405,17 @@ export function ListingFeedScreen() {
         ListEmptyComponent={
           <View className="pt-4">
             <EmptyState
-              title={search || filter !== "all" ? "No listings found" : "No matched listings yet"}
+              title={
+                isMarketplaceSearch || search || filter !== "all"
+                  ? "No listings found"
+                  : "No matched listings yet"
+              }
               description={
-                search || filter !== "all"
-                  ? "Try changing your search or filter."
-                  : "Run your marketplace worker after creating a watchlist to populate this feed."
+                isMarketplaceSearch
+                  ? "Try another search to find more listings."
+                  : search || filter !== "all"
+                    ? "Try changing your search or filter."
+                    : "Run your marketplace worker after creating a watchlist to populate this feed."
               }
             />
           </View>

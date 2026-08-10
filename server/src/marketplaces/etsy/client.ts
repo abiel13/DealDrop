@@ -29,11 +29,12 @@ export class EtsyMarketplaceClient {
 
     try {
       const response = await this.requestWithRetry(url, request.searchQuery);
+      const responseWithImages = await this.attachListingImages(response, request.searchQuery);
       this.logger.info("Etsy Marketplace search completed", {
         durationMs: Date.now() - startedAt,
         query: request.searchQuery,
       });
-      return response;
+      return responseWithImages;
     } catch (error) {
       this.logger.error("Etsy Marketplace search failed", {
         category: error instanceof EtsyMarketplaceError ? error.category : "unavailable",
@@ -119,6 +120,28 @@ export class EtsyMarketplaceClient {
     throw lastError;
   }
 
+  private async attachListingImages(response: unknown, query: string) {
+    const listingIds = extractListingIds(response);
+    if (listingIds.length === 0) {
+      return response;
+    }
+
+    try {
+      const imageResponse = await this.requestWithRetry(
+        buildEtsyListingBatchUrl(this.config, listingIds),
+        query,
+      );
+      return mergeListingImages(response, imageResponse);
+    } catch (error) {
+      this.logger.warn("Etsy Marketplace images unavailable", {
+        error: getEtsyErrorMessage(error),
+        listingCount: listingIds.length,
+        query,
+      });
+      return response;
+    }
+  }
+
   private retryDelay(error: unknown, attempt: number) {
     if (error instanceof EtsyMarketplaceError && error.statusCode === 429) {
       return this.config.retryBaseDelayMs * 2 ** (attempt - 1);
@@ -165,6 +188,93 @@ export function buildEtsySearchUrl(
   }
 
   return `${config.apiBaseUrl}/application/listings/active?${params.toString()}`;
+}
+
+export function buildEtsyListingBatchUrl(
+  config: EtsyMarketplaceConfig,
+  listingIds: readonly string[],
+) {
+  const params = new URLSearchParams({
+    includes: "Images",
+    listing_ids: listingIds.join(","),
+  });
+
+  return `${config.apiBaseUrl}/application/listings/batch?${params.toString()}`;
+}
+
+function extractListingIds(response: unknown) {
+  if (!response || typeof response !== "object" || !Array.isArray(response.results)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      response.results
+        .map((listing) => {
+          if (!listing || typeof listing !== "object") {
+            return null;
+          }
+
+          const listingId = (listing as Record<string, unknown>).listing_id;
+          if (typeof listingId === "number" && Number.isSafeInteger(listingId)) {
+            return String(listingId);
+          }
+
+          return typeof listingId === "string" && /^\d+$/.test(listingId) ? listingId : null;
+        })
+        .filter((listingId): listingId is string => listingId !== null),
+    ),
+  ];
+}
+
+function mergeListingImages(response: unknown, imageResponse: unknown) {
+  if (
+    !response ||
+    typeof response !== "object" ||
+    !Array.isArray(response.results) ||
+    !imageResponse ||
+    typeof imageResponse !== "object" ||
+    !Array.isArray(imageResponse.results)
+  ) {
+    return response;
+  }
+
+  const imageResults = new Map(
+    imageResponse.results.flatMap((listing) => {
+      if (!listing || typeof listing !== "object") {
+        return [];
+      }
+
+      const listingId = (listing as Record<string, unknown>).listing_id;
+      if (typeof listingId !== "number" && typeof listingId !== "string") {
+        return [];
+      }
+
+      return [[String(listingId), listing as Record<string, unknown>]] as const;
+    }),
+  );
+
+  return {
+    ...response,
+    results: response.results.map((listing) => {
+      if (!listing || typeof listing !== "object") {
+        return listing;
+      }
+
+      const record = listing as Record<string, unknown>;
+      const listingId = record.listing_id;
+      const enriched =
+        typeof listingId === "number" || typeof listingId === "string"
+          ? imageResults.get(String(listingId))
+          : undefined;
+
+      if (!enriched?.images) {
+        return listing;
+      }
+
+      return { ...record, images: enriched.images };
+    }),
+  };
 }
 
 function buildFilters(config: EtsyMarketplaceConfig, filters: WatchlistFilters) {
