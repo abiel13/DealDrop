@@ -25,7 +25,7 @@ test("repository resolves selected and all watchlists against active adapter sou
             user_id: "user-1",
             search_query: "camera",
             filters: {},
-            marketplace_id: MARKETPLACE_IDS.facebookMarketplace,
+            marketplace_id: MARKETPLACE_IDS.ebay,
             marketplace_scope: "all",
             watchlist_marketplaces: [],
           },
@@ -34,9 +34,9 @@ test("repository resolves selected and all watchlists against active adapter sou
             user_id: "user-1",
             search_query: "phone",
             filters: {},
-            marketplace_id: MARKETPLACE_IDS.facebookMarketplace,
+            marketplace_id: MARKETPLACE_IDS.etsy,
             marketplace_scope: "selected",
-            watchlist_marketplaces: [{ marketplace_id: MARKETPLACE_IDS.ebay }],
+            watchlist_marketplaces: [{ marketplace_id: MARKETPLACE_IDS.etsy }],
           },
         ] as T[],
         error: null,
@@ -50,23 +50,20 @@ test("repository resolves selected and all watchlists against active adapter sou
   } as unknown as SupabaseClient;
   const repository = new ListingRepository(client);
 
-  const ebayWatchlists = await repository.getActiveWatchlists(MARKETPLACE_IDS.ebay, [
-    MARKETPLACE_IDS.facebookMarketplace,
+  const watchlists = await repository.getActiveWatchlistsForSources([
     MARKETPLACE_IDS.ebay,
+    MARKETPLACE_IDS.etsy,
   ]);
 
   assert.deepEqual(
-    ebayWatchlists.map((watchlist) => [watchlist.id, watchlist.marketplaceScope]),
+    watchlists.map((watchlist) => [watchlist.id, watchlist.marketplaceScope]),
     [
       ["all-watchlist", "all"],
       ["selected-watchlist", "selected"],
     ],
   );
-  assert.deepEqual(ebayWatchlists[0]?.marketplaceIds, [
-    MARKETPLACE_IDS.ebay,
-    MARKETPLACE_IDS.facebookMarketplace,
-  ]);
-  assert.deepEqual(ebayWatchlists[1]?.marketplaceIds, [MARKETPLACE_IDS.ebay]);
+  assert.deepEqual(watchlists[0]?.marketplaceIds, [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy]);
+  assert.deepEqual(watchlists[1]?.marketplaceIds, [MARKETPLACE_IDS.etsy]);
 });
 
 test("repository validates and atomically persists marketplace selection", async () => {

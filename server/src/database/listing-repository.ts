@@ -60,16 +60,6 @@ export interface ActiveStoredListing {
 export class ListingRepository {
   constructor(private readonly client: SupabaseClient) {}
 
-  async getActiveWatchlists(
-    targetSource: MarketplaceSource = MARKETPLACE_IDS.facebookMarketplace,
-    availableSources: readonly MarketplaceSource[] = [MARKETPLACE_IDS.facebookMarketplace],
-  ) {
-    const watchlists = await this.loadActiveWatchlists();
-    return watchlists
-      .map((watchlist) => toMarketplaceWatchlist(watchlist, availableSources))
-      .filter((watchlist) => watchlist.marketplaceIds.includes(targetSource));
-  }
-
   async getActiveWatchlistsForSources(availableSources: readonly MarketplaceSource[]) {
     const watchlists = await this.loadActiveWatchlists();
     return watchlists
@@ -138,23 +128,6 @@ export class ListingRepository {
     }
 
     return data ?? [];
-  }
-
-  async getActiveListings(): Promise<ActiveStoredListing[]> {
-    const { data, error } = await this.client
-      .from("listings")
-      .select(
-        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data",
-      )
-      .eq("marketplace_id", MARKETPLACE_IDS.facebookMarketplace)
-      .eq("is_active", true)
-      .returns<StoredListing[]>();
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? []).map((stored) => ({ stored, listing: toMarketplaceListing(stored) }));
   }
 
   async getActiveListingsForSources(

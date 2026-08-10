@@ -1,10 +1,3 @@
-import {
-  createBrowserSession,
-  type FacebookBrowserSession,
-} from "../../marketplaces/facebook/browser";
-import { FacebookMarketplaceClient } from "../../marketplaces/facebook/client";
-import { loadFacebookWorkerConfig } from "../../marketplaces/facebook/config";
-import { FacebookMarketplaceAdapter } from "../../marketplaces/facebook/adapter";
 import { createEbayMarketplaceAdapter } from "../../marketplaces/ebay/adapter";
 import { loadEbayMarketplaceConfig } from "../../marketplaces/ebay/config";
 import { createEtsyMarketplaceAdapter } from "../../marketplaces/etsy/adapter";
@@ -35,24 +28,6 @@ export async function createWatchlistMonitoringRuntime(
   options: WatchlistMonitoringRuntimeOptions = {},
 ): Promise<WatchlistMonitoringRuntime> {
   const adapters: Record<string, MarketplaceAdapter | undefined> = {};
-  let facebookSession: FacebookBrowserSession | undefined;
-
-  if (config.enabledSources.includes(MARKETPLACE_IDS.facebookMarketplace)) {
-    try {
-      const facebookConfig = loadFacebookWorkerConfig(env);
-      facebookSession = await createBrowserSession(facebookConfig);
-      adapters[MARKETPLACE_IDS.facebookMarketplace] = new FacebookMarketplaceAdapter(
-        new FacebookMarketplaceClient(facebookSession.context, facebookConfig, logger),
-      );
-    } catch (error) {
-      logger.warn("Facebook Marketplace monitoring adapter disabled", {
-        error: error instanceof Error ? error.message : String(error),
-        source: MARKETPLACE_IDS.facebookMarketplace,
-      });
-      await closeFacebookSession(facebookSession);
-      facebookSession = undefined;
-    }
-  }
 
   if (config.enabledSources.includes(MARKETPLACE_IDS.ebay)) {
     try {
@@ -80,36 +55,12 @@ export async function createWatchlistMonitoringRuntime(
 
   const availableSources = getEnabledMarketplaceSources(adapters);
   if (availableSources.length === 0 && options.requireAdapter !== false) {
-    await closeFacebookSession(facebookSession);
     throw new Error("No configured marketplace adapters are available for watchlist monitoring.");
   }
 
   return {
     adapters,
     availableSources,
-    close: async () => closeFacebookSession(facebookSession),
+    close: async () => undefined,
   };
-}
-
-async function closeFacebookSession(session: FacebookBrowserSession | undefined) {
-  if (!session) {
-    return;
-  }
-
-  let closeError: unknown;
-  try {
-    await session.context.close();
-  } catch (error) {
-    closeError = error;
-  }
-
-  try {
-    await session.browser.close();
-  } catch (error) {
-    closeError ??= error;
-  }
-
-  if (closeError) {
-    throw closeError;
-  }
 }

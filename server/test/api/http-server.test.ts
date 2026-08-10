@@ -52,8 +52,7 @@ test("GET /marketplaces exposes enabled adapters and capabilities", async () => 
       true,
     );
     assert.equal(
-      body.marketplaces.find((item) => item.source === MARKETPLACE_IDS.facebookMarketplace)
-        ?.enabled,
+      body.marketplaces.find((item) => item.source === MARKETPLACE_IDS.etsy)?.enabled,
       false,
     );
     assert.equal(

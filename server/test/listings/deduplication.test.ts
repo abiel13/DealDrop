@@ -7,7 +7,7 @@ import { MARKETPLACE_IDS } from "../../src/marketplaces/shared/types";
 
 test("groups an obvious cross-marketplace duplicate and preserves provenance", () => {
   const result = deduplicateMarketplaceListings([
-    listing(MARKETPLACE_IDS.facebookMarketplace, "facebook-1", {
+    listing(MARKETPLACE_IDS.etsy, "etsy-1", {
       title: "Vintage Canon Camera",
       imageUrls: ["https://images.example.com/canon.jpg?width=800"],
       location: "Lagos, Nigeria",
@@ -27,7 +27,7 @@ test("groups an obvious cross-marketplace duplicate and preserves provenance", (
   assert.equal(result.summary.duplicateGroups[0]?.confidence, "probable");
   assert.deepEqual(result.summary.duplicateGroups[0]?.sources, [
     MARKETPLACE_IDS.ebay,
-    MARKETPLACE_IDS.facebookMarketplace,
+    MARKETPLACE_IDS.etsy,
   ]);
   assert.deepEqual(result.summary.duplicateGroups[0]?.duplicates, [
     {
@@ -60,7 +60,7 @@ test("uses stable marketplace identity for same-source duplicates", () => {
 
 test("does not group common listings with different locations and images", () => {
   const result = deduplicateMarketplaceListings([
-    listing(MARKETPLACE_IDS.facebookMarketplace, "facebook-1", {
+    listing(MARKETPLACE_IDS.ebay, "ebay-2", {
       title: "iPhone 13",
       price: 300,
       location: "Lagos, Nigeria",

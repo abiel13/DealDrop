@@ -78,7 +78,7 @@ export function WelcomeScreen() {
             </View>
             <View className="mt-5 flex-row items-end justify-between">
               <AppText className="text-2xl font-bold text-text">$1,150</AppText>
-              <AppText variant="caption">Facebook Marketplace</AppText>
+              <AppText variant="caption">eBay</AppText>
             </View>
           </View>
         </View>

@@ -7,12 +7,6 @@ export interface DealDropWatchlist {
   filters: WatchlistFilters;
 }
 
-/**
- * Kept as a compatibility alias for the legacy Facebook worker boundary.
- * Matching uses MarketplaceWatchlist so provider-specific behavior stays out of it.
- */
-export type FacebookWatchlist = DealDropWatchlist;
-
 export type WatchlistMarketplaceScope = "selected" | "all";
 
 export interface MarketplaceWatchlist extends DealDropWatchlist {

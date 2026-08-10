@@ -2,9 +2,9 @@
 
 Never miss the perfect deal.
 
-DealDrop continuously monitors Facebook Marketplace for items matching your saved searches and notifies you the moment a new listing appears.
+DealDrop continuously monitors eBay and Etsy for items matching your saved searches and notifies you the moment a new listing appears.
 
-> More marketplaces will be supported in future releases.
+Marketplace credentials and provider access are configured on the server only.
 
 ## Tech Stack
 
@@ -49,7 +49,7 @@ For a production build, use `npm run server:build` followed by `npm run server:s
 
 ## Production Watchlist Monitoring Worker
 
-The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only marketplace variables in `server/.env`, install Chromium for Facebook monitoring, and run:
+The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only eBay and Etsy variables in `server/.env`, then run:
 
 ```bash
 npm run worker:watchlists
@@ -58,12 +58,4 @@ npm run worker:watchlists
 Set `WATCHLIST_MONITOR_INTERVAL_MS=0` for a single run. The default interval is five minutes. Use `WATCHLIST_MONITOR_ENABLED_SOURCES` with stable marketplace IDs to disable a configured source without changing the watchlist schema.
 For a compiled production process, run `npm run server:build` and then `npm run server:worker:watchlists:prod`.
 
-## Facebook Marketplace Worker (legacy single-source command)
-
-The original Facebook-only Playwright command remains available for compatibility. Fill in the ignored `server/.env` file (or copy `server/.env.example`), install Chromium with `npx playwright install chromium`, then run:
-
-```bash
-npm run worker:facebook-marketplace
-```
-
-Prefer `FACEBOOK_STORAGE_STATE_PATH` for an authenticated browser session. Credentials and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.
+Credentials, API tokens, and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.

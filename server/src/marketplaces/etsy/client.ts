@@ -203,13 +203,14 @@ export function buildEtsyListingBatchUrl(
 }
 
 function extractListingIds(response: unknown) {
-  if (!response || typeof response !== "object" || !Array.isArray(response.results)) {
+  const results = responseResults(response);
+  if (!results) {
     return [];
   }
 
   return [
     ...new Set(
-      response.results
+      results
         .map((listing) => {
           if (!listing || typeof listing !== "object") {
             return null;
@@ -228,19 +229,14 @@ function extractListingIds(response: unknown) {
 }
 
 function mergeListingImages(response: unknown, imageResponse: unknown) {
-  if (
-    !response ||
-    typeof response !== "object" ||
-    !Array.isArray(response.results) ||
-    !imageResponse ||
-    typeof imageResponse !== "object" ||
-    !Array.isArray(imageResponse.results)
-  ) {
+  const responseResultsValue = responseResults(response);
+  const imageResultsValue = responseResults(imageResponse);
+  if (!responseResultsValue || !imageResultsValue) {
     return response;
   }
 
   const imageResults = new Map(
-    imageResponse.results.flatMap((listing) => {
+    imageResultsValue.flatMap((listing: unknown) => {
       if (!listing || typeof listing !== "object") {
         return [];
       }
@@ -255,8 +251,8 @@ function mergeListingImages(response: unknown, imageResponse: unknown) {
   );
 
   return {
-    ...response,
-    results: response.results.map((listing) => {
+    ...(response as Record<string, unknown>),
+    results: responseResultsValue.map((listing: unknown) => {
       if (!listing || typeof listing !== "object") {
         return listing;
       }
@@ -275,6 +271,15 @@ function mergeListingImages(response: unknown, imageResponse: unknown) {
       return { ...record, images: enriched.images };
     }),
   };
+}
+
+function responseResults(response: unknown): unknown[] | null {
+  if (!response || typeof response !== "object") {
+    return null;
+  }
+
+  const record = response as Record<string, unknown>;
+  return Array.isArray(record.results) ? record.results : null;
 }
 
 function buildFilters(config: EtsyMarketplaceConfig, filters: WatchlistFilters) {
