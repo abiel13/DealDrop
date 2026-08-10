@@ -3,6 +3,7 @@ import { MarketplaceError } from "../shared/errors";
 import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
 import { deduplicateMarketplaceListings } from "../../listings/deduplication";
+import { getMarketplaceCatalog, type MarketplaceCatalogEntry } from "../catalog";
 import { decodeMarketplaceSearchCursor, encodeMarketplaceSearchCursor } from "./cursor";
 import { MarketplaceSearchCoordinatorError } from "./errors";
 import type {
@@ -43,6 +44,10 @@ export class MarketplaceSearchCoordinator {
         positiveTimeout(timeout),
       ]),
     );
+  }
+
+  getMarketplaceCatalog(): MarketplaceCatalogEntry[] {
+    return getMarketplaceCatalog(this.adapters);
   }
 
   async search(

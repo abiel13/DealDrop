@@ -8,14 +8,27 @@ import {
 import { deduplicateIngestionListings } from "./listing-ingestion";
 import { deduplicateListings } from "../marketplaces/facebook/normalizer";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
-import { MARKETPLACE_IDS } from "../marketplaces/shared/types";
-import type { FacebookWatchlist, WatchlistFilters } from "../types/backend";
+import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
+import type {
+  FacebookWatchlist,
+  MarketplaceWatchlist,
+  WatchlistFilters,
+  WatchlistMarketplaceScope,
+} from "../types/backend";
+import {
+  validateWatchlistMarketplaceSelection,
+  type ValidatedWatchlistMarketplaceSelection,
+} from "../watchlists/validation";
+import type { WatchlistMarketplaceSelectionInput } from "../watchlists/types";
 
 interface StoredWatchlist {
   id: string;
   user_id: string;
   search_query: string;
   filters: WatchlistFilters;
+  marketplace_id: string;
+  marketplace_scope: WatchlistMarketplaceScope;
+  watchlist_marketplaces?: Array<{ marketplace_id: string }>;
 }
 
 export interface StoredListing {
@@ -49,11 +62,15 @@ export interface ActiveStoredListing {
 export class ListingRepository {
   constructor(private readonly client: SupabaseClient) {}
 
-  async getActiveWatchlists() {
+  async getActiveWatchlists(
+    targetSource: MarketplaceSource = MARKETPLACE_IDS.facebookMarketplace,
+    availableSources: readonly MarketplaceSource[] = [MARKETPLACE_IDS.facebookMarketplace],
+  ) {
     const { data, error } = await this.client
       .from("watchlists")
-      .select("id,user_id,search_query,filters")
-      .eq("marketplace_id", MARKETPLACE_IDS.facebookMarketplace)
+      .select(
+        "id,user_id,search_query,filters,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
+      )
       .eq("is_active", true)
       .order("updated_at", { ascending: true })
       .returns<StoredWatchlist[]>();
@@ -62,12 +79,28 @@ export class ListingRepository {
       throw error;
     }
 
-    return (data ?? []).map<FacebookWatchlist>((watchlist) => ({
-      id: watchlist.id,
-      userId: watchlist.user_id,
-      searchQuery: watchlist.search_query,
-      filters: watchlist.filters,
-    }));
+    return (data ?? [])
+      .map((watchlist) => toMarketplaceWatchlist(watchlist, availableSources))
+      .filter((watchlist) => watchlist.marketplaceIds.includes(targetSource));
+  }
+
+  async setWatchlistMarketplaceSelection(
+    watchlistId: string,
+    selection: WatchlistMarketplaceSelectionInput,
+    availableSources: readonly MarketplaceSource[],
+  ): Promise<ValidatedWatchlistMarketplaceSelection> {
+    const validated = validateWatchlistMarketplaceSelection(selection, availableSources);
+    const { error } = await this.client.rpc("set_watchlist_marketplace_selection", {
+      p_marketplace_ids: validated.marketplaceIds,
+      p_scope: validated.scope,
+      p_watchlist_id: watchlistId,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return validated;
   }
 
   async upsertListings(listings: MarketplaceListing[]) {
@@ -206,13 +239,42 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
   };
 }
 
+function toMarketplaceWatchlist(
+  stored: StoredWatchlist,
+  availableSources: readonly MarketplaceSource[],
+): MarketplaceWatchlist {
+  const available = [...new Set(availableSources)].sort();
+  const storedMarketplaceIds = (stored.watchlist_marketplaces ?? [])
+    .map(({ marketplace_id }) => marketplaceSourceOrNull(marketplace_id))
+    .filter((source): source is MarketplaceSource => source !== null);
+  const legacyMarketplaceId = marketplaceSourceOrNull(stored.marketplace_id);
+  const selectedMarketplaceIds = [
+    ...new Set(storedMarketplaceIds.length > 0 ? storedMarketplaceIds : [legacyMarketplaceId]),
+  ].filter((source): source is MarketplaceSource => source !== null && available.includes(source));
+  const marketplaceScope: WatchlistMarketplaceScope =
+    stored.marketplace_scope === "all" ? "all" : "selected";
+
+  return {
+    id: stored.id,
+    userId: stored.user_id,
+    searchQuery: stored.search_query,
+    filters: stored.filters,
+    marketplaceScope,
+    marketplaceIds: marketplaceScope === "all" ? available : selectedMarketplaceIds,
+  };
+}
+
 function marketplaceSource(value: string) {
-  const source = Object.values(MARKETPLACE_IDS).find((marketplaceId) => marketplaceId === value);
+  const source = marketplaceSourceOrNull(value);
   if (!source) {
     throw new Error(`Stored listing references an unsupported marketplace: ${value}.`);
   }
 
   return source;
+}
+
+function marketplaceSourceOrNull(value: string | undefined) {
+  return Object.values(MARKETPLACE_IDS).find((marketplaceId) => marketplaceId === value) ?? null;
 }
 
 function extractImageUrls(stored: StoredListing) {

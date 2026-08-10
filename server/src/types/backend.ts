@@ -1,8 +1,17 @@
+import type { MarketplaceSource } from "../marketplaces/shared/types";
+
 export interface FacebookWatchlist {
   id: string;
   userId: string;
   searchQuery: string;
   filters: WatchlistFilters;
+}
+
+export type WatchlistMarketplaceScope = "selected" | "all";
+
+export interface MarketplaceWatchlist extends FacebookWatchlist {
+  marketplaceScope: WatchlistMarketplaceScope;
+  marketplaceIds: MarketplaceSource[];
 }
 
 export interface WatchlistPriceFilter {
