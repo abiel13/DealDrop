@@ -6,7 +6,6 @@ import {
   type NotificationDeliverySummary,
 } from "../notifications/delivery";
 import { deduplicateIngestionListings } from "./listing-ingestion";
-import { deduplicateListings } from "../marketplaces/facebook/normalizer";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import type {
@@ -187,15 +186,18 @@ export class ListingRepository {
     listings: MarketplaceListing[],
     storedListings: StoredListingReference[],
   ) {
-    const listingIdsByExternalId = new Map(
-      storedListings.map((listing) => [listing.external_id, listing.id]),
+    const listingIdsByIdentity = new Map(
+      storedListings.map((listing) => [
+        listingIdentity(listing.marketplace_id, listing.external_id),
+        listing.id,
+      ]),
     );
-    const rows = deduplicateListings(listings)
+    const rows = deduplicateIngestionListings(listings)
       .filter((listing) => matchesWatchlist(watchlist, listing))
       .map((listing) => ({
         user_id: watchlist.userId,
         watchlist_id: watchlist.id,
-        listing_id: listingIdsByExternalId.get(listing.externalId),
+        listing_id: listingIdsByIdentity.get(listingIdentity(listing.source, listing.externalId)),
       }))
       .filter((match): match is { user_id: string; watchlist_id: string; listing_id: string } =>
         Boolean(match.listing_id),
@@ -310,6 +312,10 @@ function marketplaceSource(value: string) {
 
 function marketplaceSourceOrNull(value: string | undefined) {
   return Object.values(MARKETPLACE_IDS).find((marketplaceId) => marketplaceId === value) ?? null;
+}
+
+function listingIdentity(source: string, externalId: string) {
+  return `${source}:${externalId}`;
 }
 
 function extractImageUrls(stored: StoredListing) {

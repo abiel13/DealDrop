@@ -1,8 +1,9 @@
-import { normalizeCurrency, normalizeText } from "../marketplaces/facebook/normalizer";
+import { normalizeCurrency, normalizeText } from "../marketplaces/shared/normalizer";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import type {
-  FacebookWatchlist,
+  MarketplaceWatchlist,
   WatchlistDistanceFilter,
+  WatchlistFilters,
   WatchlistPriceFilter,
 } from "../types/backend";
 
@@ -20,7 +21,11 @@ function matchesTerm(term: string, haystack: string) {
   return term.split(/\s+/).every((token) => haystack.includes(token));
 }
 
-function matchesKeywords(watchlist: FacebookWatchlist, listing: MarketplaceListing) {
+function matchesMarketplace(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
+  return watchlist.marketplaceIds.includes(listing.source);
+}
+
+function matchesKeywords(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
   const terms = [watchlist.searchQuery, ...(watchlist.filters.aliases ?? [])]
     .map(normalizedMatchText)
     .filter(Boolean);
@@ -53,8 +58,11 @@ function matchesPrice(filter: WatchlistPriceFilter | undefined, listing: Marketp
     return false;
   }
 
-  if (filter.currency && normalizeCurrency(filter.currency) !== listing.currency) {
-    return false;
+  if (filter.currency) {
+    const currency = normalizeCurrency(filter.currency);
+    if (!currency || currency !== listing.currency) {
+      return false;
+    }
   }
 
   if (filter.min !== undefined && (!Number.isFinite(filter.min) || listing.price < filter.min)) {
@@ -66,6 +74,25 @@ function matchesPrice(filter: WatchlistPriceFilter | undefined, listing: Marketp
   }
 
   return filter.min === undefined || filter.max === undefined || filter.min <= filter.max;
+}
+
+function matchesLocation(filter: WatchlistFilters["location"], listing: MarketplaceListing) {
+  const locationName =
+    typeof filter === "string"
+      ? filter
+      : filter && typeof filter.name === "string"
+        ? filter.name
+        : null;
+  const normalizedLocation = normalizedMatchText(locationName);
+
+  if (!normalizedLocation) {
+    return true;
+  }
+
+  return (
+    listing.location !== null &&
+    matchesTerm(normalizedLocation, normalizedMatchText(listing.location))
+  );
 }
 
 function distanceInKilometers(
@@ -115,7 +142,7 @@ function matchesDistance(filter: WatchlistDistanceFilter | undefined, listing: M
   );
 }
 
-function matchesCondition(watchlist: FacebookWatchlist, listing: MarketplaceListing) {
+function matchesCondition(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
   const conditions = (watchlist.filters.conditions ?? []).map(normalizedMatchText).filter(Boolean);
 
   if (conditions.length === 0) {
@@ -125,10 +152,12 @@ function matchesCondition(watchlist: FacebookWatchlist, listing: MarketplaceList
   return listing.condition !== null && conditions.includes(normalizedMatchText(listing.condition));
 }
 
-export function matchesWatchlist(watchlist: FacebookWatchlist, listing: MarketplaceListing) {
+export function matchesWatchlist(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
   return (
+    matchesMarketplace(watchlist, listing) &&
     matchesKeywords(watchlist, listing) &&
     matchesPrice(watchlist.filters.price, listing) &&
+    matchesLocation(watchlist.filters.location, listing) &&
     matchesDistance(watchlist.filters.distance, listing) &&
     matchesCondition(watchlist, listing)
   );

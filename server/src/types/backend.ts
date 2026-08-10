@@ -1,15 +1,21 @@
 import type { MarketplaceSource } from "../marketplaces/shared/types";
 
-export interface FacebookWatchlist {
+export interface DealDropWatchlist {
   id: string;
   userId: string;
   searchQuery: string;
   filters: WatchlistFilters;
 }
 
+/**
+ * Kept as a compatibility alias for the legacy Facebook worker boundary.
+ * Matching uses MarketplaceWatchlist so provider-specific behavior stays out of it.
+ */
+export type FacebookWatchlist = DealDropWatchlist;
+
 export type WatchlistMarketplaceScope = "selected" | "all";
 
-export interface MarketplaceWatchlist extends FacebookWatchlist {
+export interface MarketplaceWatchlist extends DealDropWatchlist {
   marketplaceScope: WatchlistMarketplaceScope;
   marketplaceIds: MarketplaceSource[];
 }
@@ -20,6 +26,10 @@ export interface WatchlistPriceFilter {
   currency?: string;
 }
 
+export interface WatchlistLocationFilter {
+  name?: string;
+}
+
 export interface WatchlistDistanceFilter {
   maxKm?: number;
   latitude?: number;
@@ -28,6 +38,7 @@ export interface WatchlistDistanceFilter {
 
 export interface WatchlistFilters {
   aliases?: string[];
+  location?: string | WatchlistLocationFilter;
   price?: WatchlistPriceFilter;
   distance?: WatchlistDistanceFilter;
   conditions?: string[];
