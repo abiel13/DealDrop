@@ -1,4 +1,5 @@
 import { MarketplaceError } from "../shared/errors";
+import type { MarketplaceErrorCategory } from "../shared/types";
 import { MARKETPLACE_IDS } from "../shared/types";
 
 export class WorkerConfigurationError extends Error {
@@ -19,6 +20,22 @@ export class ListingParseError extends MarketplaceError {
   constructor(message: string) {
     super(MARKETPLACE_IDS.facebookMarketplace, "parse", message);
     this.name = "ListingParseError";
+  }
+}
+
+type FacebookRequestErrorCategory = Extract<
+  MarketplaceErrorCategory,
+  "rate_limit" | "timeout" | "unavailable"
+>;
+
+export class FacebookMarketplaceRequestError extends MarketplaceError {
+  constructor(category: FacebookRequestErrorCategory, operation: string) {
+    super(
+      MARKETPLACE_IDS.facebookMarketplace,
+      category,
+      `Facebook Marketplace ${operation} failed.`,
+    );
+    this.name = "FacebookMarketplaceRequestError";
   }
 }
 
@@ -46,4 +63,19 @@ export function getErrorMessage(error: unknown) {
   }
 
   return "Unknown worker error";
+}
+
+export function toFacebookMarketplaceError(error: unknown, operation: string): MarketplaceError {
+  if (error instanceof MarketplaceError) {
+    return error;
+  }
+
+  const message = getErrorMessage(error).toLowerCase();
+  const category: FacebookRequestErrorCategory = /429|rate limit/.test(message)
+    ? "rate_limit"
+    : /timeout|timed out/.test(message)
+      ? "timeout"
+      : "unavailable";
+
+  return new FacebookMarketplaceRequestError(category, operation);
 }

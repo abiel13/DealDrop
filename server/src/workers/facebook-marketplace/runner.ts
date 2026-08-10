@@ -1,4 +1,5 @@
 import { createBrowserSession } from "../../marketplaces/facebook/browser";
+import { FacebookMarketplaceClient } from "../../marketplaces/facebook/client";
 import type { FacebookWorkerConfig } from "../../marketplaces/facebook/config";
 import { FacebookMarketplaceAdapter } from "../../marketplaces/facebook/adapter";
 import { FacebookAuthenticationError, getErrorMessage } from "../../marketplaces/facebook/errors";
@@ -28,7 +29,8 @@ export async function runFacebookMarketplaceWorker(
   const watchlists = await repository.getActiveWatchlists();
   const existingListings = watchlists.length > 0 ? await repository.getActiveListings() : [];
   const session = await createBrowserSession(config);
-  const adapter = new FacebookMarketplaceAdapter(session.context, config, logger);
+  const client = new FacebookMarketplaceClient(session.context, config, logger);
+  const adapter = new FacebookMarketplaceAdapter(client);
   const summary: WorkerRunSummary = {
     watchlists: watchlists.length,
     listings: 0,

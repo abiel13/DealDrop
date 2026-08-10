@@ -72,6 +72,7 @@
     "server:dev": "tsx server/src/index.ts",
     "server:build": "tsc -p server/tsconfig.json",
     "server:start": "node server/dist/index.js",
+    "test:server": "node --import tsx --test server/test/marketplaces/facebook.test.ts",
     "server:worker:facebook-marketplace": "tsx server/src/workers/facebook-marketplace/cli.ts",
     "worker:facebook-marketplace": "tsx server/src/workers/facebook-marketplace/cli.ts",
     "lint": "expo lint",

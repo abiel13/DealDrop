@@ -2,12 +2,13 @@ import type { BrowserContext, Page } from "playwright";
 
 import { ensureAuthenticated, getFacebookAuthBlock } from "./browser";
 import type { FacebookWorkerConfig } from "./config";
-import { FacebookAuthenticationError } from "./errors";
+import { FacebookAuthenticationError, getErrorMessage, toFacebookMarketplaceError } from "./errors";
 import { deduplicateListings } from "./normalizer";
 import { extractRawListingCards, LISTING_SELECTOR, parseListingsFromPage } from "./parser";
 import { RateLimiter } from "./rate-limiter";
 import { withRetry } from "./retry";
 import type { MarketplaceListing, MarketplaceSearchRequest } from "../shared/adapter";
+import { MarketplaceError } from "../shared/errors";
 import type { WorkerLogger } from "../../types/backend";
 
 export class FacebookMarketplaceClient {
@@ -23,6 +24,11 @@ export class FacebookMarketplaceClient {
 
   async search(watchlist: MarketplaceSearchRequest) {
     const page = await this.context.newPage();
+    const startedAt = Date.now();
+    this.logger.info("Facebook Marketplace search started", {
+      operation: "search",
+      query: watchlist.searchQuery,
+    });
 
     try {
       const searchUrl = this.searchUrl(watchlist.searchQuery);
@@ -33,7 +39,9 @@ export class FacebookMarketplaceClient {
         }),
       );
 
-      const loggedIn = await ensureAuthenticated(page, this.config);
+      const loggedIn = await this.runWithRetry(page, "authenticate", () =>
+        ensureAuthenticated(page, this.config),
+      );
       if (loggedIn) {
         await this.runWithRetry(page, `reopen ${watchlist.searchQuery}`, () =>
           page.goto(searchUrl, {
@@ -57,7 +65,17 @@ export class FacebookMarketplaceClient {
           });
         });
 
-        const pageListings = await parseListingsFromPage(page, this.config.maxListingsPerPage);
+        const pageListings = await parseListingsFromPage(
+          page,
+          this.config.maxListingsPerPage,
+          (error) => {
+            this.logger.warn("Skipped invalid Facebook Marketplace listing", {
+              category: error.category,
+              error: error.message,
+              query: watchlist.searchQuery,
+            });
+          },
+        );
         for (const listing of pageListings) {
           listings.set(listing.externalId, listing);
         }
@@ -78,7 +96,25 @@ export class FacebookMarketplaceClient {
         }
       }
 
-      return deduplicateListings([...listings.values()]);
+      const normalizedListings = deduplicateListings([...listings.values()]);
+      this.logger.info("Facebook Marketplace search completed", {
+        durationMs: Date.now() - startedAt,
+        listings: normalizedListings.length,
+        query: watchlist.searchQuery,
+      });
+      return normalizedListings;
+    } catch (error) {
+      if (error instanceof MarketplaceError) {
+        throw error;
+      }
+
+      const normalizedError = toFacebookMarketplaceError(error, "search");
+      this.logger.error("Facebook Marketplace search failed", {
+        category: normalizedError.category,
+        error: getErrorMessage(error),
+        query: watchlist.searchQuery,
+      });
+      throw normalizedError;
     } finally {
       await page.close();
     }
@@ -91,21 +127,32 @@ export class FacebookMarketplaceClient {
   }
 
   private async runWithRetry<T>(page: Page, operationName: string, operation: () => Promise<T>) {
-    return withRetry(operation, {
-      attempts: this.config.retryAttempts,
-      baseDelayMs: this.config.retryBaseDelayMs,
-      rateLimiter: this.rateLimiter,
-      operationName,
-      onRetry: (error, attempt, delayMs) => {
-        this.logger.warn("Retrying Facebook Marketplace operation", {
-          attempt,
-          delayMs,
-          error: error instanceof Error ? error.message : String(error),
-          operation: operationName,
-          page: page.url(),
-        });
-      },
-    });
+    try {
+      return await withRetry(operation, {
+        attempts: this.config.retryAttempts,
+        baseDelayMs: this.config.retryBaseDelayMs,
+        rateLimiter: this.rateLimiter,
+        operationName,
+        onRetry: (error, attempt, delayMs) => {
+          this.logger.warn("Retrying Facebook Marketplace operation", {
+            attempt,
+            delayMs,
+            error: error instanceof Error ? error.message : String(error),
+            operation: operationName,
+            page: page.url(),
+          });
+        },
+      });
+    } catch (error) {
+      const normalizedError = toFacebookMarketplaceError(error, operationName);
+      this.logger.error("Facebook Marketplace operation failed", {
+        category: normalizedError.category,
+        error: getErrorMessage(error),
+        operation: operationName,
+        page: page.url(),
+      });
+      throw normalizedError;
+    }
   }
 
   private async advancePage(page: Page) {

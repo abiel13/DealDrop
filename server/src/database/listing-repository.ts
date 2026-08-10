@@ -82,7 +82,7 @@ export class ListingRepository {
       price: listing.price,
       currency: listing.currency ?? "USD",
       url: listing.url,
-      image_url: listing.imageUrl,
+      image_url: listing.imageUrls[0] ?? null,
       seller_name: listing.sellerName,
       location: listing.location,
       category: listing.category,
@@ -92,7 +92,10 @@ export class ListingRepository {
       posted_at: listing.postedAt,
       last_seen_at: now,
       is_active: true,
-      raw_data: listing.metadata ?? {},
+      raw_data: {
+        ...(listing.metadata ?? {}),
+        imageUrls: listing.imageUrls,
+      },
     }));
 
     const { data, error } = await this.client
@@ -188,7 +191,7 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     price: stored.price,
     currency: stored.currency,
     url: stored.url,
-    imageUrl: stored.image_url,
+    imageUrls: extractImageUrls(stored),
     sellerName: stored.seller_name,
     location: stored.location,
     category: stored.category,
@@ -198,4 +201,15 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     postedAt: stored.posted_at,
     metadata: stored.raw_data,
   };
+}
+
+function extractImageUrls(stored: StoredListing) {
+  const rawImages = stored.raw_data.imageUrls ?? stored.raw_data.images;
+  const imageUrls = Array.isArray(rawImages)
+    ? rawImages.filter((image): image is string => typeof image === "string")
+    : [];
+
+  return [
+    ...new Set([stored.image_url, ...imageUrls].filter((image): image is string => Boolean(image))),
+  ];
 }

@@ -1,15 +1,15 @@
-import type { BrowserContext } from "playwright";
-
-import type { WorkerLogger } from "../../types/backend";
 import type {
   MarketplaceAdapter,
   MarketplaceCapabilities,
+  MarketplaceListing,
   MarketplaceSearchRequest,
   MarketplaceSearchResponse,
 } from "../shared/adapter";
 import { MARKETPLACE_IDS } from "../shared/types";
-import { FacebookMarketplaceClient } from "./client";
-import type { FacebookWorkerConfig } from "./config";
+
+export interface FacebookMarketplaceSearchClient {
+  search(request: MarketplaceSearchRequest): Promise<MarketplaceListing[]>;
+}
 
 export class FacebookMarketplaceAdapter implements MarketplaceAdapter {
   readonly source = MARKETPLACE_IDS.facebookMarketplace;
@@ -20,11 +20,7 @@ export class FacebookMarketplaceAdapter implements MarketplaceAdapter {
     supportsCondition: false,
     supportsPagination: false,
   };
-  private readonly client: FacebookMarketplaceClient;
-
-  constructor(context: BrowserContext, config: FacebookWorkerConfig, logger: WorkerLogger) {
-    this.client = new FacebookMarketplaceClient(context, config, logger);
-  }
+  constructor(private readonly client: FacebookMarketplaceSearchClient) {}
 
   async search(request: MarketplaceSearchRequest): Promise<MarketplaceSearchResponse> {
     return { listings: await this.client.search(request) };
