@@ -64,6 +64,7 @@ export function formatMarketplaceName(marketplaceId: string) {
   const marketplaceNames: Record<string, string> = {
     ebay: "eBay",
     etsy: "Etsy",
+    stockx: "StockX",
   };
 
   return marketplaceNames[marketplaceId] ?? marketplaceId;
