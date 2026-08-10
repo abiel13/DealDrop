@@ -1,25 +1,47 @@
 import { createHttpServer } from "./api/http-server";
-import { loadServerEnvironment } from "./config/load-env";
+import { SupabaseRequestAuthenticator } from "./api/auth";
+import { MobileApiService } from "./api/mobile-api";
+import { MobileApiRepository } from "./api/mobile-repository";
 import { loadServerConfig } from "./config/env";
+import { loadServerEnvironment } from "./config/load-env";
+import { createServerDatabaseClient } from "./database/client";
 import { errorContext, logger } from "./lib/logger";
+import {
+  createWatchlistMonitoringRuntime,
+  loadWatchlistMonitoringConfig,
+} from "./workers/watchlist-monitoring";
 
-loadServerEnvironment();
+async function main() {
+  loadServerEnvironment();
 
-let config: ReturnType<typeof loadServerConfig> | undefined;
-try {
-  config = loadServerConfig();
-} catch (error) {
-  logger.error("Server configuration is invalid", errorContext(error));
-  process.exitCode = 1;
-}
+  const config = loadServerConfig();
+  const databaseClient = createServerDatabaseClient({
+    supabaseUrl: config.supabaseUrl,
+    supabaseServiceRoleKey: config.supabaseServiceRoleKey,
+  });
+  const monitoringConfig = loadWatchlistMonitoringConfig();
+  const runtime = await createWatchlistMonitoringRuntime(monitoringConfig, logger, process.env, {
+    requireAdapter: false,
+  });
+  const repository = new MobileApiRepository(databaseClient);
+  const mobileApi = new MobileApiService({
+    adapters: runtime.adapters,
+    logger,
+    repository,
+  });
+  const server = createHttpServer(logger, {
+    adapters: runtime.adapters,
+    authenticator: new SupabaseRequestAuthenticator(databaseClient),
+    mobileApi,
+    repository,
+  });
 
-if (config) {
-  const server = createHttpServer(logger);
   server.listen(config.port, config.host, () => {
     logger.info("DealDrop server listening", {
       environment: config.environment,
       host: config.host,
       port: config.port,
+      sources: runtime.availableSources,
     });
   });
 
@@ -30,9 +52,19 @@ if (config) {
         logger.error("Server shutdown failed", errorContext(error));
         process.exitCode = 1;
       }
+
+      void runtime.close().catch((closeError: unknown) => {
+        logger.error("Marketplace runtime shutdown failed", errorContext(closeError));
+        process.exitCode = 1;
+      });
     });
   };
 
   process.once("SIGINT", () => shutdown("SIGINT"));
   process.once("SIGTERM", () => shutdown("SIGTERM"));
 }
+
+void main().catch((error: unknown) => {
+  logger.error("DealDrop server stopped", errorContext(error));
+  process.exitCode = 1;
+});
