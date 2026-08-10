@@ -50,7 +50,9 @@ function booleanValue(value: string | undefined, fallback: boolean) {
   return value.toLowerCase() !== "false";
 }
 
-export function loadWorkerConfig(env: NodeJS.ProcessEnv = process.env): FacebookWorkerConfig {
+export function loadFacebookWorkerConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): FacebookWorkerConfig {
   const facebookEmail = env.FACEBOOK_EMAIL?.trim() || undefined;
   const facebookPassword = env.FACEBOOK_PASSWORD?.trim() || undefined;
   const facebookStorageStatePath = env.FACEBOOK_STORAGE_STATE_PATH?.trim() || undefined;

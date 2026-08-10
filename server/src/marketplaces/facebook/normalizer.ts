@@ -1,4 +1,4 @@
-import type { MarketplaceListing } from "./types";
+import type { MarketplaceListing } from "../../types/backend";
 
 const DEFAULT_CURRENCY = "USD";
 
@@ -6,15 +6,15 @@ const CURRENCY_BY_TOKEN: Record<string, string> = {
   $: "USD",
   US$: "USD",
   USD: "USD",
-  "\u20ac": "EUR",
+  "€": "EUR",
   EUR: "EUR",
-  "\u00a3": "GBP",
+  "£": "GBP",
   GBP: "GBP",
-  "\u20a6": "NGN",
+  "₦": "NGN",
   NGN: "NGN",
-  "\u00c2\u201a\xac": "EUR",
-  "\u00c2\u00a3": "GBP",
-  "\u00c2\u201a\u00a6": "NGN",
+  "Â‚¬": "EUR",
+  "Â£": "GBP",
+  "Â‚¦": "NGN",
 };
 
 export function normalizeText(value: string | null | undefined) {

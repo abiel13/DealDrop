@@ -8,5 +8,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"],
-  "exclude": ["workers/facebook-marketplace/**/*.ts"]
+  "exclude": ["server/**/*.ts", "workers/facebook-marketplace/**/*.ts"]
 }

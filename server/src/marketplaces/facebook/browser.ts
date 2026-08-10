@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import type { FacebookWorkerConfig } from "./config";

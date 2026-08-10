@@ -1,21 +1,12 @@
-import {
-  createClient,
-  type SupabaseClient,
-  type WebSocketLikeConstructor,
-} from "@supabase/supabase-js";
-import ws from "ws";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { FacebookWorkerConfig } from "./config";
-import { matchesWatchlist } from "./matching";
-import { deduplicateListings } from "./normalizer";
+import { matchesWatchlist } from "../matching/watchlist";
 import {
   processNotificationQueue,
   type NotificationDeliverySummary,
-} from "./notification-delivery";
-import type { FacebookWatchlist, MarketplaceListing, WatchlistFilters } from "./types";
-
-// ws supports the Realtime client at runtime, but its Node event types differ from the browser-shaped interface.
-const supabaseWebSocketTransport = ws as unknown as WebSocketLikeConstructor;
+} from "../notifications/delivery";
+import type { FacebookWatchlist, MarketplaceListing, WatchlistFilters } from "../types/backend";
+import { deduplicateListings } from "../marketplaces/facebook/normalizer";
 
 interface StoredWatchlist {
   id: string;
@@ -205,18 +196,4 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     postedAt: stored.posted_at,
     rawData: stored.raw_data,
   };
-}
-
-export function createListingRepository(config: FacebookWorkerConfig) {
-  const client = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    realtime: {
-      transport: supabaseWebSocketTransport,
-    },
-  });
-
-  return new ListingRepository(client);
 }

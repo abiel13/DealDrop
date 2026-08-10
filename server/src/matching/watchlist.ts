@@ -1,10 +1,10 @@
-import { normalizeCurrency, normalizeText } from "./normalizer";
+import { normalizeCurrency, normalizeText } from "../marketplaces/facebook/normalizer";
 import type {
   FacebookWatchlist,
   MarketplaceListing,
   WatchlistDistanceFilter,
   WatchlistPriceFilter,
-} from "./types";
+} from "../types/backend";
 
 const EARTH_RADIUS_KM = 6_371;
 

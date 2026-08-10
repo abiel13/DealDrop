@@ -48,4 +48,5 @@ example
 !.env.example
 
 # Facebook Marketplace worker session state
+server/.auth/
 workers/facebook-marketplace/.auth/
