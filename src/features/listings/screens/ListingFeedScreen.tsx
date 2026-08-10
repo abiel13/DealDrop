@@ -96,8 +96,8 @@ function sortListings(listings: Listing[], sort: ListingSort) {
   return [...listings].sort((first, second) => {
     if (sort === "newest") {
       return (
-        new Date(second.posted_at ?? second.matched_at ?? second.first_seen_at).getTime() -
-        new Date(first.posted_at ?? first.matched_at ?? first.first_seen_at).getTime()
+        new Date(second.posted_at ?? second.matched_at ?? second.fetched_at ?? "").getTime() -
+        new Date(first.posted_at ?? first.matched_at ?? first.fetched_at ?? "").getTime()
       );
     }
 
@@ -126,12 +126,12 @@ export function ListingFeedScreen() {
 
   const listingsQuery = useQuery({
     queryKey: matchedListingsQueryKey,
-    queryFn: () => getMatchedListings(userId),
+    queryFn: getMatchedListings,
     enabled: Boolean(userId),
   });
   const favoriteMutation = useMutation({
     mutationFn: ({ listingId, isFavorite }: { listingId: string; isFavorite: boolean }) =>
-      setListingFavorite(userId, listingId, isFavorite),
+      setListingFavorite(listingId, isFavorite),
     onMutate: async ({ listingId, isFavorite }) => {
       setOperationError(null);
       await queryClient.cancelQueries({ queryKey: matchedListingsQueryKey });

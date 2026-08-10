@@ -3,7 +3,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-import { supabase } from "@/lib/supabase";
+import { apiClient, type ApiNotification, type ApiNotificationPreferences } from "@/services/api";
 
 import type {
   AppNotification,
@@ -11,76 +11,52 @@ import type {
   PushTokenRegistration,
 } from "../types/notification.types";
 
-const NOTIFICATION_COLUMNS = "id,match_id,type,title,body,data,read_at,sent_at,created_at";
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   push_enabled: true,
   new_match_enabled: true,
 };
 
-export async function getNotifications(userId: string) {
-  const { data, error } = await supabase
-    .from("notifications")
-    .select(NOTIFICATION_COLUMNS)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .returns<AppNotification[]>();
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
+function toNotification(notification: ApiNotification): AppNotification {
+  return {
+    id: notification.id,
+    match_id: notification.matchId,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    data: notification.data,
+    read_at: notification.readAt,
+    sent_at: notification.sentAt,
+    created_at: notification.createdAt,
+  };
 }
 
-export async function markNotificationRead(userId: string, notificationId: string) {
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", notificationId)
-    .eq("user_id", userId)
-    .is("read_at", null);
-
-  if (error) {
-    throw error;
-  }
+function toPreferences(preferences: ApiNotificationPreferences): NotificationPreferences {
+  return {
+    push_enabled: preferences.pushEnabled,
+    new_match_enabled: preferences.newMatchEnabled,
+  };
 }
 
-export async function getNotificationPreferences(userId: string) {
-  const { data, error } = await supabase
-    .from("notification_preferences")
-    .select("push_enabled,new_match_enabled")
-    .eq("user_id", userId)
-    .maybeSingle<NotificationPreferences>();
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? DEFAULT_PREFERENCES;
+export async function getNotifications() {
+  const response = await apiClient.getNotifications();
+  return response.data.map(toNotification);
 }
 
-export async function updateNotificationPreferences(
-  userId: string,
-  preferences: NotificationPreferences,
-) {
-  const { data, error } = await supabase
-    .from("notification_preferences")
-    .upsert(
-      {
-        user_id: userId,
-        push_enabled: preferences.push_enabled,
-        new_match_enabled: preferences.new_match_enabled,
-      },
-      { onConflict: "user_id" },
-    )
-    .select("push_enabled,new_match_enabled")
-    .single<NotificationPreferences>();
+export async function markNotificationRead(notificationId: string) {
+  await apiClient.markNotificationRead(notificationId);
+}
 
-  if (error) {
-    throw error;
-  }
+export async function getNotificationPreferences() {
+  const response = await apiClient.getNotificationPreferences();
+  return response.data ? toPreferences(response.data) : DEFAULT_PREFERENCES;
+}
 
-  return data;
+export async function updateNotificationPreferences(preferences: NotificationPreferences) {
+  const response = await apiClient.updateNotificationPreferences({
+    pushEnabled: preferences.push_enabled,
+    newMatchEnabled: preferences.new_match_enabled,
+  });
+  return toPreferences(response.data);
 }
 
 function getExpoProjectId() {
@@ -91,7 +67,7 @@ function getExpoProjectId() {
   );
 }
 
-export async function registerPushToken(userId: string) {
+export async function registerPushToken() {
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return null;
   }
@@ -123,22 +99,15 @@ export async function registerPushToken(userId: string) {
   }
 
   const expoPushToken = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  const platform = Platform.OS;
   const registration: PushTokenRegistration = {
-    user_id: userId,
     expo_push_token: expoPushToken,
-    platform,
-    is_active: true,
-    last_seen_at: new Date().toISOString(),
+    platform: Platform.OS,
   };
 
-  const { error } = await supabase
-    .from("push_tokens")
-    .upsert(registration, { onConflict: "user_id,expo_push_token" });
-
-  if (error) {
-    throw error;
-  }
+  await apiClient.registerPushToken({
+    expoPushToken: registration.expo_push_token,
+    platform: registration.platform,
+  });
 
   return expoPushToken;
 }

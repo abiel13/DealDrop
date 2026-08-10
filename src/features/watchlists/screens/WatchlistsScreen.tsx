@@ -63,13 +63,13 @@ export function WatchlistsScreen() {
 
   const watchlistsQuery = useQuery({
     queryKey: watchlistsQueryKey,
-    queryFn: () => getWatchlists(userId),
+    queryFn: getWatchlists,
     enabled: Boolean(userId),
   });
 
   const activeMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      setWatchlistActive(userId, id, isActive),
+      setWatchlistActive(id, isActive),
     onMutate: async ({ id, isActive }) => {
       setOperationError(null);
       await queryClient.cancelQueries({ queryKey: watchlistsQueryKey });
@@ -94,7 +94,7 @@ export function WatchlistsScreen() {
 
   const favoriteMutation = useMutation({
     mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
-      setWatchlistFavorite(userId, id, isFavorite),
+      setWatchlistFavorite(id, isFavorite),
     onMutate: async ({ id, isFavorite }) => {
       setOperationError(null);
       await queryClient.cancelQueries({ queryKey: watchlistsQueryKey });
@@ -118,7 +118,7 @@ export function WatchlistsScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteWatchlist(userId, id),
+    mutationFn: (id: string) => deleteWatchlist(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: watchlistsQueryKey });
     },

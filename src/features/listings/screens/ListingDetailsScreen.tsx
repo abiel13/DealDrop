@@ -68,11 +68,11 @@ export function ListingDetailsScreen() {
 
   const listingQuery = useQuery({
     queryKey: listingQueryKey,
-    queryFn: () => getListing(user!.id, listingId!),
+    queryFn: () => getListing(listingId!),
     enabled: Boolean(user && listingId),
   });
   const favoriteMutation = useMutation({
-    mutationFn: (isFavorite: boolean) => setListingFavorite(user!.id, listingId!, isFavorite),
+    mutationFn: (isFavorite: boolean) => setListingFavorite(listingId!, isFavorite),
     onMutate: async (isFavorite) => {
       setOperationError(null);
       await queryClient.cancelQueries({ queryKey: listingQueryKey });

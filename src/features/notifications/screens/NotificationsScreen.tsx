@@ -41,21 +41,21 @@ export function NotificationsScreen() {
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", user?.id],
-    queryFn: () => getNotifications(user!.id),
+    queryFn: getNotifications,
     enabled: Boolean(user),
   });
   const preferencesQuery = useQuery({
     queryKey: ["notification-preferences", user?.id],
-    queryFn: () => getNotificationPreferences(user!.id),
+    queryFn: getNotificationPreferences,
     enabled: Boolean(user),
   });
   const readMutation = useMutation({
-    mutationFn: (id: string) => markNotificationRead(user!.id, id),
+    mutationFn: (id: string) => markNotificationRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] }),
   });
   const preferencesMutation = useMutation({
     mutationFn: (preferences: NotificationPreferences) =>
-      updateNotificationPreferences(user!.id, preferences),
+      updateNotificationPreferences(preferences),
     onSuccess: (preferences) => {
       queryClient.setQueryData(["notification-preferences", user?.id], preferences);
     },
@@ -120,7 +120,7 @@ export function NotificationsScreen() {
     setPushSetupStatus("idle");
 
     try {
-      const token = await registerPushToken(user.id);
+      const token = await registerPushToken();
 
       if (!token) {
         setPushSetupStatus("unavailable");
@@ -128,7 +128,7 @@ export function NotificationsScreen() {
       }
 
       const nextPreferences = { ...preferences, push_enabled: true };
-      const savedPreferences = await updateNotificationPreferences(user.id, nextPreferences);
+      const savedPreferences = await updateNotificationPreferences(nextPreferences);
       queryClient.setQueryData(["notification-preferences", user.id], savedPreferences);
       setPushSetupStatus("enabled");
     } catch {

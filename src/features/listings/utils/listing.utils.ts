@@ -6,13 +6,17 @@ export function formatListingPrice(listing: Pick<Listing, "price" | "currency">)
   }
 
   try {
+    if (!listing.currency) {
+      return listing.price.toLocaleString();
+    }
+
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: listing.currency,
       maximumFractionDigits: 2,
     }).format(listing.price);
   } catch {
-    return `${listing.currency} ${listing.price.toFixed(2)}`;
+    return `${listing.currency ? `${listing.currency} ` : ""}${listing.price.toFixed(2)}`;
   }
 }
 

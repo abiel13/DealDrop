@@ -16,9 +16,6 @@ export interface NotificationPreferences {
 }
 
 export interface PushTokenRegistration {
-  user_id: string;
   expo_push_token: string;
   platform: "ios" | "android" | "web";
-  is_active: boolean;
-  last_seen_at: string;
 }
