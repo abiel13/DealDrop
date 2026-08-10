@@ -10,14 +10,13 @@ import { PremiumGateScreen } from "@/features/premium/screens/PremiumGateScreen"
 import { PremiumProvider, usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { useNotificationObserver } from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
-import { appColors } from "@/styles/colors";
+import { ThemeProvider, useTheme } from "@/providers/ThemeProvider";
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="dark" />
+    <ThemeProvider>
       <AppQueryProvider>
         <AuthProvider>
           <PremiumProvider>
@@ -25,15 +24,16 @@ export default function RootLayout() {
           </PremiumProvider>
         </AuthProvider>
       </AppQueryProvider>
-    </>
+    </ThemeProvider>
   );
 }
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
   const premium = usePremium();
-  const isReady = !isLoading && (!user || !premium.isLoading);
-  useNotificationObserver();
+  const theme = useTheme();
+  const isReady = !theme.isLoading && !isLoading && (!user || !premium.isLoading);
+  useNotificationObserver(isReady && Boolean(user) && premium.isPremium);
 
   useEffect(() => {
     if (isReady) {
@@ -41,7 +41,7 @@ function RootNavigator() {
     }
   }, [isReady]);
 
-  if (isLoading) {
+  if (theme.isLoading || isLoading) {
     return <Loading />;
   }
 
@@ -54,24 +54,27 @@ function RootNavigator() {
   }
 
   return (
-    <Stack
-      initialRouteName={user ? "(app)" : "welcome"}
-      screenOptions={{
-        headerShown: false,
-        animation: "fade",
-        contentStyle: { backgroundColor: appColors.background },
-      }}
-    >
-      <Stack.Protected guard={Boolean(user)}>
-        <Stack.Screen name="(app)" />
-      </Stack.Protected>
+    <>
+      <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
+      <Stack
+        initialRouteName={user ? "(app)" : "welcome"}
+        screenOptions={{
+          headerShown: false,
+          animation: "fade",
+          contentStyle: { backgroundColor: theme.colors.background },
+        }}
+      >
+        <Stack.Protected guard={Boolean(user)}>
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={!user}>
-        <Stack.Screen name="welcome" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="forgot-password" />
-      </Stack.Protected>
-    </Stack>
+        <Stack.Protected guard={!user}>
+          <Stack.Screen name="welcome" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="forgot-password" />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
 }

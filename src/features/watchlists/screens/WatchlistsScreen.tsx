@@ -12,7 +12,7 @@ import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, watchlistFormRoute } from "@/features/auth/routes";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import { WatchlistCard } from "../components/WatchlistCard";
 import {
@@ -53,6 +53,7 @@ function WatchlistsSkeleton() {
 }
 
 export function WatchlistsScreen() {
+  const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -164,7 +165,7 @@ export function WatchlistsScreen() {
           />
           <Button
             variant="outline"
-            leftIcon={<AppIcon name="refresh" size={18} color={appColors.primary} />}
+            leftIcon={<AppIcon name="refresh" size={18} color={theme.colors.primary} />}
             onPress={() => void watchlistsQuery.refetch()}
           >
             Try again
@@ -216,10 +217,10 @@ export function WatchlistsScreen() {
         contentContainerClassName="grow gap-4 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
-            colors={[appColors.primary]}
-            progressBackgroundColor={appColors.surface}
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.surface}
             refreshing={watchlistsQuery.isRefetching}
-            tintColor={appColors.primary}
+            tintColor={theme.colors.primary}
             onRefresh={() => void watchlistsQuery.refetch()}
           />
         }
@@ -252,7 +253,7 @@ export function WatchlistsScreen() {
 
             <SearchBar
               accessibilityLabel="Search watchlists"
-              leftIcon={<AppIcon name="search" size={19} color={appColors.textTertiary} />}
+              leftIcon={<AppIcon name="search" size={19} color={theme.colors.textTertiary} />}
               placeholder="Search watchlists"
               value={search}
               onChangeText={setSearch}

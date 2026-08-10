@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 interface AppHeaderProps {
   title: string;
@@ -14,6 +14,8 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ title, subtitle, action, backLabel, onBack }: AppHeaderProps) {
+  const theme = useTheme();
+
   return (
     <View className="gap-4">
       {onBack && (
@@ -24,7 +26,7 @@ export function AppHeader({ title, subtitle, action, backLabel, onBack }: AppHea
           hitSlop={8}
           onPress={onBack}
         >
-          <AppIcon name="arrow-left" size={18} color={appColors.primary} />
+          <AppIcon name="arrow-left" size={18} color={theme.colors.primary} />
           <AppText variant="bodySmall" className="ml-2 font-semibold text-primary">
             {backLabel ?? "Back"}
           </AppText>

@@ -21,7 +21,7 @@ import {
   updateNotificationPreferences,
 } from "../services/notification.service";
 import type { AppNotification, NotificationPreferences } from "../types/notification.types";
-import { getNotificationRoute } from "../utils/notification.utils";
+import { resolveNotificationIntent } from "../utils/notification.utils";
 
 function formatNotificationDate(value: string) {
   return new Date(value).toLocaleString();
@@ -104,9 +104,9 @@ export function NotificationsScreen() {
       readMutation.mutate(notification.id);
     }
 
-    const route = getNotificationRoute(notification.data);
-    if (route) {
-      router.push(route);
+    const intent = resolveNotificationIntent(notification.data);
+    if (intent) {
+      router.push(intent.route);
     }
   }
 

@@ -1,7 +1,7 @@
 import { SymbolView } from "expo-symbols";
 import type { AndroidSymbol, SFSymbol } from "expo-symbols";
 
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import type { AppIconName, AppIconProps } from "./icon.types";
 
@@ -32,11 +32,15 @@ const symbols: Record<AppIconName, { ios: SFSymbol; android: AndroidSymbol }> = 
   warning: { ios: "exclamationmark.triangle.fill", android: "warning" },
 };
 
-export function AppIcon({
-  name,
-  size = 20,
-  color = appColors.textSecondary,
-  weight = "medium",
-}: AppIconProps) {
-  return <SymbolView name={symbols[name]} size={size} tintColor={color} weight={weight} />;
+export function AppIcon({ name, size = 20, color, weight = "medium" }: AppIconProps) {
+  const theme = useTheme();
+
+  return (
+    <SymbolView
+      name={symbols[name]}
+      size={size}
+      tintColor={color ?? theme.colors.textSecondary}
+      weight={weight}
+    />
+  );
 }

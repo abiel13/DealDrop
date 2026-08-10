@@ -12,7 +12,7 @@ import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, listingRoute } from "@/features/auth/routes";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import { ListingCard } from "../components/ListingCard";
 import {
@@ -121,6 +121,7 @@ function sortListings(listings: Listing[], sort: ListingSort) {
 }
 
 export function ListingFeedScreen() {
+  const theme = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -255,7 +256,7 @@ export function ListingFeedScreen() {
           />
           <Button
             variant="outline"
-            leftIcon={<AppIcon name="refresh" size={18} color={appColors.primary} />}
+            leftIcon={<AppIcon name="refresh" size={18} color={theme.colors.primary} />}
             onPress={() => void activeQueryRefetch()}
           >
             Try again
@@ -275,10 +276,10 @@ export function ListingFeedScreen() {
         contentContainerClassName="grow gap-4 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
-            colors={[appColors.primary]}
-            progressBackgroundColor={appColors.surface}
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.surface}
             refreshing={activeQueryIsRefetching}
-            tintColor={appColors.primary}
+            tintColor={theme.colors.primary}
             onRefresh={() => void activeQueryRefetch()}
           />
         }
@@ -313,7 +314,7 @@ export function ListingFeedScreen() {
 
             <SearchBar
               accessibilityLabel="Search all marketplaces"
-              leftIcon={<AppIcon name="search" size={19} color={appColors.textTertiary} />}
+              leftIcon={<AppIcon name="search" size={19} color={theme.colors.textTertiary} />}
               placeholder="Search all marketplaces"
               returnKeyType="search"
               value={search}
@@ -328,7 +329,7 @@ export function ListingFeedScreen() {
 
             {isMarketplaceSearch && partialFailures.length > 0 && (
               <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
-                <AppIcon name="info" size={19} color={appColors.primary} />
+                <AppIcon name="info" size={19} color={theme.colors.primary} />
                 <AppText variant="bodySmall" className="flex-1">
                   Some marketplaces could not be searched right now (
                   {partialFailures

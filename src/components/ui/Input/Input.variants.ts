@@ -6,7 +6,7 @@ export const inputVariants = cva(
     variants: {
       state: {
         default: "border-transparent",
-        error: "border-error bg-red-50",
+        error: "border-error bg-error-soft",
         disabled: "opacity-50",
       },
       focused: {

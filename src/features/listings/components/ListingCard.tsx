@@ -3,7 +3,7 @@ import { Image, Pressable, View } from "react-native";
 import { Card } from "@/components/ui/Card";
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import type { Listing } from "../types/listing.types";
 import {
@@ -25,6 +25,8 @@ export function ListingCard({
   onPress,
   onFavoriteToggle,
 }: ListingCardProps) {
+  const theme = useTheme();
+
   const image = listing.images[0] ?? listing.image_url;
 
   return (
@@ -44,7 +46,7 @@ export function ListingCard({
             />
           ) : (
             <View className="items-center gap-2">
-              <AppIcon name="image" size={26} color={appColors.textTertiary} />
+              <AppIcon name="image" size={26} color={theme.colors.textTertiary} />
               <AppText variant="caption">No image available</AppText>
             </View>
           )}
@@ -66,7 +68,7 @@ export function ListingCard({
             <AppIcon
               name="heart"
               size={21}
-              color={listing.is_favorite ? "white" : appColors.textSecondary}
+              color={listing.is_favorite ? "white" : theme.colors.textSecondary}
               weight="semibold"
             />
           </Pressable>
@@ -83,7 +85,7 @@ export function ListingCard({
 
           {listing.location && (
             <View className="flex-row items-center gap-1.5">
-              <AppIcon name="place" size={15} color={appColors.textSecondary} />
+              <AppIcon name="place" size={15} color={theme.colors.textSecondary} />
               <AppText variant="bodySmall" numberOfLines={1}>
                 {listing.location}
               </AppText>
@@ -92,7 +94,7 @@ export function ListingCard({
 
           <View className="flex-row items-center justify-between gap-3">
             <View className="flex-1 flex-row items-center gap-1.5">
-              <AppIcon name="storefront" size={14} color={appColors.textTertiary} />
+              <AppIcon name="storefront" size={14} color={theme.colors.textTertiary} />
               <AppText variant="caption" numberOfLines={1}>
                 {formatMarketplaceName(listing.marketplace_id)}
               </AppText>

@@ -20,7 +20,7 @@ import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import {
   getListing,
@@ -55,6 +55,7 @@ function DetailsSkeleton() {
 }
 
 export function ListingDetailsScreen() {
+  const theme = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -113,7 +114,7 @@ export function ListingDetailsScreen() {
           />
           <Button
             variant="outline"
-            leftIcon={<AppIcon name="refresh" size={18} color={appColors.primary} />}
+            leftIcon={<AppIcon name="refresh" size={18} color={theme.colors.primary} />}
             onPress={() => void listingQuery.refetch()}
           >
             Try again
@@ -138,10 +139,10 @@ export function ListingDetailsScreen() {
         contentContainerClassName="gap-5 px-5 pb-8 pt-6"
         refreshControl={
           <RefreshControl
-            colors={[appColors.primary]}
-            progressBackgroundColor={appColors.surface}
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.surface}
             refreshing={listingQuery.isRefetching}
-            tintColor={appColors.primary}
+            tintColor={theme.colors.primary}
             onRefresh={() => void listingQuery.refetch()}
           />
         }
@@ -163,7 +164,7 @@ export function ListingDetailsScreen() {
         <Card padding="md" className="gap-4">
           <View className="flex-row items-center justify-between gap-3">
             <View className="flex-row items-center gap-1.5 rounded-full bg-primary-soft px-3 py-2">
-              <AppIcon name="storefront" size={15} color={appColors.primary} />
+              <AppIcon name="storefront" size={15} color={theme.colors.primary} />
               <AppText variant="caption" className="font-semibold text-primary">
                 {formatMarketplaceName(listing.marketplace_id)}
               </AppText>
@@ -184,7 +185,7 @@ export function ListingDetailsScreen() {
 
           {listing.location && (
             <View className="flex-row items-center gap-2">
-              <AppIcon name="place" size={17} color={appColors.textSecondary} />
+              <AppIcon name="place" size={17} color={theme.colors.textSecondary} />
               <AppText variant="bodySmall" className="flex-1">
                 {listing.location}
               </AppText>
@@ -201,7 +202,7 @@ export function ListingDetailsScreen() {
             </AppText>
             <View className="flex-row items-center gap-3">
               <View className="h-11 w-11 items-center justify-center rounded-full bg-primary-soft">
-                <AppIcon name="person" size={20} color={appColors.primary} />
+                <AppIcon name="person" size={20} color={theme.colors.primary} />
               </View>
               <AppText variant="title" className="flex-1">
                 {listing.seller_name}
@@ -260,11 +261,13 @@ function Gallery({
   onImageError: (image: string) => void;
   title: string;
 }) {
+  const theme = useTheme();
+
   if (images.length === 0) {
     return (
       <View className="h-72 items-center justify-center gap-3 rounded-3xl bg-surface-muted">
         <View className="h-14 w-14 items-center justify-center rounded-2xl bg-background-muted">
-          <AppIcon name="image" size={26} color={appColors.textTertiary} />
+          <AppIcon name="image" size={26} color={theme.colors.textTertiary} />
         </View>
         <AppText variant="bodySmall">No images available for this listing.</AppText>
       </View>
@@ -289,7 +292,7 @@ function Gallery({
           >
             {failedImages.includes(image) ? (
               <View className="items-center gap-2">
-                <AppIcon name="image" size={26} color={appColors.textTertiary} />
+                <AppIcon name="image" size={26} color={theme.colors.textTertiary} />
                 <AppText variant="caption">Image unavailable</AppText>
               </View>
             ) : (
@@ -334,6 +337,8 @@ function FavoriteButton({
   disabled: boolean;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+
   return (
     <Pressable
       accessibilityLabel={isFavorite ? "Remove listing favorite" : "Save listing"}
@@ -346,7 +351,7 @@ function FavoriteButton({
       hitSlop={8}
       onPress={onPress}
     >
-      <AppIcon name="heart" size={17} color={isFavorite ? "white" : appColors.textSecondary} />
+      <AppIcon name="heart" size={17} color={isFavorite ? "white" : theme.colors.textSecondary} />
       <AppText
         variant="bodySmall"
         className={isFavorite ? "font-semibold text-white" : "font-medium text-text-secondary"}
