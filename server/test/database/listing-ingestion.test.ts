@@ -142,6 +142,9 @@ test("repository reconstructs stored listings with their marketplace source and 
     eq() {
       return query;
     },
+    in() {
+      return query;
+    },
     returns<T>() {
       return Promise.resolve({ data: [stored] as T[], error: null });
     },
@@ -153,7 +156,7 @@ test("repository reconstructs stored listings with their marketplace source and 
   } as unknown as SupabaseClient;
   const repository = new ListingRepository(client);
 
-  const [active] = await repository.getActiveListings();
+  const [active] = await repository.getActiveListingsForSources([MARKETPLACE_IDS.etsy]);
 
   assert.equal(active?.listing.source, MARKETPLACE_IDS.etsy);
   assert.equal(active?.listing.externalId, "item-1");

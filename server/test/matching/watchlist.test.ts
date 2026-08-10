@@ -73,10 +73,7 @@ test("matches only listings from selected marketplaces", () => {
   const watchlist = createWatchlist([MARKETPLACE_IDS.ebay]);
 
   assert.equal(
-    matchesWatchlist(
-      watchlist,
-      createListing(MARKETPLACE_IDS.facebookMarketplace, "facebook-camera"),
-    ),
+    matchesWatchlist(watchlist, createListing(MARKETPLACE_IDS.etsy, "etsy-camera")),
     false,
   );
   assert.equal(

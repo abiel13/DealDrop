@@ -26,12 +26,6 @@ test("queries all enabled sources concurrently, sorts, combines, and paginates r
   const requests = new Map<MarketplaceSource, MarketplaceSearchRequest[]>();
   const adapters = createAdapters(
     {
-      [MARKETPLACE_IDS.facebookMarketplace]: {
-        listings: [
-          listing(MARKETPLACE_IDS.facebookMarketplace, "facebook-1", "2026-08-08T12:00:00Z"),
-        ],
-        pagination: { nextCursor: null, hasMore: false },
-      },
       [MARKETPLACE_IDS.ebay]: {
         listings: [listing(MARKETPLACE_IDS.ebay, "ebay-1", "2026-08-08T13:00:00Z")],
         pagination: { nextCursor: "24", hasMore: true },
@@ -52,14 +46,10 @@ test("queries all enabled sources concurrently, sorts, combines, and paginates r
     pagination: { limit: 2 },
   });
 
-  assert.deepEqual(response.sources, [
-    MARKETPLACE_IDS.ebay,
-    MARKETPLACE_IDS.etsy,
-    MARKETPLACE_IDS.facebookMarketplace,
-  ]);
+  assert.deepEqual(response.sources, [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy]);
   assert.deepEqual(
     response.listings.map((item) => item.externalId),
-    ["ebay-1", "facebook-1"],
+    ["ebay-1", "etsy-1"],
   );
   assert.equal(response.partialFailures.length, 0);
   assert.equal(response.pagination.hasMore, true);
@@ -75,7 +65,6 @@ test("queries all enabled sources concurrently, sorts, combines, and paginates r
 
   assert.equal(requests.get(MARKETPLACE_IDS.ebay)?.[1]?.pagination?.cursor, "24");
   assert.equal(requests.get(MARKETPLACE_IDS.etsy)?.[1]?.pagination?.cursor, "24");
-  assert.equal(requests.get(MARKETPLACE_IDS.facebookMarketplace)?.[1]?.pagination?.cursor, null);
 });
 
 test("returns one unified listing with cross-marketplace duplicate provenance", async () => {
@@ -192,11 +181,11 @@ test("returns partial failures for multiple unavailable sources", async () => {
 test("returns no results and no continuation when enabled sources are empty", async () => {
   const coordinator = new MarketplaceSearchCoordinator(
     createAdapters({
-      [MARKETPLACE_IDS.facebookMarketplace]: {
+      [MARKETPLACE_IDS.ebay]: {
         listings: [],
         pagination: { nextCursor: null, hasMore: false },
       },
-      [MARKETPLACE_IDS.ebay]: {
+      [MARKETPLACE_IDS.etsy]: {
         listings: [],
         pagination: { nextCursor: null, hasMore: false },
       },

@@ -81,14 +81,14 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
     name: "Camera gear",
     searchQuery: "Sony A7",
     marketplaceScope: "selected",
-    marketplaceIds: ["ebay", "facebook_marketplace"],
+    marketplaceIds: ["ebay", "etsy"],
   });
 
   assert.deepEqual(requestBody, {
     name: "Camera gear",
     searchQuery: "Sony A7",
     marketplaceScope: "selected",
-    marketplaceIds: ["ebay", "facebook_marketplace"],
+    marketplaceIds: ["ebay", "etsy"],
     filters: {},
   });
 });

@@ -1,4 +1,4 @@
-export type MarketplaceSource = "facebook_marketplace" | "ebay" | "etsy";
+export type MarketplaceSource = "ebay" | "etsy";
 
 export type WatchlistMarketplaceScope = "selected" | "all";
 

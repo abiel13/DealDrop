@@ -7,11 +7,7 @@ import {
   WatchlistSelectionValidationError,
 } from "../../src/watchlists/validation";
 
-const availableSources = [
-  MARKETPLACE_IDS.facebookMarketplace,
-  MARKETPLACE_IDS.ebay,
-  MARKETPLACE_IDS.etsy,
-];
+const availableSources = [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy];
 
 test("validates a single or multiple marketplace watchlist selection", () => {
   assert.deepEqual(
@@ -24,25 +20,22 @@ test("validates a single or multiple marketplace watchlist selection", () => {
 
   assert.deepEqual(
     validateWatchlistMarketplaceSelection(
-      [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.facebookMarketplace],
+      [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.ebay],
       availableSources,
     ),
     {
       scope: "selected",
-      marketplaceIds: [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.facebookMarketplace],
+      marketplaceIds: [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy],
     },
   );
 });
 
 test("resolves all marketplace selection from currently available sources", () => {
   assert.deepEqual(
-    validateWatchlistMarketplaceSelection("all", [
-      MARKETPLACE_IDS.ebay,
-      MARKETPLACE_IDS.facebookMarketplace,
-    ]),
+    validateWatchlistMarketplaceSelection("all", [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy]),
     {
       scope: "all",
-      marketplaceIds: [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.facebookMarketplace],
+      marketplaceIds: [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy],
     },
   );
 });

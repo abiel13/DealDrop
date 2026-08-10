@@ -269,9 +269,7 @@ export class MobileApiService {
     const defaultSelection =
       marketplaceIds !== undefined || scope !== undefined
         ? { scope: scope ?? "selected", marketplaceIds: marketplaceIds ?? [] }
-        : availableSources.includes(MARKETPLACE_IDS.facebookMarketplace)
-          ? [MARKETPLACE_IDS.facebookMarketplace]
-          : "all";
+        : "all";
 
     try {
       return validateWatchlistMarketplaceSelection(defaultSelection, availableSources);

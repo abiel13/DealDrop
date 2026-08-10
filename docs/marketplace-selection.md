@@ -1,37 +1,25 @@
 # DealDrop Third Marketplace Selection
 
-Date: 2026-08-08
+Date: 2026-08-10
 
-## Decision
+## Current status
 
-DealDrop will integrate Etsy as its third marketplace.
-
-The repository does not specify a single beta country. Existing examples include Lagos, but the product currently describes a broader marketplace monitor. Etsy is the best fit for the current beta because it offers a permitted first-party public listings search API, global reach, useful search filters, and a straightforward offset pagination model without changing the DealDrop adapter contract.
+Reverb was evaluated as a third marketplace but is not being integrated because its API access is not reliably available across the countries DealDrop needs to support. eBay and Etsy remain the active marketplace sources. No third marketplace is currently selected.
 
 ## Candidate evaluation
 
-| Candidate           | Listing volume and geography                                                                        | Categories                                                       | Access and reliability                                                                                                                        | Rate limits                                                                        | Integration assessment                                                                                               |
-| ------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Etsy                | 86.6 million active buyers in Q3 2025 and 5.6 million active sellers in Q4 2025; global marketplace | Handmade, vintage, craft supplies, gifts, and related categories | Official Open API v3; Personal Apps support limited-scale applications, with Commercial Access available later; screen scraping is prohibited | API-key-level QPS and rolling QPD limits exposed in response headers               | Medium difficulty; public active-listings search maps cleanly to DealDrop keywords, prices, location, and pagination |
-| Amazon              | Very large global retail catalog; PA API documentation lists 15 supported marketplaces              | Broad retail catalog                                             | Official Creators API, but access requires Amazon Associates enrollment, API approval, and currently 10 qualifying sales in 30 days           | Account and API policy limits; access eligibility is a significant beta dependency | High difficulty and policy coupling; product catalog is less like marketplace listings                               |
-| Walmart Marketplace | Large retail catalog, primarily relevant to supported Walmart markets                               | Broad retail catalog                                             | Official APIs focus on a seller's catalog and require marketplace seller onboarding/access tokens                                             | Throttling applies to catalog APIs                                                 | Poor fit for buyer-side cross-marketplace discovery                                                                  |
-| Jiji                | Strong local relevance if the beta is Nigeria-focused; marketplace categories align with used goods | General classifieds and used goods                               | No official public buyer-search API was identified during this review; scraping would be fragile and requires separate permission review      | No dependable public API limit was identified                                      | Not selected until a permitted, supportable access method is available                                               |
-
-## Why Etsy
-
-- `GET /v3/application/listings/active` supports keyword search, minimum and maximum price, currency conversion, buyer country, shop location, taxonomy, and `limit`/`offset` pagination.
-- Public active listings require the Etsy API key header; OAuth is reserved for private or write operations, so DealDrop does not need to store user Etsy tokens for this read-only adapter.
-- Etsy exposes API-key-level QPS and rolling daily limits in response headers, allowing the adapter to log and handle rate limiting explicitly.
-- Etsy's Personal App path is appropriate for a limited beta. Commercial Access can be requested later if DealDrop expands beyond limited scale.
+| Candidate     | Listing volume and geography                                                                 | Categories                                         | Official access and reliability                                                                                                    | Filters and pagination                                                                                                | Integration assessment                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Reverb        | Specialized music-gear marketplace, but API access has material regional availability limits | Instruments, recording, DJ, pro audio, accessories | Official Reverb JSON API and sandbox registration; API is the only permitted programmatic access method and scraping is prohibited | Keyword, price, condition, item city/region/country, `page`/`per_page`, and HAL next links                            | Not selected because regional availability is not dependable enough for DealDrop's initial audience              |
+| Amazon        | Very large global retail catalog                                                             | Broad retail catalog                               | Official Product Advertising/Creators API, but approval and affiliate eligibility create a material beta dependency                | Product search and pagination are available, but data is product-catalog oriented rather than seller-listing oriented | Not selected because access eligibility and marketplace-listing semantics are weaker for DealDrop                |
+| Mercado Libre | Very large Latin American marketplace across supported country sites                         | General retail and classifieds                     | Official public APIs and OAuth, but coverage is concentrated in Latin America and application/account requirements vary by site    | Search, price, location, condition, and offset-style pagination are available by site                                 | Not selected because it narrows geographic coverage and adds site/account configuration complexity for this beta |
+| Jiji          | Strong local relevance for a Nigeria-first classifieds beta                                  | General classifieds and used goods                 | No official public buyer-search API was identified; scraping would be fragile and requires a separate permission review            | No dependable supported API pagination or rate-limit contract was identified                                          | Rejected until a permitted, stable API becomes available                                                         |
 
 ## Sources
 
-- [Etsy Open API overview and access levels](https://developers.etsy.com/documentation/)
-- [Etsy active listings reference](https://developers.etsy.com/documentation/reference/)
-- [Etsy request and pagination standards](https://developers.etsy.com/documentation/essentials/requests/)
-- [Etsy authentication](https://developers.etsy.com/documentation/essentials/authentication/)
-- [Etsy rate limits](https://developers.etsy.com/documentation/essentials/rate-limits/)
-- [Etsy Q3 2025 results](https://investors.etsy.com/_assets/_6bbdcca32dae0009d81abf198bd829d6/etsy/db/938/9725/earnings_release/Exhibit%2B99.1%2BQ3%2B2025%2B%281%29.pdf)
-- [Etsy Q4 2025 results](https://investors.etsy.com/_assets/_d5c51ce974b0cb9df4cd28e3d32f3c7b/etsy/db/938/10062/earnings_release/Exhibit%2B99.1%2B12.31.2025.pdf)
-- [Amazon Creators API prerequisites](https://affiliate-program.amazon.com/creatorsapi/docs/en-us/introduction)
-- [Walmart catalog search](https://developer.walmart.com/us-marketplace/reference/getcatalogsearch)
+- [Reverb JSON API](https://reverb.com/page/api)
+- [Reverb API terms of use](https://reverb.com/legal/reverbcom-api-terms-of-use)
+- [eBay Browse API](https://developer.ebay.com/api-docs/buy/api-browse.html)
+- [Etsy Open API](https://developer.etsy.com/documentation/)
+- [Mercado Libre developer documentation](https://developers.mercadolibre.com/)
+- [Amazon Creators API introduction](https://affiliate-program.amazon.com/creatorsapi/docs/en-us/introduction)
