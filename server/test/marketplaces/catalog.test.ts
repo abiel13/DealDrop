@@ -37,6 +37,11 @@ test("catalog exposes known marketplace capabilities and enabled status", () => 
       capabilities: null,
     },
     {
+      source: MARKETPLACE_IDS.rakuten,
+      enabled: false,
+      capabilities: null,
+    },
+    {
       source: MARKETPLACE_IDS.stockx,
       enabled: false,
       capabilities: null,

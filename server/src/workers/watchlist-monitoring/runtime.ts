@@ -4,6 +4,8 @@ import { createEtsyMarketplaceAdapter } from "../../marketplaces/etsy/adapter";
 import { loadEtsyMarketplaceConfig } from "../../marketplaces/etsy/config";
 import { createStockXMarketplaceAdapter } from "../../marketplaces/stockx/adapter";
 import { loadStockXMarketplaceConfig } from "../../marketplaces/stockx/config";
+import { createRakutenMarketplaceAdapter } from "../../marketplaces/rakuten/adapter";
+import { loadRakutenMarketplaceConfig } from "../../marketplaces/rakuten/config";
 import {
   getEnabledMarketplaceSources,
   type MarketplaceAdapterRegistry,
@@ -63,6 +65,18 @@ export async function createWatchlistMonitoringRuntime(
       logger.warn("StockX monitoring adapter disabled", {
         error: error instanceof Error ? error.message : String(error),
         source: MARKETPLACE_IDS.stockx,
+      });
+    }
+  }
+
+  if (config.enabledSources.includes(MARKETPLACE_IDS.rakuten)) {
+    try {
+      const rakutenConfig = loadRakutenMarketplaceConfig(env);
+      adapters[MARKETPLACE_IDS.rakuten] = createRakutenMarketplaceAdapter(rakutenConfig, logger);
+    } catch (error) {
+      logger.warn("Rakuten Ichiba monitoring adapter disabled", {
+        error: error instanceof Error ? error.message : String(error),
+        source: MARKETPLACE_IDS.rakuten,
       });
     }
   }
