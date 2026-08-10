@@ -7,7 +7,23 @@ function serializeError(error: unknown) {
     return { name: error.name, message: error.message };
   }
 
-  return typeof error === "string" ? error : String(error);
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+
+    return {
+      name: typeof value.name === "string" ? value.name : "UnknownError",
+      message: typeof value.message === "string" ? value.message : "Unknown error",
+      ...(typeof value.code === "string" ? { code: value.code } : {}),
+      ...(typeof value.details === "string" ? { details: value.details } : {}),
+      ...(typeof value.hint === "string" ? { hint: value.hint } : {}),
+    };
+  }
+
+  return String(error);
 }
 
 function write(level: LogLevel, message: string, context: Record<string, unknown> = {}) {

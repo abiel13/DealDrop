@@ -10,7 +10,6 @@ import { deduplicateListings } from "../marketplaces/facebook/normalizer";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import type {
-  FacebookWatchlist,
   MarketplaceWatchlist,
   WatchlistFilters,
   WatchlistMarketplaceScope,
@@ -66,22 +65,17 @@ export class ListingRepository {
     targetSource: MarketplaceSource = MARKETPLACE_IDS.facebookMarketplace,
     availableSources: readonly MarketplaceSource[] = [MARKETPLACE_IDS.facebookMarketplace],
   ) {
-    const { data, error } = await this.client
-      .from("watchlists")
-      .select(
-        "id,user_id,search_query,filters,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
-      )
-      .eq("is_active", true)
-      .order("updated_at", { ascending: true })
-      .returns<StoredWatchlist[]>();
-
-    if (error) {
-      throw error;
-    }
-
-    return (data ?? [])
+    const watchlists = await this.loadActiveWatchlists();
+    return watchlists
       .map((watchlist) => toMarketplaceWatchlist(watchlist, availableSources))
       .filter((watchlist) => watchlist.marketplaceIds.includes(targetSource));
+  }
+
+  async getActiveWatchlistsForSources(availableSources: readonly MarketplaceSource[]) {
+    const watchlists = await this.loadActiveWatchlists();
+    return watchlists
+      .map((watchlist) => toMarketplaceWatchlist(watchlist, availableSources))
+      .filter((watchlist) => watchlist.marketplaceIds.length > 0);
   }
 
   async setWatchlistMarketplaceSelection(
@@ -164,8 +158,32 @@ export class ListingRepository {
     return (data ?? []).map((stored) => ({ stored, listing: toMarketplaceListing(stored) }));
   }
 
+  async getActiveListingsForSources(
+    sources: readonly MarketplaceSource[],
+  ): Promise<ActiveStoredListing[]> {
+    const uniqueSources = [...new Set(sources)];
+    if (uniqueSources.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await this.client
+      .from("listings")
+      .select(
+        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data",
+      )
+      .in("marketplace_id", uniqueSources)
+      .eq("is_active", true)
+      .returns<StoredListing[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((stored) => ({ stored, listing: toMarketplaceListing(stored) }));
+  }
+
   async createMatches(
-    watchlist: FacebookWatchlist,
+    watchlist: MarketplaceWatchlist,
     listings: MarketplaceListing[],
     storedListings: StoredListingReference[],
   ) {
@@ -215,6 +233,23 @@ export class ListingRepository {
     if (error) {
       throw error;
     }
+  }
+
+  private async loadActiveWatchlists() {
+    const { data, error } = await this.client
+      .from("watchlists")
+      .select(
+        "id,user_id,search_query,filters,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
+      )
+      .eq("is_active", true)
+      .order("updated_at", { ascending: true })
+      .returns<StoredWatchlist[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data ?? [];
   }
 }
 
