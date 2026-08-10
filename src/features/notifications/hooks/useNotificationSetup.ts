@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
@@ -6,7 +6,10 @@ import * as Notifications from "expo-notifications";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 
 import { markNotificationRead, registerPushToken } from "../services/notification.service";
-import { getNotificationId, getNotificationRoute } from "../utils/notification.utils";
+import {
+  resolveNotificationIntent,
+  type NotificationNavigationIntent,
+} from "../utils/notification.utils";
 
 export function usePushNotificationRegistration(userId: string | undefined) {
   useEffect(() => {
@@ -20,9 +23,49 @@ export function usePushNotificationRegistration(userId: string | undefined) {
   }, [userId]);
 }
 
-export function useNotificationObserver() {
+export function useNotificationObserver(canNavigateToListing: boolean) {
   const { user } = useAuth();
   const navigation = useRouter();
+  const pendingIntent = useRef<NotificationNavigationIntent | null>(null);
+  const handledIntentKeys = useRef(new Set<string>());
+
+  const handleIntent = useCallback(
+    (intent: NotificationNavigationIntent) => {
+      if (!canNavigateToListing) {
+        pendingIntent.current = intent;
+        return;
+      }
+
+      if (handledIntentKeys.current.has(intent.key)) {
+        return;
+      }
+
+      handledIntentKeys.current.add(intent.key);
+      pendingIntent.current = null;
+
+      if (user && intent.notificationId) {
+        void markNotificationRead(intent.notificationId).catch((error: unknown) => {
+          console.warn("Notification read state update failed", error);
+        });
+      }
+
+      navigation.push(intent.route);
+      void Notifications.clearLastNotificationResponseAsync().catch((error: unknown) => {
+        console.warn("Notification response cleanup failed", error);
+      });
+    },
+    [canNavigateToListing, navigation, user],
+  );
+
+  const handleNotification = useCallback(
+    (notification: Notifications.Notification) => {
+      const intent = resolveNotificationIntent(notification.request.content.data);
+      if (intent) {
+        handleIntent(intent);
+      }
+    },
+    [handleIntent],
+  );
 
   useEffect(() => {
     if (Platform.OS === "web") {
@@ -38,31 +81,26 @@ export function useNotificationObserver() {
       }),
     });
 
-    const redirect = (notification: Notifications.Notification) => {
-      const data = notification.request.content.data;
-      const route = getNotificationRoute(data);
-      const notificationId = getNotificationId(data);
-
-      if (user && notificationId) {
-        void markNotificationRead(notificationId).catch((error: unknown) => {
-          console.warn("Notification read state update failed", error);
-        });
-      }
-
-      if (route) {
-        navigation.push(route);
-      }
-    };
-
-    const lastResponse = Notifications.getLastNotificationResponse();
-    if (lastResponse?.notification) {
-      redirect(lastResponse.notification);
-    }
-
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      redirect(response.notification);
+      handleNotification(response.notification);
+    });
+    let cancelled = false;
+
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!cancelled && response?.notification) {
+        handleNotification(response.notification);
+      }
     });
 
-    return () => subscription.remove();
-  }, [navigation, user]);
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, [handleNotification]);
+
+  useEffect(() => {
+    if (canNavigateToListing && pendingIntent.current) {
+      handleIntent(pendingIntent.current);
+    }
+  }, [canNavigateToListing, handleIntent]);
 }

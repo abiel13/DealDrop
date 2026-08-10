@@ -33,7 +33,7 @@ function RootNavigator() {
   const { user, isLoading } = useAuth();
   const premium = usePremium();
   const isReady = !isLoading && (!user || !premium.isLoading);
-  useNotificationObserver();
+  useNotificationObserver(isReady && Boolean(user) && premium.isPremium);
 
   useEffect(() => {
     if (isReady) {

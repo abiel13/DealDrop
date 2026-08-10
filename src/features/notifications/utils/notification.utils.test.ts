@@ -1,25 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getNotificationId, getNotificationRoute } from "./notification.utils";
+import { resolveNotificationIntent } from "./notification.utils";
 
 test("notification listing data opens the matching listing detail route", () => {
   assert.equal(
-    getNotificationRoute({ listing_id: "listing/one", url: "/notifications" }),
+    resolveNotificationIntent({ listing_id: "listing/one", url: "/notifications" })?.route,
     "/listing/listing%2Fone",
+  );
+  assert.equal(
+    resolveNotificationIntent({ listing_id: "listing-1", notification_id: "notification-1" })
+      ?.notificationId,
+    "notification-1",
   );
 });
 
 test("notification routes fall back to the existing internal URL", () => {
   assert.equal(
-    getNotificationRoute({ url: "/notifications?notificationId=notification-1" }),
+    resolveNotificationIntent({ url: "/notifications?notificationId=notification-1" })?.route,
     "/notifications?notificationId=notification-1",
   );
-  assert.equal(getNotificationRoute({ url: "https://example.com" }), null);
-});
-
-test("notification IDs are read only from structured notification data", () => {
-  assert.equal(getNotificationId({ notification_id: "notification-1" }), "notification-1");
-  assert.equal(getNotificationId({ notification_id: 123 }), null);
-  assert.equal(getNotificationId(null), null);
+  assert.equal(resolveNotificationIntent({ url: "https://example.com" }), null);
+  assert.equal(resolveNotificationIntent({ listing_id: "" }), null);
 });

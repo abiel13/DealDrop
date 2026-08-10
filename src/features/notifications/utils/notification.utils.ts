@@ -2,26 +2,40 @@ import type { Href } from "expo-router";
 
 import { listingRoute } from "@/features/auth/routes";
 
-export function getNotificationRoute(data: unknown): Href | null {
+export interface NotificationNavigationIntent {
+  key: string;
+  notificationId: string | null;
+  route: Href;
+}
+
+export function resolveNotificationIntent(data: unknown): NotificationNavigationIntent | null {
   if (!data || typeof data !== "object") {
     return null;
   }
 
   const notificationData = data as Record<string, unknown>;
-  const listingId = notificationData.listing_id;
-  if (typeof listingId === "string" && listingId.trim()) {
-    return listingRoute(listingId);
+  const notificationId = getString(notificationData.notification_id);
+  const listingId = getString(notificationData.listing_id);
+  if (listingId) {
+    return {
+      key: notificationId ?? `listing:${listingId}`,
+      notificationId,
+      route: listingRoute(listingId),
+    };
   }
 
-  const url = notificationData.url;
-  return typeof url === "string" && url.startsWith("/") ? (url as Href) : null;
-}
-
-export function getNotificationId(data: unknown) {
-  if (!data || typeof data !== "object") {
+  const url = getString(notificationData.url);
+  if (!url?.startsWith("/")) {
     return null;
   }
 
-  const notificationId = (data as Record<string, unknown>).notification_id;
-  return typeof notificationId === "string" && notificationId.trim() ? notificationId : null;
+  return {
+    key: notificationId ?? `url:${url}`,
+    notificationId,
+    route: url as Href,
+  };
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
