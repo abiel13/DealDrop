@@ -16,6 +16,7 @@ export type {
   MarketplaceErrorCategory,
   MarketplaceListing,
   MarketplacePagination,
+  MarketplacePaginationRequest,
   MarketplaceSearchRequest,
   MarketplaceSearchResponse,
   MarketplaceSource,
