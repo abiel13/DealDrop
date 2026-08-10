@@ -1,0 +1,243 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import {
+  ExpoPushNotificationProvider,
+  processNotificationQueue,
+  type PushNotificationProvider,
+} from "../../src/notifications/delivery";
+
+test("Expo provider sends safe notification content and deep-link data", async () => {
+  let requestBody: Record<string, unknown> | null = null;
+  const provider = new ExpoPushNotificationProvider(async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ data: { status: "ok" } }), { status: 200 });
+  });
+
+  await provider.send({
+    to: "ExponentPushToken[test]",
+    title: "New deal found",
+    body: "Camera matches your watchlist for USD 150 on ebay.",
+    data: {
+      url: "/notifications?notificationId=notification-1",
+      match_id: "match-1",
+      listing_id: "listing-1",
+      listing_title: "Camera",
+      marketplace_source: "ebay",
+      price: 150,
+      currency: "USD",
+    },
+  });
+
+  assert.deepEqual(requestBody, {
+    to: "ExponentPushToken[test]",
+    title: "New deal found",
+    body: "Camera matches your watchlist for USD 150 on ebay.",
+    data: {
+      url: "/notifications?notificationId=notification-1",
+      match_id: "match-1",
+      listing_id: "listing-1",
+      listing_title: "Camera",
+      marketplace_source: "ebay",
+      price: 150,
+      currency: "USD",
+    },
+    sound: "default",
+    channelId: "default",
+  });
+  assert.equal("SUPABASE_SERVICE_ROLE_KEY" in (requestBody?.data as object), false);
+});
+
+test("retries transient delivery failures with a bounded attempt count", async () => {
+  const state = createQueueState();
+  const client = createQueueClient(state);
+  let attempts = 0;
+  const provider: PushNotificationProvider = {
+    async send() {
+      attempts += 1;
+      if (attempts < 3) {
+        throw new Error("temporary push failure");
+      }
+    },
+  };
+
+  const first = await processNotificationQueue(client, provider);
+  const second = await processNotificationQueue(client, provider);
+  const third = await processNotificationQueue(client, provider);
+
+  assert.equal(first.retried, 1);
+  assert.equal(second.retried, 1);
+  assert.equal(third.sent, 1);
+  assert.equal(third.exhausted, 0);
+  assert.equal(attempts, 3);
+  assert.equal(state.row.status, "sent");
+  assert.equal(state.row.attempts, 3);
+});
+
+test("cancels queued delivery when new-match notifications are disabled", async () => {
+  const state = createQueueState();
+  state.preference.new_match_enabled = false;
+  const client = createQueueClient(state);
+  let providerCalls = 0;
+  const provider: PushNotificationProvider = {
+    async send() {
+      providerCalls += 1;
+    },
+  };
+
+  const result = await processNotificationQueue(client, provider);
+
+  assert.equal(result.cancelled, 1);
+  assert.equal(providerCalls, 0);
+  assert.equal(state.row.status, "cancelled");
+});
+
+interface QueueState {
+  row: {
+    id: string;
+    notification_id: string;
+    user_id: string;
+    push_token_id: string;
+    attempts: number;
+    next_attempt_at: string;
+    notifications: {
+      title: string;
+      body: string;
+      data: Record<string, unknown>;
+    };
+    push_tokens: {
+      expo_push_token: string;
+      is_active: boolean;
+    };
+    status: string;
+    last_error?: string | null;
+  };
+  preference: {
+    user_id: string;
+    push_enabled: boolean;
+    new_match_enabled: boolean;
+  };
+}
+
+function createQueueState(): QueueState {
+  return {
+    row: {
+      id: "queue-1",
+      notification_id: "notification-1",
+      user_id: "user-1",
+      push_token_id: "token-1",
+      attempts: 0,
+      next_attempt_at: new Date(0).toISOString(),
+      notifications: {
+        title: "New deal found",
+        body: "Camera matches your watchlist for USD 150 on ebay.",
+        data: {
+          url: "/notifications?notificationId=notification-1",
+          listing_id: "listing-1",
+          match_id: "match-1",
+          marketplace_source: "ebay",
+        },
+      },
+      push_tokens: {
+        expo_push_token: "ExponentPushToken[test]",
+        is_active: true,
+      },
+      status: "pending",
+      last_error: null,
+    },
+    preference: {
+      user_id: "user-1",
+      push_enabled: true,
+      new_match_enabled: true,
+    },
+  };
+}
+
+function createQueueClient(state: QueueState) {
+  return {
+    from(table: string) {
+      if (table === "notification_queue") {
+        return createQuery({
+          onUpdate(values) {
+            if (values.status === "failed" && state.row.status !== "processing") {
+              return;
+            }
+
+            Object.assign(state.row, values);
+          },
+          returns: () => ({ data: [state.row], error: null }),
+          maybeSingle: () => ({ data: { id: state.row.id }, error: null }),
+        });
+      }
+
+      if (table === "notification_preferences") {
+        return createQuery({
+          returns: () => ({ data: [state.preference], error: null }),
+        });
+      }
+
+      return createQuery({
+        returns: () => ({ data: [], error: null }),
+      });
+    },
+  } as unknown as SupabaseClient;
+}
+
+function createQuery(options: {
+  onUpdate?: (values: Record<string, unknown>) => void;
+  returns?: () => unknown;
+  maybeSingle?: () => unknown;
+}) {
+  let updateValues: Record<string, unknown> | null = null;
+  const query = {
+    update(values: Record<string, unknown>) {
+      updateValues = values;
+      return query;
+    },
+    select() {
+      return query;
+    },
+    eq() {
+      return query;
+    },
+    in() {
+      return query;
+    },
+    lte() {
+      return query;
+    },
+    lt() {
+      return query;
+    },
+    is() {
+      return query;
+    },
+    order() {
+      return query;
+    },
+    limit() {
+      return query;
+    },
+    returns<T>() {
+      return Promise.resolve(options.returns?.() as T);
+    },
+    maybeSingle<T>() {
+      if (updateValues) {
+        options.onUpdate?.(updateValues);
+      }
+
+      return Promise.resolve(options.maybeSingle?.() as T);
+    },
+    then(onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {
+      if (updateValues) {
+        options.onUpdate?.(updateValues);
+      }
+
+      return Promise.resolve({ error: null }).then(onFulfilled, onRejected);
+    },
+  };
+
+  return query;
+}

@@ -4,6 +4,7 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const MAX_ATTEMPTS = 3;
 const QUEUE_BATCH_SIZE = 100;
 const STALE_LOCK_MINUTES = 10;
+const EXPO_PUSH_TIMEOUT_MS = 10_000;
 
 interface QueueNotification {
   title: string;
@@ -43,6 +44,17 @@ interface ExpoPushResponse {
   data?: ExpoPushTicket | ExpoPushTicket[];
 }
 
+export interface PushNotificationMessage {
+  to: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}
+
+export interface PushNotificationProvider {
+  send(message: PushNotificationMessage): Promise<void>;
+}
+
 export interface NotificationDeliverySummary {
   processed: number;
   sent: number;
@@ -65,45 +77,58 @@ function getRetryDelayMs(attempt: number) {
   return [30_000, 300_000, 1_800_000][Math.min(attempt - 1, 2)];
 }
 
-async function sendExpoPushMessage(message: {
-  to: string;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-}) {
-  const response = await fetch(EXPO_PUSH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: message.to,
-      title: message.title,
-      body: message.body,
-      data: message.data,
-      sound: "default",
-      channelId: "default",
-    }),
-  });
+export class ExpoPushNotificationProvider implements PushNotificationProvider {
+  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
-  if (!response.ok) {
-    throw new ExpoPushDeliveryError(
-      `Expo Push Service returned HTTP ${response.status}.`,
-      response.status >= 400 && response.status < 500,
-    );
-  }
+  async send(message: PushNotificationMessage) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), EXPO_PUSH_TIMEOUT_MS);
 
-  const payload = (await response.json()) as ExpoPushResponse;
-  const ticket = Array.isArray(payload.data) ? payload.data[0] : payload.data;
+    try {
+      const response = await this.fetchImpl(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: message.to,
+          title: message.title,
+          body: message.body,
+          data: message.data,
+          sound: "default",
+          channelId: "default",
+        }),
+        signal: controller.signal,
+      });
 
-  if (!ticket) {
-    throw new ExpoPushDeliveryError("Expo Push Service returned no ticket.", false);
-  }
+      if (!response.ok) {
+        throw new ExpoPushDeliveryError(
+          `Expo Push Service returned HTTP ${response.status}.`,
+          response.status >= 400 && response.status < 500,
+        );
+      }
 
-  if (ticket.status === "error") {
-    const errorCode = ticket.details?.error;
-    throw new ExpoPushDeliveryError(
-      ticket.message ?? "Expo Push Service rejected the notification.",
-      errorCode === "DeviceNotRegistered",
-    );
+      const payload = (await response.json()) as ExpoPushResponse;
+      const ticket = Array.isArray(payload.data) ? payload.data[0] : payload.data;
+
+      if (!ticket) {
+        throw new ExpoPushDeliveryError("Expo Push Service returned no ticket.", false);
+      }
+
+      if (ticket.status === "error") {
+        const errorCode = ticket.details?.error;
+        throw new ExpoPushDeliveryError(
+          ticket.message ?? "Expo Push Service rejected the notification.",
+          errorCode === "DeviceNotRegistered",
+        );
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ExpoPushDeliveryError("Expo Push Service request timed out.", false);
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -117,6 +142,7 @@ async function markQueueItem(client: SupabaseClient, id: string, values: Record<
 
 export async function processNotificationQueue(
   client: SupabaseClient,
+  provider: PushNotificationProvider = new ExpoPushNotificationProvider(),
 ): Promise<NotificationDeliverySummary> {
   const now = new Date();
   const nowIso = now.toISOString();
@@ -210,7 +236,7 @@ export async function processNotificationQueue(
     summary.processed += 1;
 
     try {
-      await sendExpoPushMessage({
+      await provider.send({
         to: row.push_tokens.expo_push_token,
         title: row.notifications.title,
         body: row.notifications.body,
