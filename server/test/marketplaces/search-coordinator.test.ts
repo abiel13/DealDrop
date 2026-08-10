@@ -78,6 +78,50 @@ test("queries all enabled sources concurrently, sorts, combines, and paginates r
   assert.equal(requests.get(MARKETPLACE_IDS.facebookMarketplace)?.[1]?.pagination?.cursor, null);
 });
 
+test("returns one unified listing with cross-marketplace duplicate provenance", async () => {
+  const coordinator = new MarketplaceSearchCoordinator(
+    createAdapters({
+      [MARKETPLACE_IDS.ebay]: {
+        listings: [
+          listing(MARKETPLACE_IDS.ebay, "ebay-1", null, {
+            title: "Vintage Canon Camera",
+            price: 250,
+            location: "Lagos, Nigeria",
+            imageUrls: ["https://images.example.com/canon.jpg"],
+          }),
+        ],
+        pagination: { nextCursor: null, hasMore: false },
+      },
+      [MARKETPLACE_IDS.etsy]: {
+        listings: [
+          listing(MARKETPLACE_IDS.etsy, "etsy-1", null, {
+            title: "Vintage Canon Camera",
+            price: 250,
+            location: "Lagos, Nigeria",
+            imageUrls: ["https://images.example.com/canon.jpg"],
+          }),
+        ],
+        pagination: { nextCursor: null, hasMore: false },
+      },
+    }),
+    logger,
+  );
+
+  const response = await coordinator.search({
+    searchQuery: "camera",
+    filters: {},
+    sources: [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.etsy],
+  });
+
+  assert.equal(response.listings.length, 1);
+  assert.equal(response.deduplication.suppressedCount, 1);
+  assert.equal(response.deduplication.duplicateGroups.length, 1);
+  assert.equal(
+    response.deduplication.duplicateGroups[0]?.duplicates[0]?.source,
+    MARKETPLACE_IDS.etsy,
+  );
+});
+
 test("returns successful listings and a partial failure when one source fails", async () => {
   const adapters = createAdapters({
     [MARKETPLACE_IDS.ebay]: {
@@ -276,7 +320,12 @@ function emptyResponse(): MarketplaceSearchResponse {
   };
 }
 
-function listing(source: MarketplaceSource, externalId: string, postedAt: string | null = null) {
+function listing(
+  source: MarketplaceSource,
+  externalId: string,
+  postedAt: string | null = null,
+  overrides: Partial<MarketplaceListing> = {},
+) {
   return {
     source,
     externalId,
@@ -293,5 +342,6 @@ function listing(source: MarketplaceSource, externalId: string, postedAt: string
     latitude: null,
     longitude: null,
     postedAt,
+    ...overrides,
   } satisfies MarketplaceListing;
 }
