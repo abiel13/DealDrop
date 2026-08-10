@@ -9,7 +9,9 @@ import {
   normalizeText,
   normalizeUrl,
 } from "./normalizer";
-import type { MarketplaceListing, RawListingCard } from "../../types/backend";
+import type { MarketplaceListing } from "../shared/adapter";
+import { MARKETPLACE_IDS } from "../shared/types";
+import type { RawListingCard } from "./types";
 
 export const LISTING_SELECTOR = 'a[href*="/marketplace/item/"]';
 const GENERIC_TITLE_LINES = new Set(["Marketplace", "Sponsored", "See more", "Share"]);
@@ -85,7 +87,7 @@ function getTitle(raw: RawListingCard) {
         !GENERIC_TITLE_LINES.has(candidate) &&
         !PRICE_PATTERN.test(candidate) &&
         !/^\d[\d,.]*$/.test(candidate),
-    ) ?? "Facebook Marketplace listing"
+    ) ?? null
   );
 }
 
@@ -94,7 +96,7 @@ function getPrice(raw: RawListingCard) {
   const match = text.match(PRICE_PATTERN);
 
   if (!match) {
-    return { price: null, currency: "USD" };
+    return { price: null, currency: null };
   }
 
   return {
@@ -111,12 +113,17 @@ export function parseListingCard(raw: RawListingCard): MarketplaceListing {
     throw new ListingParseError(`Could not extract a listing id from ${raw.href}`);
   }
 
+  const title = getTitle(raw);
+  if (!title) {
+    throw new ListingParseError(`Could not extract a listing title from ${raw.href}`);
+  }
+
   const { price, currency } = getPrice(raw);
 
   return {
-    marketplaceId: "facebook_marketplace",
+    source: MARKETPLACE_IDS.facebookMarketplace,
     externalId: normalizeText(externalId) ?? externalId,
-    title: getTitle(raw),
+    title,
     description: getLabeledValue(raw, ["Description"]),
     price,
     currency,
@@ -129,7 +136,7 @@ export function parseListingCard(raw: RawListingCard): MarketplaceListing {
     latitude: getLabeledNumber(raw, ["Latitude"], -90, 90),
     longitude: getLabeledNumber(raw, ["Longitude"], -180, 180),
     postedAt: null,
-    rawData: {
+    metadata: {
       sourceText: raw.text,
       ariaLabel: raw.ariaLabel,
       imageUrl: raw.imageUrl,

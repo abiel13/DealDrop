@@ -1,6 +1,5 @@
-import type { MarketplaceListing } from "../../types/backend";
-
-const DEFAULT_CURRENCY = "USD";
+import type { MarketplaceListing } from "../shared/adapter";
+import { ListingParseError } from "./errors";
 
 const CURRENCY_BY_TOKEN: Record<string, string> = {
   $: "USD",
@@ -29,10 +28,10 @@ export function normalizeCurrency(value: string | null | undefined) {
   const token = normalizeText(value)?.toUpperCase();
 
   if (!token) {
-    return DEFAULT_CURRENCY;
+    return null;
   }
 
-  return CURRENCY_BY_TOKEN[token] ?? (/^[A-Z]{3}$/.test(token) ? token : DEFAULT_CURRENCY);
+  return CURRENCY_BY_TOKEN[token] ?? (/^[A-Z]{3}$/.test(token) ? token : null);
 }
 
 export function normalizePrice(value: number | null | undefined) {
@@ -76,10 +75,15 @@ export function normalizeUrl(value: string | null | undefined) {
 }
 
 export function normalizeListing(listing: MarketplaceListing): MarketplaceListing {
+  const title = normalizeText(listing.title);
+  if (!title) {
+    throw new ListingParseError("Could not normalize a marketplace listing without a title.");
+  }
+
   return {
     ...listing,
     externalId: normalizeText(listing.externalId) ?? listing.externalId,
-    title: normalizeText(listing.title) ?? "Marketplace listing",
+    title,
     description: normalizeText(listing.description),
     price: normalizePrice(listing.price),
     currency: normalizeCurrency(listing.currency),
@@ -95,14 +99,14 @@ export function normalizeListing(listing: MarketplaceListing): MarketplaceListin
 }
 
 function listingKey(listing: MarketplaceListing) {
-  return `${listing.marketplaceId}:${listing.externalId}`.toLowerCase();
+  return `${listing.source}:${listing.externalId}`.toLowerCase();
 }
 
 function mergeListings(existing: MarketplaceListing, incoming: MarketplaceListing) {
   return {
     ...existing,
     ...incoming,
-    title: incoming.title === "Marketplace listing" ? existing.title : incoming.title,
+    title: incoming.title,
     price: incoming.price ?? existing.price,
     currency: incoming.price === null ? existing.currency : incoming.currency,
     url: incoming.url || existing.url,
@@ -115,7 +119,7 @@ function mergeListings(existing: MarketplaceListing, incoming: MarketplaceListin
     latitude: incoming.latitude ?? existing.latitude,
     longitude: incoming.longitude ?? existing.longitude,
     postedAt: incoming.postedAt ?? existing.postedAt,
-    rawData: { ...existing.rawData, ...incoming.rawData },
+    metadata: { ...existing.metadata, ...incoming.metadata },
   };
 }
 

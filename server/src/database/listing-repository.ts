@@ -5,8 +5,10 @@ import {
   processNotificationQueue,
   type NotificationDeliverySummary,
 } from "../notifications/delivery";
-import type { FacebookWatchlist, MarketplaceListing, WatchlistFilters } from "../types/backend";
 import { deduplicateListings } from "../marketplaces/facebook/normalizer";
+import type { MarketplaceListing } from "../marketplaces/shared/adapter";
+import { MARKETPLACE_IDS } from "../marketplaces/shared/types";
+import type { FacebookWatchlist, WatchlistFilters } from "../types/backend";
 
 interface StoredWatchlist {
   id: string;
@@ -49,7 +51,7 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("watchlists")
       .select("id,user_id,search_query,filters")
-      .eq("marketplace_id", "facebook_marketplace")
+      .eq("marketplace_id", MARKETPLACE_IDS.facebookMarketplace)
       .eq("is_active", true)
       .order("updated_at", { ascending: true })
       .returns<StoredWatchlist[]>();
@@ -73,12 +75,12 @@ export class ListingRepository {
 
     const now = new Date().toISOString();
     const rows = deduplicateListings(listings).map((listing) => ({
-      marketplace_id: listing.marketplaceId,
+      marketplace_id: listing.source,
       external_id: listing.externalId,
       title: listing.title,
       description: listing.description,
       price: listing.price,
-      currency: listing.currency,
+      currency: listing.currency ?? "USD",
       url: listing.url,
       image_url: listing.imageUrl,
       seller_name: listing.sellerName,
@@ -90,7 +92,7 @@ export class ListingRepository {
       posted_at: listing.postedAt,
       last_seen_at: now,
       is_active: true,
-      raw_data: listing.rawData,
+      raw_data: listing.metadata ?? {},
     }));
 
     const { data, error } = await this.client
@@ -112,7 +114,7 @@ export class ListingRepository {
       .select(
         "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,raw_data",
       )
-      .eq("marketplace_id", "facebook_marketplace")
+      .eq("marketplace_id", MARKETPLACE_IDS.facebookMarketplace)
       .eq("is_active", true)
       .returns<StoredListing[]>();
 
@@ -179,7 +181,7 @@ export class ListingRepository {
 
 function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
   return {
-    marketplaceId: "facebook_marketplace",
+    source: MARKETPLACE_IDS.facebookMarketplace,
     externalId: stored.external_id,
     title: stored.title,
     description: stored.description,
@@ -194,6 +196,6 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     latitude: stored.latitude,
     longitude: stored.longitude,
     postedAt: stored.posted_at,
-    rawData: stored.raw_data,
+    metadata: stored.raw_data,
   };
 }

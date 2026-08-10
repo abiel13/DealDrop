@@ -1,3 +1,6 @@
+import { MarketplaceError } from "../shared/errors";
+import { MARKETPLACE_IDS } from "../shared/types";
+
 export class WorkerConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -5,16 +8,16 @@ export class WorkerConfigurationError extends Error {
   }
 }
 
-export class FacebookAuthenticationError extends Error {
+export class FacebookAuthenticationError extends MarketplaceError {
   constructor(message: string) {
-    super(message);
+    super(MARKETPLACE_IDS.facebookMarketplace, "authentication", message);
     this.name = "FacebookAuthenticationError";
   }
 }
 
-export class ListingParseError extends Error {
+export class ListingParseError extends MarketplaceError {
   constructor(message: string) {
-    super(message);
+    super(MARKETPLACE_IDS.facebookMarketplace, "parse", message);
     this.name = "ListingParseError";
   }
 }
