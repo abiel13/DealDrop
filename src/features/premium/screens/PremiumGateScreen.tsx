@@ -10,8 +10,8 @@ import type { AppIconName } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
+import { useTheme } from "@/providers/ThemeProvider";
 import { supabase } from "@/lib/supabase";
-import { appColors } from "@/styles/colors";
 
 import { usePremium } from "../hooks/PremiumProvider";
 
@@ -38,6 +38,7 @@ const premiumBenefits: {
 ];
 
 export function PremiumGateScreen() {
+  const theme = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const { error, presentPaywall, restorePurchases } = usePremium();
@@ -113,7 +114,7 @@ export function PremiumGateScreen() {
           <View className="flex-row items-start justify-between gap-4">
             <View className="flex-row items-center gap-3">
               <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
-                <AppIcon name="star" size={21} color={appColors.primary} weight="bold" />
+                <AppIcon name="star" size={21} color={theme.colors.primary} weight="bold" />
               </View>
               <View className="gap-1">
                 <AppText variant="title">Premium access</AppText>
@@ -131,7 +132,7 @@ export function PremiumGateScreen() {
             {premiumBenefits.map((benefit) => (
               <View key={benefit.title} className="flex-row items-start gap-3">
                 <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface">
-                  <AppIcon name={benefit.icon} size={18} color={appColors.primary} />
+                  <AppIcon name={benefit.icon} size={18} color={theme.colors.primary} />
                 </View>
                 <View className="flex-1 gap-1">
                   <AppText variant="label">{benefit.title}</AppText>

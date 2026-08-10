@@ -8,25 +8,31 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#8B5CF6",
-        "primary-light": "#C4B5FD",
-        "primary-dark": "#6D28D9",
-        "primary-soft": "#F0EBFF",
+        primary: "rgb(var(--color-primary) / <alpha-value>)",
+        "primary-light": "rgb(var(--color-primary-light) / <alpha-value>)",
+        "primary-dark": "rgb(var(--color-primary-dark) / <alpha-value>)",
+        "primary-contrast": "rgb(var(--color-primary-contrast) / <alpha-value>)",
+        "primary-soft": "rgb(var(--color-primary-soft) / <alpha-value>)",
 
-        background: "#F5F4F8",
-        "background-muted": "#ECEAF1",
-        surface: "#FFFFFF",
-        "surface-muted": "#FAF9FC",
+        background: "rgb(var(--color-background) / <alpha-value>)",
+        "background-muted": "rgb(var(--color-background-muted) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
+        "surface-muted": "rgb(var(--color-surface-muted) / <alpha-value>)",
 
-        card: "#FFFFFF",
+        card: "rgb(var(--color-surface) / <alpha-value>)",
 
-        text: "#17151D",
-        "text-secondary": "#6F6A78",
-        "text-tertiary": "#9B96A5",
+        text: "rgb(var(--color-text) / <alpha-value>)",
+        "text-secondary": "rgb(var(--color-text-secondary) / <alpha-value>)",
+        "text-tertiary": "rgb(var(--color-text-tertiary) / <alpha-value>)",
 
-        success: "#16A36A",
-        warning: "#D97706",
-        error: "#DC3D5A",
+        border: "rgb(var(--color-border) / <alpha-value>)",
+        "border-strong": "rgb(var(--color-border-strong) / <alpha-value>)",
+
+        success: "rgb(var(--color-success) / <alpha-value>)",
+        warning: "rgb(var(--color-warning) / <alpha-value>)",
+        error: "rgb(var(--color-error) / <alpha-value>)",
+        "error-soft": "rgb(var(--color-error-soft) / <alpha-value>)",
+        "error-muted": "rgb(var(--color-error-muted) / <alpha-value>)",
       },
       borderRadius: {
         sm: "10px",
@@ -35,8 +41,8 @@ module.exports = {
         xl: "24px",
       },
       boxShadow: {
-        card: "0 4px 16px rgba(35, 27, 51, 0.06)",
-        elevated: "0 10px 28px rgba(35, 27, 51, 0.10)",
+        card: "0 4px 16px rgba(0, 0, 0, 0.22)",
+        elevated: "0 10px 28px rgba(0, 0, 0, 0.34)",
       },
     },
   },

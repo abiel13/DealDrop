@@ -2,8 +2,8 @@ import { useState } from "react";
 import { TextInput, View } from "react-native";
 
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import { InputProps } from "./Input.types";
 import { inputVariants } from "./Input.variants";
@@ -20,6 +20,7 @@ export function Input({
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
+  const theme = useTheme();
 
   return (
     <View className="gap-2">
@@ -39,7 +40,7 @@ export function Input({
         <TextInput
           className="flex-1 text-text"
           editable={editable}
-          placeholderTextColor={appColors.textTertiary}
+          placeholderTextColor={theme.colors.textTertiary}
           onBlur={(event) => {
             setIsFocused(false);
             onBlur?.(event);

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 
 import type { Watchlist } from "../types/watchlist.types";
@@ -104,6 +104,8 @@ export function WatchlistCard({
   onFavoriteToggle,
   onPauseToggle,
 }: WatchlistCardProps) {
+  const theme = useTheme();
+
   const filterSummary = getFilterSummary(watchlist.filters);
 
   return (
@@ -145,7 +147,7 @@ export function WatchlistCard({
             <AppIcon
               name="heart"
               size={20}
-              color={watchlist.is_favorite ? "white" : appColors.textSecondary}
+              color={watchlist.is_favorite ? "white" : theme.colors.textSecondary}
               weight="semibold"
             />
           </Pressable>
@@ -158,7 +160,7 @@ export function WatchlistCard({
             Search term
           </AppText>
           <View className="flex-row items-center gap-2">
-            <AppIcon name="search" size={17} color={appColors.primary} />
+            <AppIcon name="search" size={17} color={theme.colors.primary} />
             <AppText variant="subtitle" className="flex-1" numberOfLines={2}>
               {watchlist.search_query}
             </AppText>
@@ -173,7 +175,7 @@ export function WatchlistCard({
         </View>
 
         <View className="flex-row items-center gap-2">
-          <AppIcon name="refresh" size={15} color={appColors.textTertiary} />
+          <AppIcon name="refresh" size={15} color={theme.colors.textTertiary} />
           <AppText variant="caption">{formatLastChecked(watchlist.last_checked_at)}</AppText>
         </View>
 
@@ -212,9 +214,11 @@ export function WatchlistCard({
 }
 
 function SummaryPill({ icon, label }: { icon?: "storefront"; label: string }) {
+  const theme = useTheme();
+
   return (
     <View className="flex-row items-center gap-1.5 rounded-full bg-background-muted px-3 py-2">
-      {icon && <AppIcon name={icon} size={14} color={appColors.textSecondary} />}
+      {icon && <AppIcon name={icon} size={14} color={theme.colors.textSecondary} />}
       <AppText variant="caption" className="font-medium text-text-secondary">
         {label}
       </AppText>

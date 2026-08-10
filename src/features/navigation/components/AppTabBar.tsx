@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "@/components/ui/Icon";
 import type { AppIconName } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 const tabPresentation: Record<string, { label: string; icon: AppIconName }> = {
   index: { label: "Feed", icon: "home" },
@@ -15,6 +15,7 @@ const tabPresentation: Record<string, { label: string; icon: AppIconName }> = {
 };
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -58,7 +59,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
               <AppIcon
                 name={presentation.icon}
                 size={21}
-                color={isFocused ? appColors.primary : appColors.textTertiary}
+                color={isFocused ? theme.colors.primary : theme.colors.textTertiary}
                 weight={isFocused ? "bold" : "medium"}
               />
               <AppText

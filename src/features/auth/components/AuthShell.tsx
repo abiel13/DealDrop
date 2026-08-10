@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 interface AuthShellProps {
   title: string;
@@ -13,6 +13,8 @@ interface AuthShellProps {
 }
 
 export function AuthShell({ title, description, children }: AuthShellProps) {
+  const theme = useTheme();
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <KeyboardAvoidingView
@@ -36,7 +38,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
 
           <View className="mb-8 gap-4">
             <View className="h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
-              <AppIcon name="storefront" size={28} color={appColors.primary} weight="bold" />
+              <AppIcon name="storefront" size={28} color={theme.colors.primary} weight="bold" />
             </View>
             <View className="gap-2">
               <AppText variant="heading">{title}</AppText>
@@ -49,7 +51,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
           <View className="rounded-[24px] bg-surface p-5 shadow-card">{children}</View>
 
           <View className="mt-6 flex-row items-center justify-center gap-2">
-            <AppIcon name="lock" size={14} color={appColors.textTertiary} />
+            <AppIcon name="lock" size={14} color={theme.colors.textTertiary} />
             <AppText variant="caption">Your account is protected and private.</AppText>
           </View>
         </ScrollView>

@@ -17,7 +17,7 @@ import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 
 import {
@@ -52,6 +52,7 @@ const watchlistSchema = z
 type WatchlistFormValues = z.infer<typeof watchlistSchema>;
 
 export function WatchlistFormScreen() {
+  const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -188,7 +189,7 @@ export function WatchlistFormScreen() {
                 <Input
                   label="Watchlist name"
                   placeholder="e.g. Camera gear"
-                  leftIcon={<AppIcon name="star" size={18} color={appColors.textTertiary} />}
+                  leftIcon={<AppIcon name="star" size={18} color={theme.colors.textTertiary} />}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -260,7 +261,7 @@ export function WatchlistFormScreen() {
                 <Input
                   label="Search term"
                   placeholder="e.g. Sony A7 III"
-                  leftIcon={<AppIcon name="search" size={18} color={appColors.textTertiary} />}
+                  leftIcon={<AppIcon name="search" size={18} color={theme.colors.textTertiary} />}
                   onBlur={onBlur}
                   onChangeText={onChange}
                   value={value}
@@ -271,7 +272,7 @@ export function WatchlistFormScreen() {
           </Card>
 
           <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
-            <AppIcon name="info" size={19} color={appColors.primary} />
+            <AppIcon name="info" size={19} color={theme.colors.primary} />
             <View className="flex-1 gap-1">
               <AppText variant="label">How matching works</AppText>
               <AppText variant="bodySmall">
@@ -316,6 +317,8 @@ function MarketplaceOption({
   selected: boolean;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -328,7 +331,7 @@ function MarketplaceOption({
       <AppIcon
         name={selected ? "check" : "storefront"}
         size={15}
-        color={selected ? "white" : appColors.textSecondary}
+        color={selected ? "white" : theme.colors.textSecondary}
       />
       <AppText
         variant="bodySmall"

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { authRoutes } from "@/features/auth/routes";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 const benefits = [
   {
@@ -27,6 +27,8 @@ const benefits = [
 ];
 
 export function WelcomeScreen() {
+  const theme = useTheme();
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -56,7 +58,7 @@ export function WelcomeScreen() {
               Live deal matching
             </AppText>
             <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface">
-              <AppIcon name="storefront" size={19} color={appColors.primary} weight="bold" />
+              <AppIcon name="storefront" size={19} color={theme.colors.primary} weight="bold" />
             </View>
           </View>
 
@@ -92,7 +94,7 @@ export function WelcomeScreen() {
           {benefits.map((benefit) => (
             <View key={benefit.title} className="flex-row items-start gap-3">
               <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                <AppIcon name={benefit.icon} size={19} color={appColors.primary} />
+                <AppIcon name={benefit.icon} size={19} color={theme.colors.primary} />
               </View>
               <View className="flex-1 gap-1">
                 <AppText variant="label">{benefit.title}</AppText>

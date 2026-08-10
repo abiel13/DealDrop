@@ -1,4 +1,4 @@
-import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Switch, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import { authRoutes } from "@/features/auth/routes";
 import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { supabase } from "@/lib/supabase";
-import { appColors } from "@/styles/colors";
+import { useTheme } from "@/providers/ThemeProvider";
 
 import { deleteAccount, getOrCreateProfile, updateProfileName } from "../services/profile.service";
 
@@ -61,6 +61,7 @@ export function ProfileScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const premium = usePremium();
+  const theme = useTheme();
   const [editedName, setEditedName] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -238,7 +239,7 @@ export function ProfileScreen() {
         <Card padding="md" className="gap-4 bg-primary-soft">
           <View className="flex-row items-start gap-3">
             <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
-              <AppIcon name="star" size={21} color={appColors.primary} weight="bold" />
+              <AppIcon name="star" size={21} color={theme.colors.primary} weight="bold" />
             </View>
             <View className="flex-1 gap-1">
               <AppText variant="title">
@@ -268,6 +269,7 @@ export function ProfileScreen() {
             onPress={() => router.push(authRoutes.notifications)}
           />
           <Divider />
+          <ThemeRow />
         </AccountSection>
 
         <AccountSection title="Support & legal">
@@ -339,6 +341,8 @@ function AccountRow({
   subtitle?: string;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -346,13 +350,37 @@ function AccountRow({
       onPress={onPress}
     >
       <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-        <AppIcon name={icon} size={19} color={appColors.primary} />
+        <AppIcon name={icon} size={19} color={theme.colors.primary} />
       </View>
       <View className="flex-1 gap-1">
         <AppText className="font-semibold text-text">{title}</AppText>
         {subtitle && <AppText variant="caption">{subtitle}</AppText>}
       </View>
-      <AppIcon name="arrow-forward" size={18} color={appColors.textTertiary} />
+      <AppIcon name="arrow-forward" size={18} color={theme.colors.textTertiary} />
     </Pressable>
+  );
+}
+
+function ThemeRow() {
+  const theme = useTheme();
+  const isDark = theme.mode === "dark";
+
+  return (
+    <View className="flex-row items-center gap-3 py-4">
+      <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+        <AppIcon name="settings" size={19} color={theme.colors.primary} />
+      </View>
+      <View className="flex-1 gap-1">
+        <AppText className="font-semibold text-text">Dark mode</AppText>
+        <AppText variant="caption">Use a dark background throughout the app</AppText>
+      </View>
+      <Switch
+        accessibilityLabel="Toggle dark mode"
+        value={isDark}
+        onValueChange={() => void theme.toggleMode()}
+        trackColor={{ false: theme.colors.backgroundMuted, true: theme.colors.primary }}
+        thumbColor={theme.colors.surface}
+      />
+    </View>
   );
 }
