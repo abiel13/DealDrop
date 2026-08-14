@@ -3,6 +3,7 @@ import type { WatchlistFilters } from "../../types/backend";
 export const MARKETPLACE_IDS = {
   ebay: "ebay",
   etsy: "etsy",
+  rakuten: "rakuten",
   stockx: "stockx",
 } as const;
 
@@ -58,6 +59,7 @@ export interface MarketplaceCapabilities {
 
 export type MarketplaceErrorCategory =
   | "authentication"
+  | "invalid_request"
   | "rate_limit"
   | "timeout"
   | "unavailable"

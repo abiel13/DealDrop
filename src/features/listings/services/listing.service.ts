@@ -65,8 +65,14 @@ export async function getListing(listingId: string) {
   return listing;
 }
 
-export async function searchListings(searchQuery: string): Promise<ListingSearchResult> {
-  const response = await apiClient.search({ searchQuery: searchQuery.trim() });
+export async function searchListings(
+  searchQuery: string,
+  cursor: string | null = null,
+): Promise<ListingSearchResult> {
+  const response = await apiClient.search({
+    searchQuery: searchQuery.trim(),
+    ...(cursor ? { pagination: { cursor } } : {}),
+  });
   const listings = response.data.listings
     .map((listing) => toListing(listing))
     .filter((listing): listing is Listing => Boolean(listing));

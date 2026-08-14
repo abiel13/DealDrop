@@ -67,6 +67,63 @@ test("queries all enabled sources concurrently, sorts, combines, and paginates r
   assert.equal(requests.get(MARKETPLACE_IDS.etsy)?.[1]?.pagination?.cursor, "24");
 });
 
+test("does not restart a completed source while another source has more pages", async () => {
+  const requests = new Map<MarketplaceSource, MarketplaceSearchRequest[]>();
+  const coordinator = new MarketplaceSearchCoordinator(
+    {
+      [MARKETPLACE_IDS.etsy]: pagedAdapter(MARKETPLACE_IDS.etsy, requests, (cursor) =>
+        cursor === null
+          ? {
+              listings: [listing(MARKETPLACE_IDS.etsy, "etsy-first")],
+              pagination: { nextCursor: null, hasMore: false },
+            }
+          : emptyResponse(),
+      ),
+      [MARKETPLACE_IDS.rakuten]: pagedAdapter(MARKETPLACE_IDS.rakuten, requests, (cursor) =>
+        cursor === null
+          ? {
+              listings: [listing(MARKETPLACE_IDS.rakuten, "rakuten-first")],
+              pagination: { nextCursor: "2", hasMore: true },
+            }
+          : {
+              listings: [listing(MARKETPLACE_IDS.rakuten, "rakuten-second")],
+              pagination: { nextCursor: null, hasMore: false },
+            },
+      ),
+    },
+    logger,
+  );
+
+  const firstPage = await coordinator.search({
+    searchQuery: "camera",
+    filters: {},
+    sources: [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.rakuten],
+    pagination: { limit: 2 },
+  });
+  const secondPage = await coordinator.search({
+    searchQuery: "camera",
+    filters: {},
+    sources: [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.rakuten],
+    pagination: { cursor: firstPage.pagination.nextCursor, limit: 2 },
+  });
+
+  assert.equal(firstPage.pagination.hasMore, true);
+  assert.deepEqual(
+    firstPage.listings.map((item) => item.externalId),
+    ["etsy-first", "rakuten-first"],
+  );
+  assert.deepEqual(
+    secondPage.listings.map((item) => item.externalId),
+    ["rakuten-second"],
+  );
+  assert.equal(secondPage.pagination.hasMore, false);
+  assert.equal(requests.get(MARKETPLACE_IDS.etsy)?.length, 1);
+  assert.deepEqual(
+    requests.get(MARKETPLACE_IDS.rakuten)?.map((request) => request.pagination?.cursor),
+    [null, "2"],
+  );
+});
+
 test("returns one unified listing with cross-marketplace duplicate provenance", async () => {
   const coordinator = new MarketplaceSearchCoordinator(
     createAdapters({
@@ -300,6 +357,29 @@ function createAdapters(
       } satisfies MarketplaceAdapter,
     ]),
   ) as Record<MarketplaceSource, MarketplaceAdapter>;
+}
+
+function pagedAdapter(
+  source: MarketplaceSource,
+  requests: Map<MarketplaceSource, MarketplaceSearchRequest[]>,
+  responseForCursor: (cursor: string | null) => MarketplaceSearchResponse,
+): MarketplaceAdapter {
+  return {
+    source,
+    capabilities: {
+      supportsPriceFiltering: true,
+      supportsLocation: true,
+      supportsRadius: true,
+      supportsCondition: true,
+      supportsPagination: true,
+    },
+    async search(request) {
+      const sourceRequests = requests.get(source) ?? [];
+      sourceRequests.push(request);
+      requests.set(source, sourceRequests);
+      return responseForCursor(request.pagination?.cursor ?? null);
+    },
+  };
 }
 
 function emptyResponse(): MarketplaceSearchResponse {

@@ -50,6 +50,29 @@ test("attaches the current session and parses the API envelope", async () => {
   });
 });
 
+test("sends the unified search cursor when loading the next result page", async () => {
+  let requestBody: unknown;
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(init?.body as string) as unknown;
+      return response(200, envelope({ listings: [], partialFailures: [] }));
+    },
+  });
+
+  await client.search({
+    searchQuery: "camera",
+    pagination: { cursor: "next-page-cursor" },
+  });
+
+  assert.deepEqual(requestBody, {
+    searchQuery: "camera",
+    filters: {},
+    pagination: { cursor: "next-page-cursor" },
+  });
+});
+
 test("does not send an authorization header for public marketplace metadata", async () => {
   let receivedHeaders: HeadersInit | undefined;
   const client = new DealDropApiClient({

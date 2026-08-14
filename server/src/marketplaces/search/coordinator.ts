@@ -55,10 +55,15 @@ export class MarketplaceSearchCoordinator {
   ): Promise<MarketplaceSearchCoordinatorResponse> {
     const sources = this.resolveSources(request.sources);
     const limit = searchLimit(request.pagination?.limit);
-    const sourceCursors = decodeMarketplaceSearchCursor(request.pagination?.cursor, sources);
+    const { cursors: sourceCursors, completedSources } = decodeMarketplaceSearchCursor(
+      request.pagination?.cursor,
+      sources,
+    );
+    const sourcesToSearch = sources.filter((source) => !completedSources.has(source));
+    const sourceLimit = sourcePageLimit(limit, sourcesToSearch.length);
 
     const outcomes = await Promise.allSettled(
-      sources.map((source) => {
+      sourcesToSearch.map((source) => {
         const adapter = this.adapters[source];
         if (!adapter) {
           throw new MarketplaceSearchCoordinatorError(
@@ -73,7 +78,7 @@ export class MarketplaceSearchCoordinator {
           filters: request.filters,
           pagination: {
             cursor: sourceCursors[source],
-            limit,
+            limit: sourceLimit,
           },
         });
       }),
@@ -81,17 +86,24 @@ export class MarketplaceSearchCoordinator {
 
     const listings: MarketplaceListing[] = [];
     const partialFailures: MarketplaceSearchPartialFailure[] = [];
-    const nextCursors: Partial<Record<MarketplaceSource, string | null>> = {};
+    const nextCursors: Partial<Record<MarketplaceSource, string | null>> = {
+      ...sourceCursors,
+    };
+    const nextCompletedSources = new Set(completedSources);
 
     outcomes.forEach((outcome, index) => {
-      const source = sources[index];
+      const source = sourcesToSearch[index];
       if (!source) {
         return;
       }
 
       if (outcome.status === "fulfilled") {
         listings.push(...outcome.value.response.listings);
-        nextCursors[source] = outcome.value.response.pagination?.nextCursor ?? null;
+        const nextCursor = outcome.value.response.pagination?.nextCursor ?? null;
+        nextCursors[source] = nextCursor;
+        if (nextCursor === null) {
+          nextCompletedSources.add(source);
+        }
         return;
       }
 
@@ -103,12 +115,14 @@ export class MarketplaceSearchCoordinator {
     const deduplicated = deduplicateMarketplaceListings(listings);
     const sortedListings = sortListings(deduplicated.listings).slice(0, limit);
     const hasMore =
-      partialFailures.length > 0 || sources.some((source) => nextCursors[source] !== null);
+      partialFailures.length > 0 || sources.some((source) => !nextCompletedSources.has(source));
 
     return {
       listings: sortedListings,
       pagination: {
-        nextCursor: hasMore ? encodeMarketplaceSearchCursor(sources, nextCursors) : null,
+        nextCursor: hasMore
+          ? encodeMarketplaceSearchCursor(sources, nextCursors, [...nextCompletedSources])
+          : null,
         hasMore,
       },
       sources,
@@ -192,6 +206,14 @@ function searchLimit(value: number | undefined) {
   }
 
   return limit;
+}
+
+function sourcePageLimit(limit: number, sourceCount: number) {
+  if (sourceCount === 0) {
+    return limit;
+  }
+
+  return Math.max(1, Math.floor(limit / sourceCount));
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutError: Error) {

@@ -1,7 +1,20 @@
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  View,
+} from "react-native";
 import { Redirect, useRouter } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
@@ -132,19 +145,38 @@ export function ListingFeedScreen() {
   const [operationError, setOperationError] = useState<string | null>(null);
   const userId = user?.id ?? "";
   const matchedListingsQueryKey = ["matched-listings", userId] as const;
-  const marketplaceSearchQueryKey = ["marketplace-search", userId, submittedSearch] as const;
+  const marketplaceSearchQueryKey = ["marketplace-search-pages", userId, submittedSearch] as const;
 
   const listingsQuery = useQuery({
     queryKey: matchedListingsQueryKey,
     queryFn: getMatchedListings,
     enabled: Boolean(userId),
   });
-  const marketplaceSearchQuery = useQuery({
+  const marketplaceSearchQuery = useInfiniteQuery({
     queryKey: marketplaceSearchQueryKey,
-    queryFn: () => searchListings(submittedSearch),
+    queryFn: ({ pageParam }) => searchListings(submittedSearch, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage, _allPages, _lastPageParam, allPageParams) => {
+      const nextCursor = lastPage.pagination.nextCursor;
+      if (!lastPage.pagination.hasMore || !nextCursor) {
+        return undefined;
+      }
+
+      return allPageParams.includes(nextCursor) ? undefined : nextCursor;
+    },
     enabled: Boolean(userId && submittedSearch),
   });
   const isMarketplaceSearch = Boolean(submittedSearch);
+  const marketplaceSearchListings = useMemo(() => {
+    const uniqueListings = new Map<string, Listing>();
+    for (const page of marketplaceSearchQuery.data?.pages ?? []) {
+      for (const listing of page.listings) {
+        uniqueListings.set(listing.id, listing);
+      }
+    }
+
+    return [...uniqueListings.values()];
+  }, [marketplaceSearchQuery.data]);
   const activeQueryIsLoading = isMarketplaceSearch
     ? marketplaceSearchQuery.isLoading
     : listingsQuery.isLoading;
@@ -152,14 +184,20 @@ export function ListingFeedScreen() {
     ? marketplaceSearchQuery.isError
     : listingsQuery.isError;
   const activeQueryIsRefetching = isMarketplaceSearch
-    ? marketplaceSearchQuery.isRefetching
+    ? marketplaceSearchQuery.isRefetching && !marketplaceSearchQuery.isFetchingNextPage
     : listingsQuery.isRefetching;
   const activeQueryRefetch = isMarketplaceSearch
     ? marketplaceSearchQuery.refetch
     : listingsQuery.refetch;
   const activeQueryKey = isMarketplaceSearch ? marketplaceSearchQueryKey : matchedListingsQueryKey;
   const partialFailures = isMarketplaceSearch
-    ? (marketplaceSearchQuery.data?.partialFailures ?? [])
+    ? [
+        ...new Map(
+          (marketplaceSearchQuery.data?.pages.flatMap((page) => page.partialFailures) ?? []).map(
+            (failure) => [failure.source, failure] as const,
+          ),
+        ).values(),
+      ]
     : [];
   const favoriteMutation = useMutation({
     mutationFn: ({ listingId, isFavorite }: { listingId: string; isFavorite: boolean }) =>
@@ -170,16 +208,23 @@ export function ListingFeedScreen() {
 
       if (isMarketplaceSearch) {
         const previousSearch =
-          queryClient.getQueryData<ListingSearchResult>(marketplaceSearchQueryKey);
-        queryClient.setQueryData<ListingSearchResult>(marketplaceSearchQueryKey, (currentSearch) =>
-          currentSearch
-            ? {
-                ...currentSearch,
-                listings: currentSearch.listings.map((listing) =>
-                  listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
-                ),
-              }
-            : currentSearch,
+          queryClient.getQueryData<InfiniteData<ListingSearchResult, string | null>>(
+            marketplaceSearchQueryKey,
+          );
+        queryClient.setQueryData<InfiniteData<ListingSearchResult, string | null>>(
+          marketplaceSearchQueryKey,
+          (currentSearch) =>
+            currentSearch
+              ? {
+                  ...currentSearch,
+                  pages: currentSearch.pages.map((page) => ({
+                    ...page,
+                    listings: page.listings.map((listing) =>
+                      listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
+                    ),
+                  })),
+                }
+              : currentSearch,
         );
         return { previousSearch };
       }
@@ -210,7 +255,7 @@ export function ListingFeedScreen() {
 
   const visibleListings = useMemo(() => {
     const activeListings = isMarketplaceSearch
-      ? (marketplaceSearchQuery.data?.listings ?? [])
+      ? marketplaceSearchListings
       : (listingsQuery.data ?? []);
     const filtered = activeListings.filter((listing) => {
       if (!listingMatchesSearch(listing, isMarketplaceSearch ? "" : search)) {
@@ -225,7 +270,7 @@ export function ListingFeedScreen() {
     });
 
     return sortListings(filtered, sort);
-  }, [filter, isMarketplaceSearch, listingsQuery.data, marketplaceSearchQuery.data, search, sort]);
+  }, [filter, isMarketplaceSearch, listingsQuery.data, marketplaceSearchListings, search, sort]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
@@ -282,6 +327,24 @@ export function ListingFeedScreen() {
             tintColor={theme.colors.primary}
             onRefresh={() => void activeQueryRefetch()}
           />
+        }
+        onEndReached={() => {
+          if (
+            isMarketplaceSearch &&
+            marketplaceSearchQuery.hasNextPage &&
+            !marketplaceSearchQuery.isFetchingNextPage &&
+            !marketplaceSearchQuery.isError
+          ) {
+            void marketplaceSearchQuery.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isMarketplaceSearch && marketplaceSearchQuery.isFetchingNextPage ? (
+            <View className="items-center py-4">
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+            </View>
+          ) : null
         }
         ListHeaderComponent={
           <View className="mb-1 gap-5">
