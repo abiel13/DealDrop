@@ -9,6 +9,48 @@ export const MARKETPLACE_IDS = {
 
 export type MarketplaceSource = (typeof MARKETPLACE_IDS)[keyof typeof MARKETPLACE_IDS];
 
+export const DEALDROP_PRODUCT_CATEGORIES = {
+  accessories: "accessories",
+  apparel: "apparel",
+  beauty: "beauty",
+  books: "books",
+  cameras: "cameras",
+  collectibles: "collectibles",
+  computers: "computers",
+  electronics: "electronics",
+  footwear: "footwear",
+  home: "home",
+  sports: "sports",
+  vehicles: "vehicles",
+  phones: "phones",
+  other: "other",
+} as const;
+
+export type DealDropProductCategory =
+  (typeof DEALDROP_PRODUCT_CATEGORIES)[keyof typeof DEALDROP_PRODUCT_CATEGORIES];
+
+export type RelevanceConfidence = "low" | "medium" | "high";
+
+export type ProductClassificationSource = "marketplace" | "title" | "mixed" | "unknown";
+
+export interface MarketplaceProductMetadata {
+  category: DealDropProductCategory | null;
+  productType: string | null;
+  brand: string | null;
+  model: string | null;
+  attributes: Record<string, string>;
+  confidence: RelevanceConfidence;
+  classificationSource: ProductClassificationSource;
+}
+
+export interface MarketplaceListingRelevance {
+  score: number;
+  confidence: RelevanceConfidence;
+  excluded: boolean;
+  reasons: string[];
+  warnings: string[];
+}
+
 export interface MarketplaceListing {
   source: MarketplaceSource;
   externalId: string;
@@ -25,6 +67,8 @@ export interface MarketplaceListing {
   latitude: number | null;
   longitude: number | null;
   postedAt: string | null;
+  product?: MarketplaceProductMetadata;
+  relevance?: MarketplaceListingRelevance;
   metadata?: Record<string, unknown>;
 }
 
