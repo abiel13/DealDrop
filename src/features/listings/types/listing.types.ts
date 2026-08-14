@@ -1,4 +1,9 @@
-import type { ApiSearchPartialFailure, MarketplaceSource } from "@/services/api";
+import type {
+  ApiPriceHistorySummary,
+  ApiPriceTarget,
+  ApiSearchPartialFailure,
+  MarketplaceSource,
+} from "@/services/api";
 
 export type ListingSort = "newest" | "price_low" | "price_high";
 
@@ -24,6 +29,8 @@ export interface Listing {
   fetched_at: string | null;
   matched_at: string | null;
   is_favorite: boolean;
+  price_history: ApiPriceHistorySummary | null;
+  price_target: ApiPriceTarget | null;
 }
 
 export interface ListingSearchResult {

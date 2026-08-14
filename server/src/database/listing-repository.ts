@@ -87,12 +87,11 @@ export class ListingRepository {
     return validated;
   }
 
-  async upsertListings(listings: MarketplaceListing[]) {
+  async upsertListings(listings: MarketplaceListing[], observedAt = new Date().toISOString()) {
     if (listings.length === 0) {
       return [];
     }
 
-    const now = new Date().toISOString();
     const rows = deduplicateIngestionListings(listings).map((listing) => ({
       marketplace_id: listing.source,
       external_id: listing.externalId,
@@ -109,8 +108,8 @@ export class ListingRepository {
       latitude: listing.latitude,
       longitude: listing.longitude,
       posted_at: listing.postedAt,
-      fetched_at: now,
-      last_seen_at: now,
+      fetched_at: observedAt,
+      last_seen_at: observedAt,
       is_active: true,
       raw_data: {
         ...(listing.metadata ?? {}),
@@ -128,7 +127,48 @@ export class ListingRepository {
       throw error;
     }
 
-    return data ?? [];
+    const storedListings = data ?? [];
+    const listingIdsByIdentity = new Map(
+      storedListings.map((listing) => [
+        listingIdentity(listing.marketplace_id, listing.external_id),
+        listing.id,
+      ]),
+    );
+    const observations = deduplicateIngestionListings(listings)
+      .map((listing) => {
+        const currency = normalizeCurrency(listing.currency);
+        const listingId = listingIdsByIdentity.get(
+          listingIdentity(listing.source, listing.externalId),
+        );
+        if (listing.price === null || !currency || !listingId) {
+          return null;
+        }
+
+        return {
+          listing_id: listingId,
+          observed_at: observedAt,
+          price: listing.price,
+          currency,
+        };
+      })
+      .filter(
+        (observation): observation is NonNullable<typeof observation> => observation !== null,
+      );
+
+    if (observations.length > 0) {
+      const { error: observationError } = await this.client
+        .from("listing_price_observations")
+        .upsert(observations, {
+          onConflict: "listing_id,observed_at,price,currency",
+          ignoreDuplicates: true,
+        });
+
+      if (observationError) {
+        throw observationError;
+      }
+    }
+
+    return storedListings;
   }
 
   async getActiveListingsForSources(
@@ -302,4 +342,9 @@ function extractImageUrls(stored: StoredListing) {
   return [
     ...new Set([stored.image_url, ...imageUrls].filter((image): image is string => Boolean(image))),
   ];
+}
+
+function normalizeCurrency(currency: string | null) {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized || null;
 }

@@ -2,8 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ListingRepository } from "../database/listing-repository";
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
+import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
 import type { WatchlistFilters } from "../types/backend";
 import type {
+  ApiPriceTarget,
   ApiNotificationPreferences,
   RawApiListing,
   RawApiMatch,
@@ -33,6 +35,19 @@ export interface StoredListingAccess {
   listing: RawApiListing;
   matchedAt: string | null;
   isFavorite: boolean;
+  priceHistory?: PriceHistorySummary | null;
+  priceTarget?: ApiPriceTarget | null;
+}
+
+interface StoredListingMatch {
+  matched_at: string;
+  watchlist: { filters: WatchlistFilters } | Array<{ filters: WatchlistFilters }> | null;
+}
+
+interface StoredPriceObservation {
+  price: number;
+  currency: string;
+  observed_at: string;
 }
 
 export interface MobileApiRepositoryContract {
@@ -123,25 +138,34 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       return null;
     }
 
-    const [{ data: matches, error: matchError }, { data: favorites, error: favoriteError }] =
-      await Promise.all([
-        this.client
-          .from("matches")
-          .select("matched_at")
-          .eq("user_id", userId)
-          .eq("listing_id", listingId)
-          .neq("status", "dismissed")
-          .order("matched_at", { ascending: false })
-          .limit(1)
-          .returns<Array<{ matched_at: string }>>(),
-        this.client
-          .from("favorites")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("listing_id", listingId)
-          .limit(1)
-          .returns<Array<{ id: string }>>(),
-      ]);
+    const [
+      { data: matches, error: matchError },
+      { data: favorites, error: favoriteError },
+      { data: observations, error: observationError },
+    ] = await Promise.all([
+      this.client
+        .from("matches")
+        .select("matched_at,watchlist:watchlists!inner(filters)")
+        .eq("user_id", userId)
+        .eq("listing_id", listingId)
+        .neq("status", "dismissed")
+        .order("matched_at", { ascending: false })
+        .limit(1)
+        .returns<StoredListingMatch[]>(),
+      this.client
+        .from("favorites")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("listing_id", listingId)
+        .limit(1)
+        .returns<Array<{ id: string }>>(),
+      this.client
+        .from("listing_price_observations")
+        .select("price,currency,observed_at")
+        .eq("listing_id", listingId)
+        .order("observed_at", { ascending: true })
+        .returns<StoredPriceObservation[]>(),
+    ]);
 
     if (matchError) {
       throw matchError;
@@ -151,10 +175,30 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       throw favoriteError;
     }
 
+    if (observationError) {
+      throw observationError;
+    }
+
+    const latestMatch = matches?.[0];
+    const watchlist = unwrap(latestMatch?.watchlist ?? null);
+    const priceHistory = summarizePriceHistory(
+      listing.price,
+      listing.currency,
+      (observations ?? [])
+        .map((observation) => ({
+          price: Number(observation.price),
+          currency: observation.currency,
+          observedAt: observation.observed_at,
+        }))
+        .filter((observation) => Number.isFinite(observation.price)),
+    );
+
     return {
       listing,
-      matchedAt: matches?.[0]?.matched_at ?? null,
+      matchedAt: latestMatch?.matched_at ?? null,
       isFavorite: Boolean(favorites?.length),
+      priceHistory,
+      priceTarget: toPriceTarget(listing, watchlist?.filters.price),
     };
   }
 
@@ -528,4 +572,35 @@ function toPage<T>(items: T[], limit: number, cursorValue: (item: T) => string):
     nextCursor: hasMore ? cursorValue(pageItems[pageItems.length - 1]!) : null,
     hasMore,
   };
+}
+
+function toPriceTarget(
+  listing: RawApiListing,
+  target: { max?: number; currency?: string } | undefined,
+) {
+  if (target?.max === undefined) {
+    return null;
+  }
+
+  const targetCurrency = normalizeCurrency(target.currency);
+  const listingCurrency = normalizeCurrency(listing.currency);
+  const sameCurrency = Boolean(
+    targetCurrency && listingCurrency && targetCurrency === listingCurrency,
+  );
+
+  return {
+    price: target.max,
+    currency: targetCurrency,
+    difference: sameCurrency && listing.price !== null ? listing.price - target.max : null,
+    sameCurrency,
+  };
+}
+
+function normalizeCurrency(currency: string | null | undefined) {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized || null;
+}
+
+function unwrap<T>(value: T | T[] | null): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 }

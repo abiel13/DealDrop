@@ -31,6 +31,7 @@ import type { Listing } from "../types/listing.types";
 import {
   formatListingDate,
   formatListingPrice,
+  formatListingRecency,
   formatMarketplaceName,
 } from "../utils/listing.utils";
 
@@ -195,6 +196,8 @@ export function ListingDetailsScreen() {
           {operationError && <AppText variant="error">{operationError}</AppText>}
         </Card>
 
+        <PriceContext listing={listing} />
+
         {listing.seller_name && (
           <Card padding="md" className="gap-3">
             <AppText variant="caption" className="font-semibold uppercase tracking-[1px]">
@@ -242,6 +245,117 @@ export function ListingDetailsScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function PriceContext({ listing }: { listing: Listing }) {
+  const history = listing.price_history;
+  const target = listing.price_target;
+
+  return (
+    <>
+      {target && (
+        <Card padding="md" className="gap-3">
+          <AppText variant="title">Watchlist target</AppText>
+          <DetailRow
+            label="Maximum price"
+            value={formatListingPrice({ price: target.price, currency: target.currency })}
+          />
+          {target.sameCurrency && target.difference !== null ? (
+            <AppText variant="bodySmall" className="text-text-secondary">
+              {target.difference <= 0
+                ? formatListingPrice({
+                    price: Math.abs(target.difference),
+                    currency: target.currency,
+                  }) + " below your target."
+                : formatListingPrice({ price: target.difference, currency: target.currency }) +
+                  " above your target."}
+            </AppText>
+          ) : (
+            <AppText variant="caption">
+              Current price cannot be compared because the currencies do not match or are not known.
+            </AppText>
+          )}
+        </Card>
+      )}
+
+      {history && (
+        <Card padding="md" className="gap-3">
+          <AppText variant="title">Price history</AppText>
+
+          {history.status === "available" && history.dealIndicator ? (
+            <View className="gap-1 rounded-2xl bg-primary-soft p-3">
+              <AppText variant="label" className="text-primary">
+                {dealIndicatorLabel(history.dealIndicator)}
+              </AppText>
+              <AppText variant="bodySmall" className="text-text-secondary">
+                {history.explanation}
+              </AppText>
+            </View>
+          ) : (
+            <AppText variant="bodySmall" className="text-text-secondary">
+              {history.explanation}
+            </AppText>
+          )}
+
+          {history.lowestPrice !== null && history.highestPrice !== null && history.currency && (
+            <DetailRow
+              label={
+                history.lowestPrice === history.highestPrice ? "Observed price" : "Observed range"
+              }
+              value={formatPriceRange(history.lowestPrice, history.highestPrice, history.currency)}
+            />
+          )}
+
+          {history.averagePrice !== null && history.currency && history.status === "available" && (
+            <DetailRow
+              label="Observed average"
+              value={formatListingPrice({
+                price: history.averagePrice,
+                currency: history.currency,
+              })}
+            />
+          )}
+
+          <AppText variant="caption">
+            {history.observationCount > 0
+              ? history.observationCount +
+                " observed price" +
+                (history.observationCount === 1 ? "" : "s") +
+                " · updated " +
+                (history.lastObservedAt
+                  ? formatListingRecency(history.lastObservedAt)
+                  : "date unavailable") +
+                "."
+              : "No observed price data is available yet."}{" "}
+            History is limited to {formatMarketplaceName(listing.marketplace_id)} and the same
+            currency; no conversion is used.
+          </AppText>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function dealIndicatorLabel(indicator: NonNullable<Listing["price_history"]>["dealIndicator"]) {
+  switch (indicator) {
+    case "below_history":
+      return "Below recent history";
+    case "above_history":
+      return "Above recent history";
+    case "typical":
+      return "Typical recent price";
+    default:
+      return "Price history available";
+  }
+}
+
+function formatPriceRange(lowestPrice: number, highestPrice: number, currency: string) {
+  const lowest = formatListingPrice({ price: lowestPrice, currency });
+  if (lowestPrice === highestPrice) {
+    return lowest;
+  }
+
+  return lowest + " – " + formatListingPrice({ price: highestPrice, currency });
 }
 
 function Gallery({

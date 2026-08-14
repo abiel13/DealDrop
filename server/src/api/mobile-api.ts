@@ -88,6 +88,8 @@ export class MobileApiService {
       id: result.listing.id,
       matchedAt: result.matchedAt,
       isFavorite: result.isFavorite,
+      priceHistory: result.priceHistory,
+      priceTarget: result.priceTarget,
     });
   }
 
