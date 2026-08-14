@@ -31,7 +31,7 @@ import type { MarketplaceSource } from "@/services/api";
 
 import type { WatchlistInput } from "../types/watchlist.types";
 
-const marketplaceSourceSchema = z.enum(["ebay", "etsy"]);
+const marketplaceSourceSchema = z.enum(["ebay", "etsy", "stockx"]);
 const watchlistSchema = z
   .object({
     name: z.string().trim().min(2, "Give your watchlist a name."),

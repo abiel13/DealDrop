@@ -2,7 +2,7 @@
 
 Never miss the perfect deal.
 
-DealDrop continuously monitors eBay and Etsy for items matching your saved searches and notifies you the moment a new listing appears.
+DealDrop continuously monitors eBay, Etsy, and StockX for items matching your saved searches and notifies you the moment a new listing appears.
 
 Marketplace credentials and provider access are configured on the server only.
 
@@ -49,7 +49,7 @@ For a production build, use `npm run server:build` followed by `npm run server:s
 
 ## Production Watchlist Monitoring Worker
 
-The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only eBay and Etsy variables in `server/.env`, then run:
+The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only eBay, Etsy, and approved StockX variables in `server/.env`, then run:
 
 ```bash
 npm run worker:watchlists
@@ -59,3 +59,5 @@ Set `WATCHLIST_MONITOR_INTERVAL_MS=0` for a single run. The default interval is 
 For a compiled production process, run `npm run server:build` and then `npm run server:worker:watchlists:prod`.
 
 Credentials, API tokens, and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.
+
+For StockX approval, OAuth setup, and server-only variables, see [`docs/stockx-setup.md`](docs/stockx-setup.md). Confirm StockX’s current API license permits DealDrop’s intended deployment before enabling the source in production.
