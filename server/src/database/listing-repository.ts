@@ -24,6 +24,7 @@ interface StoredWatchlist {
   user_id: string;
   search_query: string;
   filters: WatchlistFilters;
+  alert_mode: "instant" | "digest";
   marketplace_id: string;
   marketplace_scope: WatchlistMarketplaceScope;
   watchlist_marketplaces?: Array<{ marketplace_id: string }>;
@@ -214,7 +215,7 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("watchlists")
       .select(
-        "id,user_id,search_query,filters,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
+        "id,user_id,search_query,filters,alert_mode,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
       )
       .eq("is_active", true)
       .order("updated_at", { ascending: true })
@@ -269,6 +270,7 @@ function toMarketplaceWatchlist(
     userId: stored.user_id,
     searchQuery: stored.search_query,
     filters: stored.filters,
+    alertMode: stored.alert_mode ?? "instant",
     marketplaceScope,
     marketplaceIds: marketplaceScope === "all" ? available : selectedMarketplaceIds,
   };

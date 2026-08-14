@@ -20,7 +20,7 @@ import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
 
-import type { MarketplaceSource } from "@/services/api";
+import type { MarketplaceSource, WatchlistAlertMode } from "@/services/api";
 
 import {
   createWatchlist,
@@ -58,6 +58,7 @@ const watchlistSchema = z
     searchQuery: z.string().trim().min(2, "Enter something to search for."),
     marketplaceScope: z.enum(["selected", "all"]),
     marketplaceIds: z.array(marketplaceSourceSchema),
+    alertMode: z.enum(["instant", "digest"]),
     aliases: z.string().trim().max(2_000, "Keep aliases under 2,000 characters."),
     excludedKeywords: z
       .string()
@@ -171,6 +172,18 @@ const watchlistSchema = z
 
 type WatchlistFormValues = z.infer<typeof watchlistSchema>;
 const CONDITION_OPTIONS = ["new", "used", "refurbished", "like new", "open box"] as const;
+const ALERT_MODE_OPTIONS: { value: WatchlistAlertMode; label: string; description: string }[] = [
+  {
+    value: "instant",
+    label: "Instant",
+    description: "Send each new match as soon as it is found.",
+  },
+  {
+    value: "digest",
+    label: "Digest",
+    description: "Group matches found in the same monitoring run into one alert.",
+  },
+];
 
 export function WatchlistFormScreen() {
   const theme = useTheme();
@@ -194,6 +207,7 @@ export function WatchlistFormScreen() {
       searchQuery: "",
       marketplaceScope: "all",
       marketplaceIds: [],
+      alertMode: "instant",
       ...DEFAULT_WATCHLIST_FILTER_VALUES,
     },
     mode: "onBlur",
@@ -212,6 +226,7 @@ export function WatchlistFormScreen() {
   });
   const marketplaceScope = useWatch({ control, name: "marketplaceScope" });
   const marketplaceIds = useWatch({ control, name: "marketplaceIds" });
+  const alertMode = useWatch({ control, name: "alertMode" });
   const minPrice = useWatch({ control, name: "minPrice" });
   const maxPrice = useWatch({ control, name: "maxPrice" });
   const currency = useWatch({ control, name: "currency" });
@@ -256,6 +271,7 @@ export function WatchlistFormScreen() {
         searchQuery: existingWatchlistQuery.data.search_query,
         marketplaceScope: existingWatchlistQuery.data.marketplace_scope,
         marketplaceIds: existingWatchlistQuery.data.marketplace_ids,
+        alertMode: existingWatchlistQuery.data.alert_mode,
         ...toWatchlistFilterValues(existingWatchlistQuery.data.filters),
       });
     }
@@ -292,6 +308,7 @@ export function WatchlistFormScreen() {
       name: values.name,
       searchQuery: values.searchQuery,
       filters: toWatchlistFilters(values),
+      alertMode: values.alertMode,
       marketplaceScope: values.marketplaceScope,
       marketplaceIds: values.marketplaceIds,
     };
@@ -682,6 +699,35 @@ export function WatchlistFormScreen() {
                   searches.
                 </AppText>
               )}
+            </View>
+          </Card>
+
+          <Card padding="md" className="gap-5">
+            <FormSectionHeader
+              eyebrow="04"
+              title="Choose alert timing"
+              description="Decide whether each match should arrive immediately or be grouped with other matches."
+            />
+
+            <View className="gap-3">
+              {ALERT_MODE_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: alertMode === option.value }}
+                  className={`rounded-2xl border p-4 ${
+                    alertMode === option.value
+                      ? "border-primary bg-primary-soft"
+                      : "border-border bg-surface"
+                  }`}
+                  onPress={() => setValue("alertMode", option.value, { shouldValidate: true })}
+                >
+                  <View className="gap-1">
+                    <AppText variant="label">{option.label}</AppText>
+                    <AppText variant="bodySmall">{option.description}</AppText>
+                  </View>
+                </Pressable>
+              ))}
             </View>
           </Card>
 

@@ -1,4 +1,4 @@
-import type { ApiSearchFilters, MarketplaceSource } from "@/services/api";
+import type { ApiSearchFilters, MarketplaceSource, WatchlistAlertMode } from "@/services/api";
 
 export type WatchlistFilters = ApiSearchFilters;
 
@@ -11,6 +11,7 @@ export interface Watchlist {
   name: string;
   search_query: string;
   filters: WatchlistFilters;
+  alert_mode: WatchlistAlertMode;
   is_active: boolean;
   is_favorite: boolean;
   last_checked_at: string | null;
@@ -22,6 +23,7 @@ export interface WatchlistInput {
   name: string;
   searchQuery: string;
   filters: WatchlistFilters;
+  alertMode: WatchlistAlertMode;
   marketplaceScope: "selected" | "all";
   marketplaceIds: MarketplaceSource[];
 }

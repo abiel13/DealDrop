@@ -5,7 +5,11 @@ import type {
   MarketplaceSource,
 } from "../marketplaces/shared/types";
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
-import type { WatchlistFilters, WatchlistMarketplaceScope } from "../types/backend";
+import type {
+  WatchlistAlertMode,
+  WatchlistFilters,
+  WatchlistMarketplaceScope,
+} from "../types/backend";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -76,6 +80,7 @@ export interface ApiWatchlist {
   name: string;
   searchQuery: string;
   filters: WatchlistFilters;
+  alertMode: WatchlistAlertMode;
   marketplaceScope: WatchlistMarketplaceScope;
   marketplaceIds: MarketplaceSource[];
   isActive: boolean;
@@ -108,6 +113,11 @@ export interface ApiNotification {
 export interface ApiNotificationPreferences {
   pushEnabled: boolean;
   newMatchEnabled: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  timezone: string;
+  dailyAlertLimit: number;
 }
 
 export interface ApiPushTokenRegistration {
@@ -153,6 +163,7 @@ export interface RawApiWatchlist {
   name: string;
   search_query: string;
   filters: WatchlistFilters;
+  alert_mode: WatchlistAlertMode;
   is_active: boolean;
   is_favorite: boolean;
   last_checked_at: string | null;

@@ -14,6 +14,11 @@ import type {
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   push_enabled: true,
   new_match_enabled: true,
+  quiet_hours_enabled: false,
+  quiet_hours_start: null,
+  quiet_hours_end: null,
+  timezone: "UTC",
+  daily_alert_limit: 20,
 };
 
 function toNotification(notification: ApiNotification): AppNotification {
@@ -34,6 +39,11 @@ function toPreferences(preferences: ApiNotificationPreferences): NotificationPre
   return {
     push_enabled: preferences.pushEnabled,
     new_match_enabled: preferences.newMatchEnabled,
+    quiet_hours_enabled: preferences.quietHoursEnabled,
+    quiet_hours_start: preferences.quietHoursStart,
+    quiet_hours_end: preferences.quietHoursEnd,
+    timezone: preferences.timezone,
+    daily_alert_limit: preferences.dailyAlertLimit,
   };
 }
 
@@ -55,6 +65,11 @@ export async function updateNotificationPreferences(preferences: NotificationPre
   const response = await apiClient.updateNotificationPreferences({
     pushEnabled: preferences.push_enabled,
     newMatchEnabled: preferences.new_match_enabled,
+    quietHoursEnabled: preferences.quiet_hours_enabled,
+    quietHoursStart: preferences.quiet_hours_start,
+    quietHoursEnd: preferences.quiet_hours_end,
+    timezone: preferences.timezone,
+    dailyAlertLimit: preferences.daily_alert_limit,
   });
   return toPreferences(response.data);
 }

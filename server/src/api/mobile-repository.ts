@@ -13,7 +13,7 @@ import type {
 } from "./types";
 
 const WATCHLIST_COLUMNS =
-  "id,user_id,marketplace_id,marketplace_scope,name,search_query,filters,is_active,is_favorite,last_checked_at,created_at,updated_at,watchlist_marketplaces(marketplace_id)";
+  "id,user_id,marketplace_id,marketplace_scope,alert_mode,name,search_query,filters,is_active,is_favorite,last_checked_at,created_at,updated_at,watchlist_marketplaces(marketplace_id)";
 const LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const MATCH_LISTING_COLUMNS =
@@ -55,6 +55,7 @@ export interface MobileApiRepositoryContract {
       isFavorite: boolean;
       marketplaceScope: "selected" | "all";
       marketplaceIds: string[];
+      alertMode: "instant" | "digest";
     },
   ): Promise<RawApiWatchlist>;
   updateWatchlist(
@@ -68,6 +69,7 @@ export interface MobileApiRepositoryContract {
       isFavorite: boolean;
       marketplaceScope: "selected" | "all";
       marketplaceIds: string[];
+      alertMode: "instant" | "digest";
     }>,
   ): Promise<RawApiWatchlist | null>;
   deleteWatchlist(userId: string, watchlistId: string): Promise<boolean>;
@@ -234,6 +236,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         user_id: userId,
         marketplace_id: input.marketplaceIds[0],
         marketplace_scope: input.marketplaceScope,
+        alert_mode: input.alertMode,
         name: input.name,
         search_query: input.searchQuery,
         filters: input.filters,
@@ -272,6 +275,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     if (input.filters !== undefined) values.filters = input.filters;
     if (input.isActive !== undefined) values.is_active = input.isActive;
     if (input.isFavorite !== undefined) values.is_favorite = input.isFavorite;
+    if (input.alertMode !== undefined) values.alert_mode = input.alertMode;
     if (input.marketplaceScope !== undefined) values.marketplace_scope = input.marketplaceScope;
     if (input.marketplaceIds !== undefined) values.marketplace_id = input.marketplaceIds[0];
 
@@ -392,9 +396,19 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
   async getNotificationPreferences(userId: string) {
     const { data, error } = await this.client
       .from("notification_preferences")
-      .select("push_enabled,new_match_enabled")
+      .select(
+        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
+      )
       .eq("user_id", userId)
-      .maybeSingle<{ push_enabled: boolean; new_match_enabled: boolean }>();
+      .maybeSingle<{
+        push_enabled: boolean;
+        new_match_enabled: boolean;
+        quiet_hours_enabled: boolean;
+        quiet_hours_start: string | null;
+        quiet_hours_end: string | null;
+        timezone: string;
+        daily_alert_limit: number;
+      }>();
     if (error) {
       throw error;
     }
@@ -402,6 +416,11 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return {
       pushEnabled: data?.push_enabled ?? true,
       newMatchEnabled: data?.new_match_enabled ?? true,
+      quietHoursEnabled: data?.quiet_hours_enabled ?? false,
+      quietHoursStart: data?.quiet_hours_start ?? null,
+      quietHoursEnd: data?.quiet_hours_end ?? null,
+      timezone: data?.timezone ?? "UTC",
+      dailyAlertLimit: data?.daily_alert_limit ?? 20,
     };
   }
 
@@ -413,11 +432,26 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
           user_id: userId,
           push_enabled: preferences.pushEnabled,
           new_match_enabled: preferences.newMatchEnabled,
+          quiet_hours_enabled: preferences.quietHoursEnabled,
+          quiet_hours_start: preferences.quietHoursStart,
+          quiet_hours_end: preferences.quietHoursEnd,
+          timezone: preferences.timezone,
+          daily_alert_limit: preferences.dailyAlertLimit,
         },
         { onConflict: "user_id" },
       )
-      .select("push_enabled,new_match_enabled")
-      .single<{ push_enabled: boolean; new_match_enabled: boolean }>();
+      .select(
+        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
+      )
+      .single<{
+        push_enabled: boolean;
+        new_match_enabled: boolean;
+        quiet_hours_enabled: boolean;
+        quiet_hours_start: string | null;
+        quiet_hours_end: string | null;
+        timezone: string;
+        daily_alert_limit: number;
+      }>();
     if (error) {
       throw error;
     }
@@ -425,6 +459,11 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return {
       pushEnabled: data.push_enabled,
       newMatchEnabled: data.new_match_enabled,
+      quietHoursEnabled: data.quiet_hours_enabled,
+      quietHoursStart: data.quiet_hours_start,
+      quietHoursEnd: data.quiet_hours_end,
+      timezone: data.timezone,
+      dailyAlertLimit: data.daily_alert_limit,
     };
   }
 

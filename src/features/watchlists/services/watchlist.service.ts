@@ -12,6 +12,7 @@ function toWatchlist(watchlist: ApiWatchlist): Watchlist {
     name: watchlist.name,
     search_query: watchlist.searchQuery,
     filters: watchlist.filters,
+    alert_mode: watchlist.alertMode,
     is_active: watchlist.isActive,
     is_favorite: watchlist.isFavorite,
     last_checked_at: watchlist.lastCheckedAt,
@@ -35,6 +36,7 @@ export async function createWatchlist(input: WatchlistInput) {
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
     filters: input.filters,
+    alertMode: input.alertMode,
     marketplaceScope: input.marketplaceScope,
     marketplaceIds: input.marketplaceIds,
   });
@@ -46,6 +48,7 @@ export async function updateWatchlist(watchlistId: string, input: WatchlistInput
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
     filters: input.filters,
+    alertMode: input.alertMode,
     marketplaceScope: input.marketplaceScope,
     marketplaceIds: input.marketplaceIds,
   });
