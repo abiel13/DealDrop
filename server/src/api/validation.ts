@@ -9,6 +9,7 @@ const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number
 export const watchlistFiltersSchema = z
   .object({
     aliases: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    excludedKeywords: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     location: z
       .union([
         z.string().trim().min(1).max(200),
@@ -45,6 +46,29 @@ export const watchlistFiltersSchema = z
       filters.price.min <= filters.price.max,
     "price.min must not be greater than price.max",
   )
+  .superRefine((filters, context) => {
+    const distance = filters.distance;
+    if (!distance) {
+      return;
+    }
+
+    const hasDistanceValue =
+      distance.maxKm !== undefined ||
+      distance.latitude !== undefined ||
+      distance.longitude !== undefined;
+    const hasCompleteDistance =
+      distance.maxKm !== undefined &&
+      distance.latitude !== undefined &&
+      distance.longitude !== undefined;
+
+    if (hasDistanceValue && !hasCompleteDistance) {
+      context.addIssue({
+        code: "custom",
+        message: "distance.maxKm, distance.latitude, and distance.longitude are required together",
+        path: ["distance"],
+      });
+    }
+  })
   .transform((filters) => normalizeFilters(filters));
 
 const marketplaceIdsSchema = z

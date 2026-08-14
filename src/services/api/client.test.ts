@@ -103,6 +103,11 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
   await client.createWatchlist({
     name: "Camera gear",
     searchQuery: "Sony A7",
+    filters: {
+      aliases: ["ILCE-7M3"],
+      excludedKeywords: ["case"],
+      price: { max: 500, currency: "USD" },
+    },
     marketplaceScope: "selected",
     marketplaceIds: ["ebay", "etsy"],
   });
@@ -110,9 +115,13 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
   assert.deepEqual(requestBody, {
     name: "Camera gear",
     searchQuery: "Sony A7",
+    filters: {
+      aliases: ["ILCE-7M3"],
+      excludedKeywords: ["case"],
+      price: { max: 500, currency: "USD" },
+    },
     marketplaceScope: "selected",
     marketplaceIds: ["ebay", "etsy"],
-    filters: {},
   });
 });
 

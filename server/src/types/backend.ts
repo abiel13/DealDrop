@@ -32,6 +32,7 @@ export interface WatchlistDistanceFilter {
 
 export interface WatchlistFilters {
   aliases?: string[];
+  excludedKeywords?: string[];
   location?: string | WatchlistLocationFilter;
   price?: WatchlistPriceFilter;
   distance?: WatchlistDistanceFilter;

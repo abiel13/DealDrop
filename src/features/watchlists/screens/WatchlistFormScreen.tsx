@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,9 +16,11 @@ import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
+import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
-import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
+
+import type { MarketplaceSource } from "@/services/api";
 
 import {
   createWatchlist,
@@ -27,17 +29,64 @@ import {
   getSupportedMarketplaces,
   updateWatchlist,
 } from "../services/watchlist.service";
-import type { MarketplaceSource } from "@/services/api";
-
 import type { WatchlistInput } from "../types/watchlist.types";
+import {
+  DEFAULT_WATCHLIST_FILTER_VALUES,
+  getSelectedMarketplaces,
+  getUnsupportedMarketplaceSources,
+  splitFilterTerms,
+  toWatchlistFilters,
+  toWatchlistFilterValues,
+} from "../utils/watchlist-filters";
 
 const marketplaceSourceSchema = z.enum(["ebay", "etsy", "rakuten", "stockx"]);
+const optionalNonNegativeNumberSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === "" || (Number.isFinite(Number(value)) && Number(value) >= 0),
+    "Enter a valid non-negative number.",
+  );
+const optionalCurrencySchema = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^[A-Za-z]{3}$/.test(value), "Use a 3-letter currency code.");
+
 const watchlistSchema = z
   .object({
     name: z.string().trim().min(2, "Give your watchlist a name."),
     searchQuery: z.string().trim().min(2, "Enter something to search for."),
     marketplaceScope: z.enum(["selected", "all"]),
     marketplaceIds: z.array(marketplaceSourceSchema),
+    aliases: z.string().trim().max(2_000, "Keep aliases under 2,000 characters."),
+    excludedKeywords: z
+      .string()
+      .trim()
+      .max(2_000, "Keep excluded keywords under 2,000 characters."),
+    minPrice: optionalNonNegativeNumberSchema,
+    maxPrice: optionalNonNegativeNumberSchema,
+    currency: optionalCurrencySchema,
+    conditions: z.array(z.string().trim().min(1).max(100)).max(20),
+    location: z.string().trim().max(200, "Keep the location under 200 characters."),
+    maxDistanceKm: optionalNonNegativeNumberSchema,
+    latitude: z
+      .string()
+      .trim()
+      .refine(
+        (value) =>
+          value === "" ||
+          (Number.isFinite(Number(value)) && Number(value) >= -90 && Number(value) <= 90),
+        "Enter a latitude between -90 and 90.",
+      ),
+    longitude: z
+      .string()
+      .trim()
+      .refine(
+        (value) =>
+          value === "" ||
+          (Number.isFinite(Number(value)) && Number(value) >= -180 && Number(value) <= 180),
+        "Enter a longitude between -180 and 180.",
+      ),
   })
   .superRefine((values, context) => {
     if (values.marketplaceScope === "selected" && values.marketplaceIds.length === 0) {
@@ -47,9 +96,81 @@ const watchlistSchema = z
         path: ["marketplaceIds"],
       });
     }
+
+    const aliases = splitFilterTerms(values.aliases);
+    if (aliases.length > 20) {
+      context.addIssue({
+        code: "custom",
+        message: "Add no more than 20 aliases.",
+        path: ["aliases"],
+      });
+    }
+    if (aliases.some((alias) => alias.length > 100)) {
+      context.addIssue({
+        code: "custom",
+        message: "Keep each alias under 100 characters.",
+        path: ["aliases"],
+      });
+    }
+
+    const excludedKeywords = splitFilterTerms(values.excludedKeywords);
+    if (excludedKeywords.length > 20) {
+      context.addIssue({
+        code: "custom",
+        message: "Add no more than 20 excluded keywords.",
+        path: ["excludedKeywords"],
+      });
+    }
+    if (excludedKeywords.some((keyword) => keyword.length > 100)) {
+      context.addIssue({
+        code: "custom",
+        message: "Keep each excluded keyword under 100 characters.",
+        path: ["excludedKeywords"],
+      });
+    }
+
+    if (values.maxDistanceKm !== "") {
+      if (values.latitude === "") {
+        context.addIssue({
+          code: "custom",
+          message: "Enter the center latitude for a distance filter.",
+          path: ["latitude"],
+        });
+      }
+      if (values.longitude === "") {
+        context.addIssue({
+          code: "custom",
+          message: "Enter the center longitude for a distance filter.",
+          path: ["longitude"],
+        });
+      }
+    }
+
+    if (values.latitude !== "" || values.longitude !== "") {
+      if (values.maxDistanceKm === "") {
+        context.addIssue({
+          code: "custom",
+          message: "Enter a maximum distance for the selected coordinates.",
+          path: ["maxDistanceKm"],
+        });
+      }
+    }
+
+    if (
+      values.minPrice !== "" &&
+      values.maxPrice !== "" &&
+      Number(values.minPrice) > Number(values.maxPrice)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Minimum price cannot be greater than maximum price.",
+        path: ["maxPrice"],
+      });
+    }
   });
 
 type WatchlistFormValues = z.infer<typeof watchlistSchema>;
+const CONDITION_OPTIONS = ["new", "used", "refurbished", "like new", "open box"] as const;
 
 export function WatchlistFormScreen() {
   const theme = useTheme();
@@ -68,7 +189,13 @@ export function WatchlistFormScreen() {
     formState: { errors },
   } = useForm<WatchlistFormValues>({
     resolver: zodResolver(watchlistSchema),
-    defaultValues: { name: "", searchQuery: "", marketplaceScope: "all", marketplaceIds: [] },
+    defaultValues: {
+      name: "",
+      searchQuery: "",
+      marketplaceScope: "all",
+      marketplaceIds: [],
+      ...DEFAULT_WATCHLIST_FILTER_VALUES,
+    },
     mode: "onBlur",
   });
 
@@ -85,6 +212,42 @@ export function WatchlistFormScreen() {
   });
   const marketplaceScope = useWatch({ control, name: "marketplaceScope" });
   const marketplaceIds = useWatch({ control, name: "marketplaceIds" });
+  const minPrice = useWatch({ control, name: "minPrice" });
+  const maxPrice = useWatch({ control, name: "maxPrice" });
+  const currency = useWatch({ control, name: "currency" });
+  const conditions = useWatch({ control, name: "conditions" });
+  const location = useWatch({ control, name: "location" });
+  const maxDistanceKm = useWatch({ control, name: "maxDistanceKm" });
+  const latitude = useWatch({ control, name: "latitude" });
+  const longitude = useWatch({ control, name: "longitude" });
+
+  const selectedMarketplaces = useMemo(
+    () => getSelectedMarketplaces(marketplaceScope, marketplaceIds, marketplacesQuery.data ?? []),
+    [marketplaceIds, marketplaceScope, marketplacesQuery.data],
+  );
+  const unsupportedPriceSources = getUnsupportedMarketplaceSources(
+    selectedMarketplaces,
+    "supportsPriceFiltering",
+  );
+  const unsupportedLocationSources = getUnsupportedMarketplaceSources(
+    selectedMarketplaces,
+    "supportsLocation",
+  );
+  const unsupportedRadiusSources = getUnsupportedMarketplaceSources(
+    selectedMarketplaces,
+    "supportsRadius",
+  );
+  const unsupportedConditionSources = getUnsupportedMarketplaceSources(
+    selectedMarketplaces,
+    "supportsCondition",
+  );
+  const supportsRadius = selectedMarketplaces.some(
+    (marketplace) => marketplace.capabilities?.supportsRadius === true,
+  );
+  const hasPriceFilter = Boolean(minPrice.trim() || maxPrice.trim() || currency.trim());
+  const hasLocationFilter = Boolean(location.trim());
+  const hasDistanceFilter = Boolean(maxDistanceKm.trim() || latitude.trim() || longitude.trim());
+  const hasConditionFilter = conditions.length > 0;
 
   useEffect(() => {
     if (existingWatchlistQuery.data) {
@@ -93,6 +256,7 @@ export function WatchlistFormScreen() {
         searchQuery: existingWatchlistQuery.data.search_query,
         marketplaceScope: existingWatchlistQuery.data.marketplace_scope,
         marketplaceIds: existingWatchlistQuery.data.marketplace_ids,
+        ...toWatchlistFilterValues(existingWatchlistQuery.data.filters),
       });
     }
   }, [existingWatchlistQuery.data, reset]);
@@ -113,6 +277,26 @@ export function WatchlistFormScreen() {
 
     setValue("marketplaceScope", "selected", { shouldValidate: true });
     setValue("marketplaceIds", nextIds, { shouldValidate: true });
+  }
+
+  function toggleCondition(condition: string) {
+    const nextConditions = conditions.includes(condition)
+      ? conditions.filter((value) => value !== condition)
+      : [...conditions, condition];
+
+    setValue("conditions", nextConditions, { shouldValidate: true });
+  }
+
+  function saveWatchlist(values: WatchlistFormValues) {
+    const input: WatchlistInput = {
+      name: values.name,
+      searchQuery: values.searchQuery,
+      filters: toWatchlistFilters(values),
+      marketplaceScope: values.marketplaceScope,
+      marketplaceIds: values.marketplaceIds,
+    };
+
+    saveMutation.mutate(input);
   }
 
   const saveMutation = useMutation({
@@ -271,6 +455,236 @@ export function WatchlistFormScreen() {
             />
           </Card>
 
+          <Card padding="md" className="gap-5">
+            <FormSectionHeader
+              eyebrow="03"
+              title="Refine your matches"
+              description="Add optional rules so DealDrop can filter out listings you do not want."
+            />
+
+            <View className="gap-3">
+              <AppText variant="label">Price range</AppText>
+              <View className="flex-row gap-3">
+                <Controller
+                  control={control}
+                  name="minPrice"
+                  render={({ field: { onBlur, onChange, value } }) => (
+                    <Input
+                      className="flex-1"
+                      label="Minimum"
+                      placeholder="0"
+                      keyboardType="decimal-pad"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      error={errors.minPrice?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name="maxPrice"
+                  render={({ field: { onBlur, onChange, value } }) => (
+                    <Input
+                      className="flex-1"
+                      label="Maximum"
+                      placeholder="Any"
+                      keyboardType="decimal-pad"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      error={errors.maxPrice?.message}
+                    />
+                  )}
+                />
+              </View>
+
+              <Controller
+                control={control}
+                name="currency"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Currency (optional)"
+                    placeholder="e.g. USD"
+                    autoCapitalize="characters"
+                    maxLength={3}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.currency?.message}
+                  />
+                )}
+              />
+
+              {hasPriceFilter && (
+                <UnsupportedFilterNotice
+                  filterLabel="Price filters"
+                  sources={unsupportedPriceSources}
+                />
+              )}
+            </View>
+
+            <View className="gap-3">
+              <View className="gap-1">
+                <AppText variant="label">Condition</AppText>
+                <AppText variant="bodySmall">Choose any that apply.</AppText>
+              </View>
+              <View className="flex-row flex-wrap gap-2">
+                {CONDITION_OPTIONS.map((condition) => (
+                  <FilterOption
+                    key={condition}
+                    label={formatCondition(condition)}
+                    selected={conditions.includes(condition)}
+                    onPress={() => toggleCondition(condition)}
+                  />
+                ))}
+              </View>
+              {hasConditionFilter && (
+                <UnsupportedFilterNotice
+                  filterLabel="Condition filters"
+                  sources={unsupportedConditionSources}
+                />
+              )}
+            </View>
+
+            <View className="gap-3">
+              <Controller
+                control={control}
+                name="aliases"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Also match these terms"
+                    placeholder="e.g. ILCE-7M3, A7 III"
+                    multiline
+                    numberOfLines={2}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.aliases?.message}
+                  />
+                )}
+              />
+              <AppText variant="caption">
+                Separate aliases with commas. They are useful for model numbers and alternate names.
+              </AppText>
+
+              <Controller
+                control={control}
+                name="excludedKeywords"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Exclude listings containing"
+                    placeholder="e.g. case, cover, broken"
+                    multiline
+                    numberOfLines={2}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.excludedKeywords?.message}
+                  />
+                )}
+              />
+              <AppText variant="caption">
+                Any listing containing one of these terms will be left out of your matches.
+              </AppText>
+            </View>
+
+            <View className="gap-3">
+              <Controller
+                control={control}
+                name="location"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Location (optional)"
+                    placeholder="e.g. Lagos"
+                    leftIcon={<AppIcon name="place" size={18} color={theme.colors.textTertiary} />}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.location?.message}
+                  />
+                )}
+              />
+              {hasLocationFilter && (
+                <UnsupportedFilterNotice
+                  filterLabel="Location filters"
+                  sources={unsupportedLocationSources}
+                />
+              )}
+
+              {supportsRadius || hasDistanceFilter ? (
+                <>
+                  <View className="flex-row gap-3">
+                    <Controller
+                      control={control}
+                      name="maxDistanceKm"
+                      render={({ field: { onBlur, onChange, value } }) => (
+                        <Input
+                          className="flex-1"
+                          label="Maximum distance (km)"
+                          placeholder="e.g. 25"
+                          keyboardType="decimal-pad"
+                          editable={supportsRadius}
+                          onBlur={onBlur}
+                          onChangeText={onChange}
+                          value={value}
+                          error={errors.maxDistanceKm?.message}
+                        />
+                      )}
+                    />
+                  </View>
+                  <View className="flex-row gap-3">
+                    <Controller
+                      control={control}
+                      name="latitude"
+                      render={({ field: { onBlur, onChange, value } }) => (
+                        <Input
+                          className="flex-1"
+                          label="Center latitude"
+                          placeholder="e.g. 6.5244"
+                          keyboardType="decimal-pad"
+                          editable={supportsRadius}
+                          onBlur={onBlur}
+                          onChangeText={onChange}
+                          value={value}
+                          error={errors.latitude?.message}
+                        />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name="longitude"
+                      render={({ field: { onBlur, onChange, value } }) => (
+                        <Input
+                          className="flex-1"
+                          label="Center longitude"
+                          placeholder="e.g. 3.3792"
+                          keyboardType="decimal-pad"
+                          editable={supportsRadius}
+                          onBlur={onBlur}
+                          onChangeText={onChange}
+                          value={value}
+                          error={errors.longitude?.message}
+                        />
+                      )}
+                    />
+                  </View>
+                  {hasDistanceFilter && (
+                    <UnsupportedFilterNotice
+                      filterLabel="Distance filters"
+                      sources={unsupportedRadiusSources}
+                    />
+                  )}
+                </>
+              ) : (
+                <AppText variant="caption">
+                  Maximum-distance filtering will appear when a selected marketplace supports radius
+                  searches.
+                </AppText>
+              )}
+            </View>
+          </Card>
+
           <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
             <AppIcon name="info" size={19} color={theme.colors.primary} />
             <View className="flex-1 gap-1">
@@ -294,7 +708,7 @@ export function WatchlistFormScreen() {
                 marketplacesQuery.isError ||
                 marketplacesQuery.data?.length === 0
               }
-              onPress={handleSubmit((values) => saveMutation.mutate(values))}
+              onPress={handleSubmit(saveWatchlist)}
             >
               {isEditing ? "Save changes" : "Create watchlist"}
             </Button>
@@ -341,6 +755,69 @@ function MarketplaceOption({
       </AppText>
     </Pressable>
   );
+}
+
+function FilterOption({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      className={`flex-row items-center gap-2 rounded-full px-3 py-2.5 ${
+        selected ? "bg-primary" : "bg-surface-muted"
+      }`}
+      onPress={onPress}
+    >
+      <AppIcon
+        name={selected ? "check" : "tune"}
+        size={15}
+        color={selected ? "white" : theme.colors.textSecondary}
+      />
+      <AppText
+        variant="bodySmall"
+        className={selected ? "font-semibold text-white" : "font-medium text-text-secondary"}
+      >
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+function UnsupportedFilterNotice({
+  filterLabel,
+  sources,
+}: {
+  filterLabel: string;
+  sources: MarketplaceSource[];
+}) {
+  const theme = useTheme();
+
+  if (sources.length === 0) {
+    return null;
+  }
+
+  return (
+    <View className="flex-row items-start gap-2 rounded-2xl bg-error-soft p-3">
+      <AppIcon name="warning" size={17} color={theme.colors.warning} />
+      <AppText variant="caption" className="flex-1">
+        {filterLabel} are not supported by {sources.map(formatMarketplaceName).join(", ")}. Those
+        sources may return no matches for this rule.
+      </AppText>
+    </View>
+  );
+}
+
+function formatCondition(condition: string) {
+  return condition.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function FormSectionHeader({

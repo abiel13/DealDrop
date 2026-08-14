@@ -34,6 +34,7 @@ export async function createWatchlist(input: WatchlistInput) {
   const response = await apiClient.createWatchlist({
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
+    filters: input.filters,
     marketplaceScope: input.marketplaceScope,
     marketplaceIds: input.marketplaceIds,
   });
@@ -44,6 +45,7 @@ export async function updateWatchlist(watchlistId: string, input: WatchlistInput
   const response = await apiClient.updateWatchlist(watchlistId, {
     name: input.name.trim(),
     searchQuery: input.searchQuery.trim(),
+    filters: input.filters,
     marketplaceScope: input.marketplaceScope,
     marketplaceIds: input.marketplaceIds,
   });
