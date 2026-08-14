@@ -15,6 +15,9 @@ function toWatchlist(watchlist: ApiWatchlist): Watchlist {
     alert_mode: watchlist.alertMode,
     is_active: watchlist.isActive,
     is_favorite: watchlist.isFavorite,
+    lifecycle_state: watchlist.lifecycleState,
+    snoozed_until: watchlist.snoozedUntil,
+    completed_at: watchlist.completedAt,
     last_checked_at: watchlist.lastCheckedAt,
     created_at: watchlist.createdAt,
     updated_at: watchlist.updatedAt,
@@ -62,6 +65,14 @@ export async function getSupportedMarketplaces() {
 
 export async function setWatchlistActive(watchlistId: string, isActive: boolean) {
   await apiClient.setWatchlistActive(watchlistId, isActive);
+}
+
+export async function setWatchlistLifecycle(
+  watchlistId: string,
+  lifecycleState: "active" | "paused" | "snoozed" | "completed",
+  snoozedUntil: string | null = null,
+) {
+  await apiClient.updateWatchlist(watchlistId, { lifecycleState, snoozedUntil });
 }
 
 export async function setWatchlistFavorite(watchlistId: string, isFavorite: boolean) {

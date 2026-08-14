@@ -9,6 +9,7 @@ import type { DealIndicator, PriceHistoryStatus } from "../pricing/price-history
 import type {
   WatchlistAlertMode,
   WatchlistFilters,
+  WatchlistLifecycleState,
   WatchlistMarketplaceScope,
 } from "../types/backend";
 
@@ -108,6 +109,9 @@ export interface ApiWatchlist {
   marketplaceIds: MarketplaceSource[];
   isActive: boolean;
   isFavorite: boolean;
+  lifecycleState: WatchlistLifecycleState;
+  snoozedUntil: string | null;
+  completedAt: string | null;
   lastCheckedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -116,6 +120,7 @@ export interface ApiWatchlist {
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";
+  feedback: "relevant" | "not_relevant" | null;
   matchedAt: string;
   watchlist: Pick<ApiWatchlist, "id" | "name">;
   listing: ApiListing;
@@ -189,6 +194,9 @@ export interface RawApiWatchlist {
   alert_mode: WatchlistAlertMode;
   is_active: boolean;
   is_favorite: boolean;
+  lifecycle_state: WatchlistLifecycleState;
+  snoozed_until: string | null;
+  completed_at: string | null;
   last_checked_at: string | null;
   created_at: string;
   updated_at: string;
@@ -200,6 +208,7 @@ export interface RawApiMatch {
   watchlist_id: string;
   listing_id: string;
   status: ApiMatch["status"];
+  feedback?: ApiMatch["feedback"];
   matched_at: string;
   listing: RawApiListing | RawApiListing[] | null;
   watchlist:

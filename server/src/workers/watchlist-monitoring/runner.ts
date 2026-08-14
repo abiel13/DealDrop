@@ -3,6 +3,7 @@ import { MarketplaceError } from "../../marketplaces/shared/errors";
 import type { MarketplaceErrorCategory, MarketplaceSource } from "../../marketplaces/shared/types";
 import type { MarketplaceSearchCoordinatorResponse } from "../../marketplaces/search/types";
 import { ListingIngestionPipeline } from "../../database/listing-ingestion";
+import { isWatchlistMonitorable } from "../../database/listing-repository";
 import type { MarketplaceWatchlist } from "../../types/backend";
 import type {
   MonitoringSearchGroup,
@@ -39,7 +40,9 @@ export async function runWatchlistMonitoringWorker(
     repository,
     sleep = defaultSleep,
   } = dependencies;
-  const watchlists = await repository.getActiveWatchlistsForSources(availableSources);
+  const watchlists = (await repository.getActiveWatchlistsForSources(availableSources)).filter(
+    (watchlist) => isWatchlistMonitorable(watchlist),
+  );
   const groups = groupWatchlists(watchlists);
   const ingestion = new ListingIngestionPipeline(repository, logger);
   const summary: WatchlistMonitoringRunSummary = {

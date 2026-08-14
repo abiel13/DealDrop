@@ -9,11 +9,15 @@ export interface DealDropWatchlist {
 
 export type WatchlistMarketplaceScope = "selected" | "all";
 export type WatchlistAlertMode = "instant" | "digest";
+export type WatchlistLifecycleState = "active" | "paused" | "snoozed" | "completed";
 
 export interface MarketplaceWatchlist extends DealDropWatchlist {
   alertMode: WatchlistAlertMode;
   marketplaceScope: WatchlistMarketplaceScope;
   marketplaceIds: MarketplaceSource[];
+  lifecycleState: WatchlistLifecycleState;
+  snoozedUntil: string | null;
+  completedAt: string | null;
 }
 
 export interface WatchlistPriceFilter {

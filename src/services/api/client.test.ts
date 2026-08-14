@@ -170,6 +170,28 @@ test("persists timezone-aware delivery preferences", async () => {
   });
 });
 
+test("updates match status and feedback through the shared API client", async () => {
+  const calls: FetchCall[] = [];
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return response(200, envelope({ updated: true }));
+    },
+  });
+
+  await client.getMatches(undefined, true);
+  await client.setMatchStatus("match-1", "dismissed");
+  await client.setMatchFeedback("match-1", null);
+
+  assert.equal(calls[0]?.input, "https://api.example.test/api/v1/matches?includeDismissed=true");
+  assert.equal(calls[1]?.input, "https://api.example.test/api/v1/matches/match-1/status");
+  assert.deepEqual(JSON.parse(calls[1]?.init?.body as string), { status: "dismissed" });
+  assert.equal(calls[2]?.input, "https://api.example.test/api/v1/matches/match-1/feedback");
+  assert.deepEqual(JSON.parse(calls[2]?.init?.body as string), { feedback: null });
+});
+
 test("refreshes the session once after an unauthorized response", async () => {
   let requestCount = 0;
   let refreshCount = 0;

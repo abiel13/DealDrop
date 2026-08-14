@@ -17,6 +17,9 @@ interface ListingCardProps {
   disabled?: boolean;
   onPress: () => void;
   onFavoriteToggle: () => void;
+  onFeedback?: (feedback: "relevant" | "not_relevant") => void;
+  onDismiss?: () => void;
+  onUndoDismiss?: () => void;
 }
 
 export function ListingCard({
@@ -24,6 +27,9 @@ export function ListingCard({
   disabled = false,
   onPress,
   onFavoriteToggle,
+  onFeedback,
+  onDismiss,
+  onUndoDismiss,
 }: ListingCardProps) {
   const theme = useTheme();
 
@@ -103,8 +109,71 @@ export function ListingCard({
               {formatListingRecency(listing.posted_at ?? listing.matched_at)}
             </AppText>
           </View>
+
+          {onFeedback && (
+            <View className="flex-row flex-wrap gap-2 pt-1">
+              <MatchAction
+                label="Relevant"
+                selected={listing.feedback === "relevant"}
+                disabled={disabled}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onFeedback("relevant");
+                }}
+              />
+              <MatchAction
+                label="Not relevant"
+                selected={listing.feedback === "not_relevant"}
+                disabled={disabled}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onFeedback("not_relevant");
+                }}
+              />
+              {(onDismiss || onUndoDismiss) && (
+                <MatchAction
+                  label={onUndoDismiss ? "Undo dismiss" : "Dismiss"}
+                  disabled={disabled}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    (onUndoDismiss ?? onDismiss)?.();
+                  }}
+                />
+              )}
+            </View>
+          )}
         </View>
       </Card>
+    </Pressable>
+  );
+}
+
+function MatchAction({
+  label,
+  selected = false,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  selected?: boolean;
+  disabled: boolean;
+  onPress: (event: { stopPropagation: () => void }) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}
+      className={`rounded-full px-3 py-2 ${selected ? "bg-primary-soft" : "bg-background-muted"}`}
+      disabled={disabled}
+      onPress={onPress}
+    >
+      <AppText
+        variant="caption"
+        className={selected ? "font-semibold text-primary" : "text-text-secondary"}
+      >
+        {label}
+      </AppText>
     </Pressable>
   );
 }

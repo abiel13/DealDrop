@@ -140,6 +140,37 @@ test("retries transient source failures without stopping another marketplace", a
   assert.equal(result.failures.length, 0);
 });
 
+test("does not search paused, future-snoozed, or completed watchlists", async () => {
+  const watchlists = [
+    watchlist("active", "camera", [MARKETPLACE_IDS.ebay]),
+    watchlist("paused", "phone", [MARKETPLACE_IDS.ebay], { lifecycleState: "paused" }),
+    watchlist("future-snooze", "tablet", [MARKETPLACE_IDS.ebay], {
+      lifecycleState: "snoozed",
+      snoozedUntil: new Date(Date.now() + 60_000).toISOString(),
+    }),
+    watchlist("completed", "console", [MARKETPLACE_IDS.ebay], { lifecycleState: "completed" }),
+  ];
+  const searched: string[] = [];
+  const repository = createRepository(watchlists);
+
+  const result = await runWatchlistMonitoringWorker({
+    availableSources: [MARKETPLACE_IDS.ebay],
+    config,
+    coordinator: {
+      async search(request) {
+        searched.push(request.searchQuery);
+        return response(MARKETPLACE_IDS.ebay);
+      },
+    },
+    logger,
+    repository,
+  });
+
+  assert.deepEqual(searched, ["camera"]);
+  assert.equal(result.watchlists, 1);
+  assert.equal(result.searchGroups, 1);
+});
+
 test("records an exhausted source failure while completing unrelated monitoring", async () => {
   const watchlists = [
     watchlist("ebay-watchlist", "camera", [MARKETPLACE_IDS.ebay]),
@@ -221,6 +252,7 @@ function watchlist(
   id: string,
   searchQuery: string,
   marketplaceIds: MarketplaceWatchlist["marketplaceIds"],
+  overrides: Partial<MarketplaceWatchlist> = {},
 ): MarketplaceWatchlist {
   return {
     id,
@@ -230,6 +262,10 @@ function watchlist(
     alertMode: "instant",
     marketplaceScope: "selected",
     marketplaceIds,
+    lifecycleState: "active",
+    snoozedUntil: null,
+    completedAt: null,
+    ...overrides,
   };
 }
 

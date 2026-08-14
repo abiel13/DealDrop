@@ -161,6 +161,8 @@ export class MobileApiService {
       isFavorite: boolean;
       marketplaceScope: "selected" | "all";
       marketplaceIds: string[];
+      lifecycleState?: "active" | "paused" | "snoozed" | "completed";
+      snoozedUntil?: string | null;
     }>,
   ) {
     let normalizedInput = input;
@@ -208,6 +210,7 @@ export class MobileApiService {
     watchlistId: string | null,
     cursor: string | null,
     limit: number,
+    includeDismissed = false,
   ) {
     if (watchlistId) {
       const watchlist = await this.dependencies.repository.getWatchlist(userId, watchlistId);
@@ -216,7 +219,13 @@ export class MobileApiService {
       }
     }
 
-    const page = await this.dependencies.repository.getMatches(userId, watchlistId, cursor, limit);
+    const page = await this.dependencies.repository.getMatches(
+      userId,
+      watchlistId,
+      cursor,
+      limit,
+      includeDismissed,
+    );
     return {
       items: page.items.map(toMatch),
       pagination: {
@@ -225,6 +234,24 @@ export class MobileApiService {
         limit,
       },
     };
+  }
+
+  async setMatchStatus(userId: string, matchId: string, status: "unread" | "read" | "dismissed") {
+    const updated = await this.dependencies.repository.setMatchStatus(userId, matchId, status);
+    if (!updated) {
+      throw new ApiNotFoundError("The match was not found.");
+    }
+  }
+
+  async setMatchFeedback(
+    userId: string,
+    matchId: string,
+    feedback: "relevant" | "not_relevant" | null,
+  ) {
+    const updated = await this.dependencies.repository.setMatchFeedback(userId, matchId, feedback);
+    if (!updated) {
+      throw new ApiNotFoundError("The match was not found.");
+    }
   }
 
   async getNotifications(userId: string, cursor: string | null, limit: number) {
@@ -302,6 +329,9 @@ function toWatchlist(watchlist: RawApiWatchlist): ApiWatchlist {
           : [watchlist.marketplace_id],
     isActive: watchlist.is_active,
     isFavorite: watchlist.is_favorite,
+    lifecycleState: watchlist.lifecycle_state,
+    snoozedUntil: watchlist.snoozed_until,
+    completedAt: watchlist.completed_at,
     lastCheckedAt: watchlist.last_checked_at,
     createdAt: watchlist.created_at,
     updatedAt: watchlist.updated_at,
@@ -318,6 +348,7 @@ function toMatch(match: StoredMatch): ApiMatch {
   return {
     id: match.id,
     status: match.status,
+    feedback: match.feedback ?? null,
     matchedAt: match.matched_at,
     watchlist: { id: watchlist.id, name: watchlist.name },
     listing: toApiListing(listing, {

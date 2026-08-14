@@ -19,8 +19,8 @@ import {
   deleteWatchlist,
   getWatchlistErrorMessage,
   getWatchlists,
-  setWatchlistActive,
   setWatchlistFavorite,
+  setWatchlistLifecycle,
 } from "../services/watchlist.service";
 import type { Watchlist } from "../types/watchlist.types";
 
@@ -68,16 +68,31 @@ export function WatchlistsScreen() {
     enabled: Boolean(userId),
   });
 
-  const activeMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      setWatchlistActive(id, isActive),
-    onMutate: async ({ id, isActive }) => {
+  const lifecycleMutation = useMutation({
+    mutationFn: ({
+      id,
+      lifecycleState,
+      snoozedUntil,
+    }: {
+      id: string;
+      lifecycleState: Watchlist["lifecycle_state"];
+      snoozedUntil?: string | null;
+    }) => setWatchlistLifecycle(id, lifecycleState, snoozedUntil ?? null),
+    onMutate: async ({ id, lifecycleState, snoozedUntil }) => {
       setOperationError(null);
       await queryClient.cancelQueries({ queryKey: watchlistsQueryKey });
       const previousWatchlists = queryClient.getQueryData<Watchlist[]>(watchlistsQueryKey);
       queryClient.setQueryData<Watchlist[]>(watchlistsQueryKey, (currentWatchlists) =>
         currentWatchlists?.map((watchlist) =>
-          watchlist.id === id ? { ...watchlist, is_active: isActive } : watchlist,
+          watchlist.id === id
+            ? {
+                ...watchlist,
+                is_active: lifecycleState === "active" || lifecycleState === "snoozed",
+                lifecycle_state: lifecycleState,
+                snoozed_until: lifecycleState === "snoozed" ? (snoozedUntil ?? null) : null,
+                completed_at: lifecycleState === "completed" ? new Date().toISOString() : null,
+              }
+            : watchlist,
         ),
       );
       return { previousWatchlists };
@@ -176,7 +191,39 @@ export function WatchlistsScreen() {
   }
 
   const isMutating =
-    activeMutation.isPending || favoriteMutation.isPending || deleteMutation.isPending;
+    lifecycleMutation.isPending || favoriteMutation.isPending || deleteMutation.isPending;
+
+  function chooseSnooze(watchlist: Watchlist) {
+    const options = [
+      { label: "Until tomorrow", days: 1 },
+      { label: "For 3 days", days: 3 },
+      { label: "For 1 week", days: 7 },
+    ];
+    Alert.alert("Snooze watchlist", `Pause alerts for "${watchlist.name}".`, [
+      ...options.map((option) => ({
+        text: option.label,
+        onPress: () => {
+          const snoozedUntil = new Date(Date.now() + option.days * 24 * 60 * 60 * 1000);
+          lifecycleMutation.mutate({
+            id: watchlist.id,
+            lifecycleState: "snoozed",
+            snoozedUntil: snoozedUntil.toISOString(),
+          });
+        },
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  }
+
+  function confirmComplete(watchlist: Watchlist) {
+    Alert.alert("Mark as purchased?", `Stop normal alerts for "${watchlist.name}".`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Mark completed",
+        onPress: () => lifecycleMutation.mutate({ id: watchlist.id, lifecycleState: "completed" }),
+      },
+    ]);
+  }
 
   function confirmDelete(watchlist: Watchlist) {
     Alert.alert("Delete watchlist?", `"${watchlist.name}" and its saved search will be removed.`, [
@@ -202,9 +249,10 @@ export function WatchlistsScreen() {
         onFavoriteToggle={() => {
           favoriteMutation.mutate({ id: item.id, isFavorite: !item.is_favorite });
         }}
-        onPauseToggle={() => {
-          activeMutation.mutate({ id: item.id, isActive: !item.is_active });
-        }}
+        onPause={() => lifecycleMutation.mutate({ id: item.id, lifecycleState: "paused" })}
+        onResume={() => lifecycleMutation.mutate({ id: item.id, lifecycleState: "active" })}
+        onSnooze={() => chooseSnooze(item)}
+        onComplete={() => confirmComplete(item)}
       />
     );
   }

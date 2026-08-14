@@ -27,6 +27,7 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 const LISTING_ID = "22222222-2222-4222-8222-222222222222";
 const WATCHLIST_ID = "33333333-3333-4333-8333-333333333333";
 const NOTIFICATION_ID = "44444444-4444-4444-8444-444444444444";
+const MATCH_ID = "55555555-5555-4555-8555-555555555555";
 
 const logger: WorkerLogger = {
   info() {},
@@ -247,6 +248,57 @@ test("listing details and notification routes remain user-scoped", async () => {
   }
 });
 
+test("match lifecycle routes keep dismissal and feedback user-scoped", async () => {
+  let includeDismissed = false;
+  let receivedStatus: string | undefined;
+  let receivedFeedback: string | null | undefined;
+  const repository = createRepository({
+    async getMatches(_userId, _watchlistId, _cursor, _limit, include) {
+      includeDismissed = Boolean(include);
+      return page<StoredMatch>([]);
+    },
+    async setMatchStatus(_userId, _matchId, status) {
+      receivedStatus = status;
+      return true;
+    },
+    async setMatchFeedback(_userId, _matchId, feedback) {
+      receivedFeedback = feedback;
+      return true;
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const headers = { Authorization: "Bearer valid-token" };
+    const matchesResponse = await fetch(`${baseUrl}/api/v1/matches?includeDismissed=true`, {
+      headers,
+    });
+    const statusResponse = await fetch(`${baseUrl}/api/v1/matches/${MATCH_ID}/status`, {
+      method: "PATCH",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "dismissed" }),
+    });
+    const feedbackResponse = await fetch(`${baseUrl}/api/v1/matches/${MATCH_ID}/feedback`, {
+      method: "PATCH",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ feedback: "not_relevant" }),
+    });
+
+    assert.equal(matchesResponse.status, 200);
+    assert.equal(statusResponse.status, 200);
+    assert.equal(feedbackResponse.status, 200);
+    assert.equal(includeDismissed, true);
+    assert.equal(receivedStatus, "dismissed");
+    assert.equal(receivedFeedback, "not_relevant");
+  } finally {
+    await close(server);
+  }
+});
+
 const validAuthenticator: RequestAuthenticator = {
   async authenticate(request) {
     if (request.headers.authorization !== "Bearer valid-token") {
@@ -291,6 +343,12 @@ function createRepository(
     },
     async getMatches() {
       return page<StoredMatch>([]);
+    },
+    async setMatchStatus() {
+      return true;
+    },
+    async setMatchFeedback() {
+      return true;
     },
     async getNotifications() {
       return page<RawApiNotification>([]);
@@ -403,6 +461,9 @@ function watchlist(): RawApiWatchlist {
     filters: {},
     is_active: true,
     is_favorite: false,
+    lifecycle_state: "active",
+    snoozed_until: null,
+    completed_at: null,
     last_checked_at: null,
     created_at: "2026-08-09T00:00:00.000Z",
     updated_at: "2026-08-09T00:00:00.000Z",

@@ -7,7 +7,7 @@ import type {
 
 export type ListingSort = "newest" | "price_low" | "price_high";
 
-export type ListingFilter = "all" | "favorites" | "with_images";
+export type ListingFilter = "all" | "favorites" | "with_images" | "dismissed";
 
 export interface Listing {
   id: string;
@@ -31,6 +31,9 @@ export interface Listing {
   is_favorite: boolean;
   price_history: ApiPriceHistorySummary | null;
   price_target: ApiPriceTarget | null;
+  match_id: string | null;
+  match_status: "unread" | "read" | "dismissed" | null;
+  feedback: "relevant" | "not_relevant" | null;
 }
 
 export interface ListingSearchResult {

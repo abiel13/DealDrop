@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 const WATCHLIST_COLUMNS =
-  "id,user_id,marketplace_id,marketplace_scope,alert_mode,name,search_query,filters,is_active,is_favorite,last_checked_at,created_at,updated_at,watchlist_marketplaces(marketplace_id)";
+  "id,user_id,marketplace_id,marketplace_scope,alert_mode,name,search_query,filters,is_active,is_favorite,lifecycle_state,snoozed_until,completed_at,last_checked_at,created_at,updated_at,watchlist_marketplaces(marketplace_id)";
 const LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const MATCH_LISTING_COLUMNS =
@@ -29,6 +29,7 @@ export interface Page<T> {
 
 export interface StoredMatch extends RawApiMatch {
   favorite: boolean;
+  feedback: NonNullable<RawApiMatch["feedback"]> | null;
 }
 
 export interface StoredListingAccess {
@@ -85,6 +86,9 @@ export interface MobileApiRepositoryContract {
       marketplaceScope: "selected" | "all";
       marketplaceIds: string[];
       alertMode: "instant" | "digest";
+      lifecycleState: "active" | "paused" | "snoozed" | "completed";
+      snoozedUntil: string | null;
+      completedAt: string | null;
     }>,
   ): Promise<RawApiWatchlist | null>;
   deleteWatchlist(userId: string, watchlistId: string): Promise<boolean>;
@@ -93,7 +97,18 @@ export interface MobileApiRepositoryContract {
     watchlistId: string | null,
     cursor: string | null,
     limit: number,
+    includeDismissed?: boolean,
   ): Promise<Page<StoredMatch>>;
+  setMatchStatus(
+    userId: string,
+    matchId: string,
+    status: NonNullable<RawApiMatch["status"]>,
+  ): Promise<boolean>;
+  setMatchFeedback(
+    userId: string,
+    matchId: string,
+    feedback: NonNullable<RawApiMatch["feedback"]> | null,
+  ): Promise<boolean>;
   getNotifications(
     userId: string,
     cursor: string | null,
@@ -286,6 +301,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         filters: input.filters,
         is_active: input.isActive,
         is_favorite: input.isFavorite,
+        lifecycle_state: input.isActive ? "active" : "paused",
       })
       .select("id")
       .single<{ id: string }>();
@@ -322,6 +338,26 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     if (input.alertMode !== undefined) values.alert_mode = input.alertMode;
     if (input.marketplaceScope !== undefined) values.marketplace_scope = input.marketplaceScope;
     if (input.marketplaceIds !== undefined) values.marketplace_id = input.marketplaceIds[0];
+    if (input.lifecycleState !== undefined) {
+      values.lifecycle_state = input.lifecycleState;
+      values.is_active = input.lifecycleState === "active" || input.lifecycleState === "snoozed";
+      values.snoozed_until = input.lifecycleState === "snoozed" ? input.snoozedUntil : null;
+      values.completed_at =
+        input.lifecycleState === "completed"
+          ? (input.completedAt ?? new Date().toISOString())
+          : null;
+    } else if (input.isActive !== undefined) {
+      values.lifecycle_state = input.isActive ? "active" : "paused";
+      values.snoozed_until = null;
+      values.completed_at = null;
+    }
+
+    if (input.snoozedUntil !== undefined && input.lifecycleState === "snoozed") {
+      values.snoozed_until = input.snoozedUntil;
+    }
+    if (input.completedAt !== undefined && input.lifecycleState === "completed") {
+      values.completed_at = input.completedAt;
+    }
 
     if (Object.keys(values).length > 0) {
       const { error } = await this.client
@@ -368,6 +404,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     watchlistId: string | null,
     cursor: string | null,
     limit: number,
+    includeDismissed = false,
   ) {
     let query = this.client
       .from("matches")
@@ -375,10 +412,13 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         `id,watchlist_id,listing_id,status,matched_at,listing:listings!inner(${MATCH_LISTING_COLUMNS}),watchlist:watchlists!inner(id,name)`,
       )
       .eq("user_id", userId)
-      .neq("status", "dismissed")
       .order("matched_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1);
+
+    if (!includeDismissed) {
+      query = query.neq("status", "dismissed");
+    }
 
     if (watchlistId) {
       query = query.eq("watchlist_id", watchlistId);
@@ -396,8 +436,76 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     const rows = data ?? [];
     const listingIds = rows.map((row) => row.listing_id);
     const favoriteIds = await this.getFavoriteIds(userId, listingIds);
-    const items = rows.map((row) => ({ ...row, favorite: favoriteIds.has(row.listing_id) }));
+    const feedbackByMatchId = await this.getFeedbackByMatchIds(
+      userId,
+      rows.map((row) => row.id),
+    );
+    const items = rows.map((row) => ({
+      ...row,
+      favorite: favoriteIds.has(row.listing_id),
+      feedback: feedbackByMatchId.get(row.id) ?? null,
+    }));
     return toPage(items, limit, (item) => item.matched_at);
+  }
+
+  async setMatchStatus(
+    userId: string,
+    matchId: string,
+    status: NonNullable<RawApiMatch["status"]>,
+  ) {
+    const { data, error } = await this.client
+      .from("matches")
+      .update({ status })
+      .eq("id", matchId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data);
+  }
+
+  async setMatchFeedback(
+    userId: string,
+    matchId: string,
+    feedback: NonNullable<RawApiMatch["feedback"]> | null,
+  ) {
+    const { data: match, error: matchError } = await this.client
+      .from("matches")
+      .select("id")
+      .eq("id", matchId)
+      .eq("user_id", userId)
+      .maybeSingle<{ id: string }>();
+    if (matchError) {
+      throw matchError;
+    }
+
+    if (!match) {
+      return false;
+    }
+
+    if (feedback === null) {
+      const { error } = await this.client
+        .from("match_feedback")
+        .delete()
+        .eq("match_id", matchId)
+        .eq("user_id", userId);
+      if (error) {
+        throw error;
+      }
+      return true;
+    }
+
+    const { error } = await this.client
+      .from("match_feedback")
+      .upsert({ user_id: userId, match_id: matchId, feedback }, { onConflict: "user_id,match_id" });
+    if (error) {
+      throw error;
+    }
+
+    return true;
   }
 
   async getNotifications(userId: string, cursor: string | null, limit: number) {
@@ -561,6 +669,24 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
 
     return new Set((data ?? []).map((favorite) => favorite.listing_id));
+  }
+
+  private async getFeedbackByMatchIds(userId: string, matchIds: string[]) {
+    if (matchIds.length === 0) {
+      return new Map<string, NonNullable<RawApiMatch["feedback"]>>();
+    }
+
+    const { data, error } = await this.client
+      .from("match_feedback")
+      .select("match_id,feedback")
+      .eq("user_id", userId)
+      .in("match_id", matchIds)
+      .returns<Array<{ match_id: string; feedback: NonNullable<RawApiMatch["feedback"]> }>>();
+    if (error) {
+      throw error;
+    }
+
+    return new Map((data ?? []).map((item) => [item.match_id, item.feedback]));
   }
 }
 
