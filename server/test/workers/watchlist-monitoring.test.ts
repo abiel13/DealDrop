@@ -4,6 +4,7 @@ import test from "node:test";
 import type { MarketplaceListing, MarketplaceSource } from "../../src/marketplaces/shared/types";
 import { MARKETPLACE_IDS } from "../../src/marketplaces/shared/types";
 import type { MarketplaceSearchCoordinatorResponse } from "../../src/marketplaces/search/types";
+import { createSearchIntent } from "../../src/listings/relevance";
 import type { MarketplaceWatchlist, WorkerLogger } from "../../src/types/backend";
 import {
   runWatchlistMonitoringWorker,
@@ -234,6 +235,8 @@ function watchlist(
 function response(source: MarketplaceSource): MarketplaceSearchCoordinatorResponse {
   return {
     listings: [listing(source)],
+    intent: createSearchIntent("camera"),
+    filteredCount: 0,
     pagination: { nextCursor: null, hasMore: false },
     sources: [source],
     partialFailures: [],

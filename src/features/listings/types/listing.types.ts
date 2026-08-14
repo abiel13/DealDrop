@@ -1,4 +1,10 @@
-import type { ApiSearchPartialFailure, MarketplaceSource } from "@/services/api";
+import type {
+  ApiListingRelevance,
+  ApiProductMetadata,
+  ApiSearchIntent,
+  ApiSearchPartialFailure,
+  MarketplaceSource,
+} from "@/services/api";
 
 export type ListingSort = "newest" | "price_low" | "price_high";
 
@@ -24,12 +30,16 @@ export interface Listing {
   fetched_at: string | null;
   matched_at: string | null;
   is_favorite: boolean;
+  product: ApiProductMetadata | null;
+  relevance: ApiListingRelevance | null;
 }
 
 export interface ListingSearchResult {
   listings: Listing[];
   sources: MarketplaceSource[];
   partialFailures: ApiSearchPartialFailure[];
+  intent: ApiSearchIntent;
+  filteredCount: number;
   pagination: {
     nextCursor: string | null;
     hasMore: boolean;

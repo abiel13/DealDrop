@@ -329,7 +329,9 @@ test("Rakuten failures remain isolated from successful eBay results in unified s
     sources: [MARKETPLACE_IDS.ebay, MARKETPLACE_IDS.rakuten],
   });
 
-  assert.deepEqual(response.listings, [eBayListing]);
+  assert.equal(response.listings.length, 1);
+  assert.equal(response.listings[0]?.externalId, eBayListing.externalId);
+  assert.equal(response.listings[0]?.relevance?.excluded, false);
   assert.deepEqual(
     response.partialFailures.map(({ source, category }) => ({ source, category })),
     [{ source: MARKETPLACE_IDS.rakuten, category: "unavailable" }],

@@ -66,6 +66,8 @@ export class MobileApiService {
         ...toApiListing(listing),
         id: storedIds.get(listingIdentity(listing.source, listing.externalId)) ?? null,
       })),
+      intent: response.intent,
+      filteredCount: response.filteredCount,
       sources: response.sources,
       partialFailures: response.partialFailures,
       pagination: {
