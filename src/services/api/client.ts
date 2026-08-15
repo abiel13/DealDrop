@@ -8,11 +8,13 @@ import type {
   ApiMatch,
   ApiNotification,
   ApiNotificationPreferences,
+  ApiProductEventInput,
   ApiPushTokenRegistration,
   ApiSearchRequest,
   ApiSearchResult,
   ApiWatchlist,
   ApiWatchlistInput,
+  ApiWeeklySummary,
 } from "./types";
 
 type AccessTokenProvider = () => Promise<string | null>;
@@ -153,6 +155,17 @@ export class DealDropApiClient {
       method: "POST",
       body: input,
     });
+  }
+
+  async trackEvent(input: ApiProductEventInput) {
+    return this.request<{ recorded: boolean }>("/events", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async getWeeklySummary() {
+    return this.request<ApiWeeklySummary>("/summary/weekly");
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiEnvelope<T>> {

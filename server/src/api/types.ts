@@ -146,6 +146,27 @@ export interface ApiNotificationPreferences {
   quietHoursEnd: string | null;
   timezone: string;
   dailyAlertLimit: number;
+  weeklySummaryEnabled: boolean;
+}
+
+export interface ApiWeeklySummary {
+  enabled: boolean;
+  shouldShow: boolean;
+  periodStart: string;
+  periodEnd: string;
+  hasActivity: boolean;
+  activeWatchlistCount: number;
+  newMatches: number;
+  savedListings: number;
+  priceDrops: number;
+  latestMatchId: string | null;
+  savedListingIds: string[];
+  priceDropListingIds: string[];
+  quietWatchlists: Array<{
+    id: string;
+    name: string;
+    lastMatchAt: string | null;
+  }>;
 }
 
 export interface ApiPushTokenRegistration {

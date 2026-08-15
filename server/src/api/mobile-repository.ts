@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { aggregateWeeklySummary, type WeeklySummaryMatch } from "../analytics/weekly-summary";
+import type { ProductEventInput } from "../analytics/events";
 import { ListingRepository } from "../database/listing-repository";
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
@@ -7,6 +9,7 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiWeeklySummary,
   RawApiListing,
   RawApiMatch,
   RawApiNotification,
@@ -51,10 +54,28 @@ interface StoredPriceObservation {
   observed_at: string;
 }
 
+interface WeeklyMatchRow {
+  id: string;
+  watchlist_id: string;
+  listing_id: string;
+  status: "unread" | "read" | "dismissed";
+  matched_at: string;
+  listing:
+    | { price: number | null; currency: string | null }
+    | Array<{ price: number | null; currency: string | null }>
+    | null;
+}
+
+interface WeeklyWatchlistRow {
+  id: string;
+  name: string;
+}
+
 export interface MobileApiRepositoryContract {
   persistListings(listings: MarketplaceListing[]): Promise<StoredListingReference[]>;
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
+  recordProductEvent(userId: string, input: ProductEventInput): Promise<void>;
   getWatchlists(
     userId: string,
     cursor: string | null,
@@ -124,6 +145,7 @@ export interface MobileApiRepositoryContract {
     userId: string,
     input: { expoPushToken: string; platform: "ios" | "android" | "web" },
   ): Promise<void>;
+  getWeeklySummary(userId: string): Promise<ApiWeeklySummary>;
 }
 
 export class MobileApiRepository implements MobileApiRepositoryContract {
@@ -247,6 +269,21 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
 
     return true;
+  }
+
+  async recordProductEvent(userId: string, input: ProductEventInput) {
+    const { error } = await this.client.from("product_events").upsert(
+      {
+        user_id: userId,
+        event_name: input.eventName,
+        event_key: input.eventKey,
+        properties: input.properties,
+      },
+      { onConflict: "user_id,event_name,event_key", ignoreDuplicates: true },
+    );
+    if (error) {
+      throw error;
+    }
   }
 
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
@@ -549,7 +586,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     const { data, error } = await this.client
       .from("notification_preferences")
       .select(
-        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
+        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
       )
       .eq("user_id", userId)
       .maybeSingle<{
@@ -560,6 +597,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         quiet_hours_end: string | null;
         timezone: string;
         daily_alert_limit: number;
+        weekly_summary_enabled: boolean;
       }>();
     if (error) {
       throw error;
@@ -573,6 +611,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       quietHoursEnd: data?.quiet_hours_end ?? null,
       timezone: data?.timezone ?? "UTC",
       dailyAlertLimit: data?.daily_alert_limit ?? 20,
+      weeklySummaryEnabled: data?.weekly_summary_enabled ?? true,
     };
   }
 
@@ -589,11 +628,12 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
           quiet_hours_end: preferences.quietHoursEnd,
           timezone: preferences.timezone,
           daily_alert_limit: preferences.dailyAlertLimit,
+          weekly_summary_enabled: preferences.weeklySummaryEnabled,
         },
         { onConflict: "user_id" },
       )
       .select(
-        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
+        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
       )
       .single<{
         push_enabled: boolean;
@@ -603,6 +643,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         quiet_hours_end: string | null;
         timezone: string;
         daily_alert_limit: number;
+        weekly_summary_enabled: boolean;
       }>();
     if (error) {
       throw error;
@@ -616,7 +657,116 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       quietHoursEnd: data.quiet_hours_end,
       timezone: data.timezone,
       dailyAlertLimit: data.daily_alert_limit,
+      weeklySummaryEnabled: data.weekly_summary_enabled,
     };
+  }
+
+  async getWeeklySummary(userId: string) {
+    const periodEnd = new Date();
+    const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const periodStartIso = periodStart.toISOString();
+    const periodEndIso = periodEnd.toISOString();
+    const preferences = await this.getNotificationPreferences(userId);
+
+    if (!preferences.weeklySummaryEnabled) {
+      return aggregateWeeklySummary({
+        enabled: false,
+        periodStart: periodStartIso,
+        periodEnd: periodEndIso,
+        activeWatchlists: [],
+        matches: [],
+        savedListingIds: [],
+        observations: [],
+      });
+    }
+
+    const [matchesResult, favoritesResult, watchlistsResult] = await Promise.all([
+      this.client
+        .from("matches")
+        .select(
+          "id,watchlist_id,listing_id,status,matched_at,listing:listings!inner(price,currency)",
+        )
+        .eq("user_id", userId)
+        .neq("status", "dismissed")
+        .gte("matched_at", periodStartIso)
+        .lte("matched_at", periodEndIso)
+        .order("matched_at", { ascending: false })
+        .returns<WeeklyMatchRow[]>(),
+      this.client
+        .from("favorites")
+        .select("listing_id")
+        .eq("user_id", userId)
+        .gte("created_at", periodStartIso)
+        .lte("created_at", periodEndIso)
+        .returns<Array<{ listing_id: string }>>(),
+      this.client
+        .from("watchlists")
+        .select("id,name")
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .eq("lifecycle_state", "active")
+        .order("updated_at", { ascending: false })
+        .returns<WeeklyWatchlistRow[]>(),
+    ]);
+
+    if (matchesResult.error) {
+      throw matchesResult.error;
+    }
+    if (favoritesResult.error) {
+      throw favoritesResult.error;
+    }
+    if (watchlistsResult.error) {
+      throw watchlistsResult.error;
+    }
+
+    const rows = matchesResult.data ?? [];
+    const listingIds = [...new Set(rows.map((row) => row.listing_id))];
+    let observations: Array<{
+      listing_id: string;
+      observed_at: string;
+      price: number;
+      currency: string;
+    }> = [];
+
+    if (listingIds.length > 0) {
+      const observationResult = await this.client
+        .from("listing_price_observations")
+        .select("listing_id,observed_at,price,currency")
+        .in("listing_id", listingIds)
+        .order("observed_at", { ascending: true })
+        .returns<typeof observations>();
+      if (observationResult.error) {
+        throw observationResult.error;
+      }
+      observations = observationResult.data ?? [];
+    }
+
+    const matches: WeeklySummaryMatch[] = rows.map((row) => {
+      const listing = unwrap(row.listing);
+      return {
+        id: row.id,
+        watchlistId: row.watchlist_id,
+        listingId: row.listing_id,
+        matchedAt: row.matched_at,
+        currentPrice: listing?.price ?? null,
+        currentCurrency: listing?.currency ?? null,
+      };
+    });
+
+    return aggregateWeeklySummary({
+      enabled: true,
+      periodStart: periodStartIso,
+      periodEnd: periodEndIso,
+      activeWatchlists: watchlistsResult.data ?? [],
+      matches,
+      savedListingIds: [...new Set((favoritesResult.data ?? []).map((item) => item.listing_id))],
+      observations: observations.map((observation) => ({
+        listingId: observation.listing_id,
+        observedAt: observation.observed_at,
+        price: Number(observation.price),
+        currency: observation.currency,
+      })),
+    });
   }
 
   async registerPushToken(

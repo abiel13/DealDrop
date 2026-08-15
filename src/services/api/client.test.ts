@@ -144,6 +144,7 @@ test("persists timezone-aware delivery preferences", async () => {
           quietHoursEnd: "07:00",
           timezone: "Africa/Lagos",
           dailyAlertLimit: 10,
+          weeklySummaryEnabled: true,
         }),
       );
     },
@@ -157,6 +158,7 @@ test("persists timezone-aware delivery preferences", async () => {
     quietHoursEnd: "07:00",
     timezone: "Africa/Lagos",
     dailyAlertLimit: 10,
+    weeklySummaryEnabled: true,
   });
 
   assert.deepEqual(requestBody, {
@@ -167,6 +169,7 @@ test("persists timezone-aware delivery preferences", async () => {
     quietHoursEnd: "07:00",
     timezone: "Africa/Lagos",
     dailyAlertLimit: 10,
+    weeklySummaryEnabled: true,
   });
 });
 
@@ -190,6 +193,40 @@ test("updates match status and feedback through the shared API client", async ()
   assert.deepEqual(JSON.parse(calls[1]?.init?.body as string), { status: "dismissed" });
   assert.equal(calls[2]?.input, "https://api.example.test/api/v1/matches/match-1/feedback");
   assert.deepEqual(JSON.parse(calls[2]?.init?.body as string), { feedback: null });
+});
+
+test("sends product events and loads the weekly summary", async () => {
+  const calls: FetchCall[] = [];
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return response(
+        200,
+        envelope({
+          recorded: true,
+          shouldShow: true,
+          newMatches: 1,
+        }),
+      );
+    },
+  });
+
+  await client.trackEvent({
+    eventName: "match_opened",
+    eventKey: "match-opened:match-1",
+    properties: { matchId: "match-1" },
+  });
+  await client.getWeeklySummary();
+
+  assert.equal(calls[0]?.input, "https://api.example.test/api/v1/events");
+  assert.deepEqual(JSON.parse(calls[0]?.init?.body as string), {
+    eventName: "match_opened",
+    eventKey: "match-opened:match-1",
+    properties: { matchId: "match-1" },
+  });
+  assert.equal(calls[1]?.input, "https://api.example.test/api/v1/summary/weekly");
 });
 
 test("refreshes the session once after an unauthorized response", async () => {

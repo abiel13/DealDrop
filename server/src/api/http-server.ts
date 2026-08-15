@@ -17,6 +17,7 @@ import {
   favoriteSchema,
   matchStatusSchema,
   matchFeedbackSchema,
+  productEventSchema,
   notificationPreferencesSchema,
   pushTokenSchema,
   searchBodySchema,
@@ -212,6 +213,18 @@ async function routeProtectedRequest(
       hasMore: result.pagination.hasMore,
       limit: input.pagination?.limit ?? 24,
     });
+    return;
+  }
+
+  if (method === "POST" && resource === "events" && !resourceId) {
+    const input = parseBody(productEventSchema, await readJsonBody(request));
+    await api.recordProductEvent(userId, input);
+    sendSuccess(response, requestId, { recorded: true });
+    return;
+  }
+
+  if (method === "GET" && resource === "summary" && resourceId === "weekly" && !action) {
+    sendSuccess(response, requestId, await api.getWeeklySummary(userId));
     return;
   }
 

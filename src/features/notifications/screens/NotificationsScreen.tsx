@@ -13,6 +13,7 @@ import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { AppHeader } from "@/features/navigation/components";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 
 import {
   getNotificationPreferences,
@@ -134,6 +135,7 @@ export function NotificationsScreen() {
     quiet_hours_end: null,
     timezone: getDeviceTimeZone(),
     daily_alert_limit: 20,
+    weekly_summary_enabled: true,
   };
   const notifications = notificationsQuery.data ?? [];
   const schedulingDraft = {
@@ -152,6 +154,14 @@ export function NotificationsScreen() {
   };
 
   function openNotification(notification: AppNotification) {
+    const matchId =
+      typeof notification.data.match_id === "string" ? notification.data.match_id : undefined;
+    trackProductEventNonBlocking(
+      "notification_opened",
+      { notificationId: notification.id, ...(matchId ? { matchId } : {}) },
+      `notification-opened:${notification.id}`,
+    );
+
     if (!notification.read_at) {
       readMutation.mutate(notification.id);
     }
@@ -286,6 +296,19 @@ export function NotificationsScreen() {
               value={preferences.new_match_enabled}
               disabled={!preferences.push_enabled || preferencesMutation.isPending}
               onValueChange={(value) => updatePreferences({ new_match_enabled: value })}
+            />
+          </View>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-4">
+              <AppText variant="label">Weekly summary</AppText>
+              <AppText variant="bodySmall">
+                Show a weekly activity summary for your active watchlists.
+              </AppText>
+            </View>
+            <Switch
+              value={preferences.weekly_summary_enabled}
+              disabled={preferencesMutation.isPending}
+              onValueChange={(value) => updatePreferences({ weekly_summary_enabled: value })}
             />
           </View>
         </Card>

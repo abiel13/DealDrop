@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ApiValidationError } from "./errors";
+import { productEventSchema } from "../analytics/events";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
 import type { WatchlistFilters } from "../types/backend";
@@ -162,6 +163,7 @@ export const notificationPreferencesSchema = z
     quietHoursEnd: z.string().trim().nullable(),
     timezone: z.string().trim().min(1).max(100),
     dailyAlertLimit: z.number().int().min(1).max(100),
+    weeklySummaryEnabled: z.boolean(),
   })
   .strict()
   .superRefine((preferences, context) => {
@@ -209,6 +211,8 @@ export const pushTokenSchema = z
     platform: z.enum(["ios", "android", "web"]),
   })
   .strict();
+
+export { productEventSchema };
 
 export const searchBodySchema = z
   .object({

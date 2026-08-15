@@ -18,6 +18,7 @@ export interface NotificationPreferences {
   quiet_hours_end: string | null;
   timezone: string;
   daily_alert_limit: number;
+  weekly_summary_enabled: boolean;
 }
 
 export interface PushTokenRegistration {

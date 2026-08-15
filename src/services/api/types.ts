@@ -207,6 +207,48 @@ export interface ApiNotificationPreferences {
   quietHoursEnd: string | null;
   timezone: string;
   dailyAlertLimit: number;
+  weeklySummaryEnabled: boolean;
+}
+
+export type ApiProductEventName =
+  | "account_activated"
+  | "first_watchlist_created"
+  | "push_permission_result"
+  | "first_match_received"
+  | "notification_opened"
+  | "listing_opened_externally"
+  | "listing_favorited"
+  | "match_dismissed_not_relevant"
+  | "match_marked_relevant"
+  | "match_opened"
+  | "watchlist_paused"
+  | "watchlist_resumed"
+  | "watchlist_completed";
+
+export interface ApiProductEventInput {
+  eventName: ApiProductEventName;
+  eventKey: string;
+  properties: Record<string, string | number | boolean | null>;
+}
+
+export interface ApiWeeklySummary {
+  enabled: boolean;
+  shouldShow: boolean;
+  periodStart: string;
+  periodEnd: string;
+  hasActivity: boolean;
+  activeWatchlistCount: number;
+  newMatches: number;
+  savedListings: number;
+  priceDrops: number;
+  latestMatchId: string | null;
+  savedListingIds: string[];
+  priceDropListingIds: string[];
+  quietWatchlists: {
+    id: string;
+    name: string;
+    lastMatchAt: string | null;
+  }[];
 }
 
 export interface ApiPushTokenRegistration {

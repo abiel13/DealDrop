@@ -50,6 +50,7 @@ test("validates actionable notification preferences", () => {
     quietHoursEnd: "07:00",
     timezone: "Africa/Lagos",
     dailyAlertLimit: 10,
+    weeklySummaryEnabled: true,
   });
 
   assert.deepEqual(preferences, {
@@ -60,6 +61,7 @@ test("validates actionable notification preferences", () => {
     quietHoursEnd: "07:00",
     timezone: "Africa/Lagos",
     dailyAlertLimit: 10,
+    weeklySummaryEnabled: true,
   });
 });
 

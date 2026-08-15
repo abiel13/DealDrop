@@ -299,6 +299,73 @@ test("match lifecycle routes keep dismissal and feedback user-scoped", async () 
   }
 });
 
+test("records product events and serves the weekly summary through protected routes", async () => {
+  let eventUserId: string | undefined;
+  let eventName: string | undefined;
+  const repository = createRepository({
+    async recordProductEvent(userId, input) {
+      eventUserId = userId;
+      eventName = input.eventName;
+    },
+    async getWeeklySummary(userId) {
+      assert.equal(userId, USER_ID);
+      return {
+        enabled: true,
+        shouldShow: true,
+        periodStart: "2026-08-08T00:00:00.000Z",
+        periodEnd: "2026-08-15T00:00:00.000Z",
+        hasActivity: true,
+        activeWatchlistCount: 1,
+        newMatches: 1,
+        savedListings: 0,
+        priceDrops: 0,
+        latestMatchId: MATCH_ID,
+        savedListingIds: [],
+        priceDropListingIds: [],
+        quietWatchlists: [],
+      };
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const headers = {
+      Authorization: "Bearer valid-token",
+      "Content-Type": "application/json",
+    };
+    const eventResponse = await fetch(`${baseUrl}/api/v1/events`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        eventName: "match_opened",
+        eventKey: "match-opened:55555555-5555-4555-8555-555555555555",
+        properties: { matchId: MATCH_ID },
+      }),
+    });
+    const summaryResponse = await fetch(`${baseUrl}/api/v1/summary/weekly`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const eventBody = (await eventResponse.json()) as { data: { recorded: boolean } };
+    const summaryBody = (await summaryResponse.json()) as {
+      data: { newMatches: number; latestMatchId: string };
+    };
+
+    assert.equal(eventResponse.status, 200);
+    assert.deepEqual(eventBody.data, { recorded: true });
+    assert.equal(eventUserId, USER_ID);
+    assert.equal(eventName, "match_opened");
+    assert.equal(summaryResponse.status, 200);
+    assert.equal(summaryBody.data.newMatches, 1);
+    assert.equal(summaryBody.data.latestMatchId, MATCH_ID);
+  } finally {
+    await close(server);
+  }
+});
+
 const validAuthenticator: RequestAuthenticator = {
   async authenticate(request) {
     if (request.headers.authorization !== "Bearer valid-token") {
@@ -326,6 +393,7 @@ function createRepository(
     async setListingFavorite() {
       return true;
     },
+    async recordProductEvent() {},
     async getWatchlists() {
       return page([]);
     },
@@ -365,12 +433,30 @@ function createRepository(
         quietHoursEnd: null,
         timezone: "UTC",
         dailyAlertLimit: 20,
+        weeklySummaryEnabled: true,
       };
     },
     async updateNotificationPreferences(_userId, preferences) {
       return preferences;
     },
     async registerPushToken() {},
+    async getWeeklySummary() {
+      return {
+        enabled: true,
+        shouldShow: false,
+        periodStart: "2026-08-09T00:00:00.000Z",
+        periodEnd: "2026-08-16T00:00:00.000Z",
+        hasActivity: false,
+        activeWatchlistCount: 0,
+        newMatches: 0,
+        savedListings: 0,
+        priceDrops: 0,
+        latestMatchId: null,
+        savedListingIds: [],
+        priceDropListingIds: [],
+        quietWatchlists: [],
+      };
+    },
     ...overrides,
   };
 }

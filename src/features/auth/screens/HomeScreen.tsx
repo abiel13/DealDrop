@@ -2,6 +2,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,8 +10,10 @@ import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { supabase } from "@/lib/supabase";
 
+import { WeeklySummaryCard } from "@/features/analytics/components/WeeklySummaryCard";
+import { getWeeklySummary } from "@/features/analytics/services/analytics.service";
 import { useAuth } from "../hooks/AuthProvider";
-import { authRoutes } from "../routes";
+import { authRoutes, listingRoute, watchlistFormRoute } from "../routes";
 import { getAuthErrorMessage } from "../services/auth.service";
 
 export function HomeScreen() {
@@ -18,6 +21,12 @@ export function HomeScreen() {
   const { user, isLoading } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const weeklySummaryQuery = useQuery({
+    queryKey: ["weekly-summary", user?.id],
+    queryFn: getWeeklySummary,
+    enabled: Boolean(user),
+    retry: false,
+  });
 
   if (isLoading) {
     return <Loading />;
@@ -72,6 +81,15 @@ export function HomeScreen() {
               {user.email}
             </AppText>
           </Card>
+
+          {weeklySummaryQuery.data?.shouldShow && (
+            <WeeklySummaryCard
+              summary={weeklySummaryQuery.data}
+              onOpenMatches={() => router.push(authRoutes.notifications)}
+              onOpenListing={(listingId) => router.push(listingRoute(listingId))}
+              onOpenWatchlist={(watchlistId) => router.push(watchlistFormRoute(watchlistId))}
+            />
+          )}
 
           <View className="mt-auto gap-4">
             {formError && <AppText variant="error">{formError}</AppText>}
