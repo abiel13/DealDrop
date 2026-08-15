@@ -63,6 +63,56 @@ export interface ApiListing {
   fetchedAt: string | null;
   matchedAt: string | null;
   isFavorite: boolean;
+  product: ApiProductMetadata | null;
+  relevance: ApiListingRelevance | null;
+}
+
+export type ApiProductCategory =
+  | "accessories"
+  | "apparel"
+  | "beauty"
+  | "books"
+  | "cameras"
+  | "collectibles"
+  | "computers"
+  | "electronics"
+  | "footwear"
+  | "home"
+  | "sports"
+  | "vehicles"
+  | "phones"
+  | "other";
+
+export interface ApiProductMetadata {
+  category: ApiProductCategory | null;
+  productType: string | null;
+  brand: string | null;
+  model: string | null;
+  attributes: Record<string, string>;
+  confidence: "low" | "medium" | "high";
+  classificationSource: "marketplace" | "title" | "mixed" | "unknown";
+}
+
+export interface ApiListingRelevance {
+  score: number;
+  confidence: "low" | "medium" | "high";
+  excluded: boolean;
+  reasons: string[];
+  warnings: string[];
+}
+
+export interface ApiSearchIntent {
+  rawQuery: string;
+  normalizedQuery: string;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  category: ApiProductCategory | null;
+  brand: string | null;
+  model: string | null;
+  productType: string | null;
+  attributes: Record<string, string>;
+  intentConfidence: "low" | "medium" | "high";
+  strictCategory: boolean;
 }
 
 export type ApiSearchFilters = Record<string, unknown>;
@@ -85,6 +135,8 @@ export interface ApiSearchPartialFailure {
 
 export interface ApiSearchResult {
   listings: ApiListing[];
+  intent: ApiSearchIntent;
+  filteredCount: number;
   sources: MarketplaceSource[];
   partialFailures: ApiSearchPartialFailure[];
   pagination: {

@@ -27,11 +27,17 @@ const MAX_BODY_BYTES = 1_000_000;
 export interface HttpServerOptions {
   adapters?: MarketplaceAdapterRegistry;
   authenticator?: RequestAuthenticator;
+  enableStockXOauthCallback?: boolean;
   repository?: MobileApiRepositoryContract;
   mobileApi?: MobileApiService;
 }
 
-function json(response: ServerResponse, statusCode: number, body: unknown) {
+function json(
+  response: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   if (response.writableEnded) {
     return;
   }
@@ -40,6 +46,7 @@ function json(response: ServerResponse, statusCode: number, body: unknown) {
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(payload),
+    ...headers,
   });
   response.end(payload);
 }
@@ -87,6 +94,15 @@ async function handleRequest(
       return;
     }
 
+    if (
+      method === "GET" &&
+      path === "/stockx/oauth/callback" &&
+      options.enableStockXOauthCallback
+    ) {
+      handleStockXOauthCallback(url, response, logger, requestId);
+      return;
+    }
+
     if (!path.startsWith(`${API_PREFIX}/`)) {
       throw new ApiNotFoundError("The requested endpoint was not found.");
     }
@@ -112,6 +128,62 @@ async function handleRequest(
     });
     sendError(response, requestId, apiError);
   }
+}
+
+function handleStockXOauthCallback(
+  url: URL,
+  response: ServerResponse,
+  logger: WorkerLogger,
+  requestId: string,
+) {
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    logger.warn("StockX OAuth authorization was rejected", {
+      hasErrorDescription: Boolean(url.searchParams.get("error_description")),
+      providerError,
+      requestId,
+    });
+    json(
+      response,
+      400,
+      {
+        error: "StockX authorization was not granted.",
+        code: providerError,
+      },
+      { "Cache-Control": "no-store", Pragma: "no-cache" },
+    );
+    return;
+  }
+
+  const authorizationCode = url.searchParams.get("code");
+  if (!authorizationCode) {
+    logger.warn("StockX OAuth callback did not include an authorization code", { requestId });
+    json(
+      response,
+      400,
+      { error: "StockX authorization code is missing." },
+      { "Cache-Control": "no-store", Pragma: "no-cache" },
+    );
+    return;
+  }
+
+  const state = url.searchParams.get("state");
+  logger.info("StockX OAuth authorization code received", {
+    hasAuthorizationCode: true,
+    hasState: Boolean(state),
+    requestId,
+  });
+  json(
+    response,
+    200,
+    {
+      message:
+        "StockX authorization code received. Exchange it immediately for a refresh token and do not share it.",
+      authorizationCode,
+      state,
+    },
+    { "Cache-Control": "no-store", Pragma: "no-cache" },
+  );
 }
 
 async function routeProtectedRequest(

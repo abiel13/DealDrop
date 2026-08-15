@@ -93,6 +93,15 @@ test("repository upsert preserves normalized values, null currency, raw metadata
   const [reference] = await repository.upsertListings([
     listing(MARKETPLACE_IDS.ebay, "item-1", {
       currency: null,
+      product: {
+        category: "cameras",
+        productType: "cameras",
+        brand: "canon",
+        model: null,
+        attributes: {},
+        confidence: "medium",
+        classificationSource: "title",
+      },
       metadata: { providerState: "active" },
     }),
   ]);
@@ -107,6 +116,15 @@ test("repository upsert preserves normalized values, null currency, raw metadata
   assert.deepEqual(row?.raw_data, {
     providerState: "active",
     imageUrls: [],
+  });
+  assert.deepEqual(row?.normalized_data, {
+    category: "cameras",
+    productType: "cameras",
+    brand: "canon",
+    model: null,
+    attributes: {},
+    confidence: "medium",
+    classificationSource: "title",
   });
   assert.deepEqual(upsertOptions, {
     onConflict: "marketplace_id,external_id",
