@@ -39,11 +39,23 @@ function matchesKeywords(watchlist: MarketplaceWatchlist, listing: MarketplaceLi
     .filter(Boolean)
     .join(" ");
 
-  return terms.some((term) => containsText(haystack, term));
+  const matchesIncludedTerm = terms.some((term) => containsText(haystack, term));
+  if (!matchesIncludedTerm) {
+    return false;
+  }
+
+  const excludedTerms = (watchlist.filters.excludedKeywords ?? [])
+    .map(normalizedMatchText)
+    .filter(Boolean);
+
+  return !excludedTerms.some((term) => containsText(haystack, term));
 }
 
 function matchesPrice(filter: WatchlistPriceFilter | undefined, listing: MarketplaceListing) {
-  if (!filter || (filter.min === undefined && filter.max === undefined)) {
+  if (
+    !filter ||
+    (filter.min === undefined && filter.max === undefined && filter.currency === undefined)
+  ) {
     return true;
   }
 

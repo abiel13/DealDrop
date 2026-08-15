@@ -75,6 +75,45 @@ test("rejects listings outside the watchlist price range", () => {
   );
 });
 
+test("matches aliases, enforces currency-only filters, and rejects excluded keywords", () => {
+  const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
+    filters: {
+      aliases: ["ILCE-7M3"],
+      excludedKeywords: ["case"],
+      price: { currency: "USD" },
+    },
+  });
+
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-camera", {
+        title: "Sony ILCE-7M3 camera body",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-case", {
+        title: "Sony ILCE-7M3 camera case",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-eur", {
+        title: "Sony ILCE-7M3 camera body",
+        currency: "EUR",
+      }),
+    ),
+    false,
+  );
+});
+
 test("rejects listings with an unsupported condition", () => {
   const watchlist = createWatchlist([MARKETPLACE_IDS.etsy], {
     filters: { conditions: ["new"] },

@@ -7,7 +7,7 @@ import { AppText } from "@/components/ui/Text";
 import { useTheme } from "@/providers/ThemeProvider";
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 
-import type { Watchlist } from "../types/watchlist.types";
+import type { Watchlist, WatchlistFilters } from "../types/watchlist.types";
 
 interface WatchlistCardProps {
   watchlist: Watchlist;
@@ -38,7 +38,7 @@ function formatAmount(value: number, currency: string | undefined) {
   }
 }
 
-function getFilterSummary(filters: Record<string, unknown>) {
+function getFilterSummary(filters: WatchlistFilters) {
   const summary: string[] = [];
   const price = isRecord(filters.price) ? filters.price : null;
   const currency = typeof price?.currency === "string" ? price.currency : undefined;

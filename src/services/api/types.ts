@@ -115,7 +115,30 @@ export interface ApiSearchIntent {
   strictCategory: boolean;
 }
 
-export type ApiSearchFilters = Record<string, unknown>;
+export interface ApiSearchPriceFilter {
+  min?: number;
+  max?: number;
+  currency?: string;
+}
+
+export interface ApiSearchLocationFilter {
+  name: string;
+}
+
+export interface ApiSearchDistanceFilter {
+  maxKm?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface ApiSearchFilters {
+  aliases?: string[];
+  excludedKeywords?: string[];
+  location?: string | ApiSearchLocationFilter;
+  price?: ApiSearchPriceFilter;
+  distance?: ApiSearchDistanceFilter;
+  conditions?: string[];
+}
 
 export interface ApiSearchRequest {
   searchQuery: string;
