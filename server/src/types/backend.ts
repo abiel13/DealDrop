@@ -1,4 +1,4 @@
-import type { MarketplaceSource } from "../marketplaces/shared/types";
+import type { DealDropProductCategory, MarketplaceSource } from "../marketplaces/shared/types";
 
 export interface DealDropWatchlist {
   id: string;
@@ -33,6 +33,12 @@ export interface WatchlistDistanceFilter {
 export interface WatchlistFilters {
   aliases?: string[];
   excludedKeywords?: string[];
+  category?: DealDropProductCategory;
+  productType?: string;
+  brand?: string;
+  model?: string;
+  excludeTerms?: string[];
+  strictCategory?: boolean;
   location?: string | WatchlistLocationFilter;
   price?: WatchlistPriceFilter;
   distance?: WatchlistDistanceFilter;

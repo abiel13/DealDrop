@@ -1,4 +1,5 @@
 import { normalizeCurrency, normalizeText } from "../marketplaces/shared/normalizer";
+import { containsText, createSearchIntent, evaluateListingRelevance } from "../listings/relevance";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import type {
   MarketplaceWatchlist,
@@ -11,14 +12,6 @@ const EARTH_RADIUS_KM = 6_371;
 
 function normalizedMatchText(value: string | null | undefined) {
   return normalizeText(value)?.toLocaleLowerCase() ?? "";
-}
-
-function matchesTerm(term: string, haystack: string) {
-  if (haystack.includes(term)) {
-    return true;
-  }
-
-  return term.split(/\s+/).every((token) => haystack.includes(token));
 }
 
 function matchesMarketplace(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
@@ -46,7 +39,7 @@ function matchesKeywords(watchlist: MarketplaceWatchlist, listing: MarketplaceLi
     .filter(Boolean)
     .join(" ");
 
-  const matchesIncludedTerm = terms.some((term) => matchesTerm(term, haystack));
+  const matchesIncludedTerm = terms.some((term) => containsText(haystack, term));
   if (!matchesIncludedTerm) {
     return false;
   }
@@ -55,7 +48,7 @@ function matchesKeywords(watchlist: MarketplaceWatchlist, listing: MarketplaceLi
     .map(normalizedMatchText)
     .filter(Boolean);
 
-  return !excludedTerms.some((term) => matchesTerm(term, haystack));
+  return !excludedTerms.some((term) => containsText(haystack, term));
 }
 
 function matchesPrice(filter: WatchlistPriceFilter | undefined, listing: MarketplaceListing) {
@@ -103,7 +96,7 @@ function matchesLocation(filter: WatchlistFilters["location"], listing: Marketpl
 
   return (
     listing.location !== null &&
-    matchesTerm(normalizedLocation, normalizedMatchText(listing.location))
+    containsText(normalizedMatchText(listing.location), normalizedLocation)
   );
 }
 
@@ -165,8 +158,14 @@ function matchesCondition(watchlist: MarketplaceWatchlist, listing: MarketplaceL
 }
 
 export function matchesWatchlist(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
+  const relevance = evaluateListingRelevance(
+    listing,
+    createSearchIntent(watchlist.searchQuery, watchlist.filters),
+  );
+
   return (
     matchesMarketplace(watchlist, listing) &&
+    !relevance.relevance.excluded &&
     matchesKeywords(watchlist, listing) &&
     matchesPrice(watchlist.filters.price, listing) &&
     matchesLocation(watchlist.filters.location, listing) &&

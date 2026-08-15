@@ -39,7 +39,7 @@ import {
   toWatchlistFilterValues,
 } from "../utils/watchlist-filters";
 
-const marketplaceSourceSchema = z.enum(["ebay", "etsy", "rakuten", "stockx"]);
+const marketplaceSourceSchema = z.enum(["ebay", "etsy", "rakuten"]);
 const optionalNonNegativeNumberSchema = z
   .string()
   .trim()

@@ -2,7 +2,7 @@
 
 Never miss the perfect deal.
 
-DealDrop continuously monitors eBay, Etsy, Rakuten Ichiba, and StockX for items matching your saved searches and notifies you when a new result appears.
+DealDrop continuously monitors eBay, Etsy, and Rakuten Ichiba for items matching your saved searches and notifies you when a new result appears.
 
 Marketplace credentials and provider access are configured on the server only.
 
@@ -49,7 +49,7 @@ For a production build, use `npm run server:build` followed by `npm run server:s
 
 ## Production Watchlist Monitoring Worker
 
-The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only eBay, Etsy, Rakuten, and approved StockX variables in `server/.env`, then run:
+The production worker runs independently of Expo, loads active multi-marketplace watchlists from Supabase, groups compatible searches, ingests normalized listings, runs matching, and processes notifications. Configure the server-only eBay, Etsy, and Rakuten variables in `server/.env`, then run:
 
 ```bash
 npm run worker:watchlists
@@ -61,5 +61,3 @@ For a compiled production process, run `npm run server:build` and then `npm run 
 Credentials, API tokens, and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.
 
 For Rakuten application setup and server-only variables, see [`docs/rakuten-setup.md`](docs/rakuten-setup.md).
-
-For StockX approval, OAuth setup, and server-only variables, see [`docs/stockx-setup.md`](docs/stockx-setup.md). Confirm StockX’s current API license permits DealDrop’s intended deployment before enabling the source in production.

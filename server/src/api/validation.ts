@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { ApiValidationError } from "./errors";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
+import { DEALDROP_PRODUCT_CATEGORIES } from "../marketplaces/shared/types";
 import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
@@ -10,6 +11,14 @@ export const watchlistFiltersSchema = z
   .object({
     aliases: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     excludedKeywords: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    category: z
+      .enum(Object.values(DEALDROP_PRODUCT_CATEGORIES) as [string, ...string[]])
+      .optional(),
+    productType: z.string().trim().min(1).max(80).optional(),
+    brand: z.string().trim().min(1).max(80).optional(),
+    model: z.string().trim().min(1).max(120).optional(),
+    excludeTerms: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    strictCategory: z.boolean().optional(),
     location: z
       .union([
         z.string().trim().min(1).max(200),
