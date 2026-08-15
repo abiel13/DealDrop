@@ -1,4 +1,4 @@
-export type MarketplaceSource = "ebay" | "etsy" | "rakuten" | "stockx";
+export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
 
 export type WatchlistMarketplaceScope = "selected" | "all";
 

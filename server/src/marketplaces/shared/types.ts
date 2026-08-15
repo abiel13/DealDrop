@@ -4,7 +4,6 @@ export const MARKETPLACE_IDS = {
   ebay: "ebay",
   etsy: "etsy",
   rakuten: "rakuten",
-  stockx: "stockx",
 } as const;
 
 export type MarketplaceSource = (typeof MARKETPLACE_IDS)[keyof typeof MARKETPLACE_IDS];
