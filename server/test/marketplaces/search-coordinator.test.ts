@@ -168,6 +168,42 @@ test("returns one unified listing with cross-marketplace duplicate provenance", 
   );
 });
 
+test("ranks relevant products first and filters obvious category mismatches", async () => {
+  const coordinator = new MarketplaceSearchCoordinator(
+    createAdapters({
+      [MARKETPLACE_IDS.ebay]: {
+        listings: [
+          listing(MARKETPLACE_IDS.ebay, "shirt", null, {
+            title: "Jordan shirt",
+            category: "Apparel",
+          }),
+          listing(MARKETPLACE_IDS.ebay, "sneaker", null, {
+            title: "Air Jordan 1 Retro sneaker",
+            category: "Sneakers",
+          }),
+        ],
+        pagination: { nextCursor: null, hasMore: false },
+      },
+    }),
+    logger,
+  );
+
+  const response = await coordinator.search({
+    searchQuery: "Air Jordans",
+    filters: {},
+    sources: [MARKETPLACE_IDS.ebay],
+    pagination: { limit: 10 },
+  });
+
+  assert.deepEqual(
+    response.listings.map((item) => item.externalId),
+    ["sneaker"],
+  );
+  assert.equal(response.filteredCount, 1);
+  assert.equal(response.intent.category, "footwear");
+  assert.equal(response.listings[0]?.relevance?.confidence, "high");
+});
+
 test("returns successful listings and a partial failure when one source fails", async () => {
   const adapters = createAdapters({
     [MARKETPLACE_IDS.ebay]: {

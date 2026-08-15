@@ -2,9 +2,13 @@ import type {
   MarketplaceCapabilities,
   MarketplaceErrorCategory,
   MarketplaceListing,
+  MarketplaceListingRelevance,
+  MarketplaceProductMetadata,
   MarketplaceSource,
 } from "../marketplaces/shared/types";
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
+import { isMarketplaceProductMetadata } from "../listings/relevance";
+import type { DealDropSearchIntent } from "../listings/relevance";
 import type {
   WatchlistAlertMode,
   WatchlistFilters,
@@ -47,6 +51,8 @@ export interface ApiListing {
   fetchedAt: string | null;
   matchedAt: string | null;
   isFavorite: boolean;
+  product: MarketplaceProductMetadata | null;
+  relevance: MarketplaceListingRelevance | null;
 }
 
 export interface ApiMarketplace {
@@ -63,6 +69,8 @@ export interface ApiSearchPartialFailure {
 
 export interface ApiSearchResult {
   listings: ApiListing[];
+  intent: DealDropSearchIntent;
+  filteredCount: number;
   sources: MarketplaceSource[];
   partialFailures: ApiSearchPartialFailure[];
   pagination: {
@@ -153,6 +161,7 @@ export interface RawApiListing {
   last_seen_at: string;
   is_active: boolean;
   raw_data: Record<string, unknown>;
+  normalized_data?: Record<string, unknown>;
 }
 
 export interface RawApiWatchlist {
@@ -223,6 +232,12 @@ export function toApiListing(
     fetchedAt: isNormalized ? null : listing.fetched_at,
     matchedAt: options.matchedAt ?? null,
     isFavorite: options.isFavorite ?? false,
+    product: isNormalized
+      ? (listing.product ?? null)
+      : isMarketplaceProductMetadata(listing.normalized_data)
+        ? listing.normalized_data
+        : null,
+    relevance: isNormalized ? (listing.relevance ?? null) : null,
   };
 }
 

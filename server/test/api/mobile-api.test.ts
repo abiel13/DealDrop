@@ -103,6 +103,10 @@ test("mobile search returns normalized DealDrop listings and partial failures", 
     assert.equal(body.data.listings[0]?.id, LISTING_ID);
     assert.equal(body.data.listings[0]?.source, MARKETPLACE_IDS.ebay);
     assert.equal(body.data.listings[0]?.externalId, "ebay-1");
+    assert.equal(body.data.listings[0]?.product?.category, "cameras");
+    assert.equal(body.data.listings[0]?.relevance?.excluded, false);
+    assert.equal(body.data.intent.category, "cameras");
+    assert.equal(body.data.filteredCount, 0);
     assert.equal(body.data.listings[0]?.nativeProviderPayload, undefined);
     assert.deepEqual(body.data.partialFailures, [
       {
