@@ -30,6 +30,33 @@ test("matches keywords from normalized listing fields", () => {
   );
 });
 
+test("rejects obvious category mismatches while matching the requested product", () => {
+  const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
+    searchQuery: "Air Jordans",
+  });
+
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-shirt", {
+        title: "Jordan shirt",
+        category: "Apparel",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-sneaker", {
+        title: "Air Jordan 1 Retro sneaker",
+        category: "Sneakers",
+      }),
+    ),
+    true,
+  );
+});
+
 test("rejects listings outside the watchlist price range", () => {
   const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
     filters: { price: { min: 100, max: 200, currency: "USD" } },

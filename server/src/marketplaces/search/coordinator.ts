@@ -3,6 +3,11 @@ import { MarketplaceError } from "../shared/errors";
 import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
 import { deduplicateMarketplaceListings } from "../../listings/deduplication";
+import {
+  applyListingRelevance,
+  compareListingRelevance,
+  createSearchIntent,
+} from "../../listings/relevance";
 import { getMarketplaceCatalog, type MarketplaceCatalogEntry } from "../catalog";
 import { decodeMarketplaceSearchCursor, encodeMarketplaceSearchCursor } from "./cursor";
 import { MarketplaceSearchCoordinatorError } from "./errors";
@@ -55,6 +60,7 @@ export class MarketplaceSearchCoordinator {
   ): Promise<MarketplaceSearchCoordinatorResponse> {
     const sources = this.resolveSources(request.sources);
     const limit = searchLimit(request.pagination?.limit);
+    const intent = createSearchIntent(request.searchQuery, request.filters);
     const { cursors: sourceCursors, completedSources } = decodeMarketplaceSearchCursor(
       request.pagination?.cursor,
       sources,
@@ -113,12 +119,15 @@ export class MarketplaceSearchCoordinator {
     });
 
     const deduplicated = deduplicateMarketplaceListings(listings);
-    const sortedListings = sortListings(deduplicated.listings).slice(0, limit);
+    const relevance = applyListingRelevance(deduplicated.listings, intent);
+    const sortedListings = sortListings(relevance.listings).slice(0, limit);
     const hasMore =
       partialFailures.length > 0 || sources.some((source) => !nextCompletedSources.has(source));
 
     return {
       listings: sortedListings,
+      intent,
+      filteredCount: relevance.filteredCount,
       pagination: {
         nextCursor: hasMore
           ? encodeMarketplaceSearchCursor(sources, nextCursors, [...nextCompletedSources])
@@ -261,6 +270,11 @@ function toPartialFailure(
 
 export function sortListings(listings: MarketplaceListing[]) {
   return [...listings].sort((left, right) => {
+    const relevanceComparison = compareListingRelevance(left, right);
+    if (relevanceComparison !== 0) {
+      return relevanceComparison;
+    }
+
     const postedAtComparison = compareDates(left.postedAt, right.postedAt);
     if (postedAtComparison !== 0) {
       return postedAtComparison;

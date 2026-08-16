@@ -32,6 +32,8 @@ function toListing(
     is_favorite: listing.isFavorite,
     price_history: listing.priceHistory,
     price_target: listing.priceTarget,
+    product: listing.product,
+    relevance: listing.relevance,
   };
 }
 
@@ -83,6 +85,8 @@ export async function searchListings(
     listings,
     sources: response.data.sources,
     partialFailures: response.data.partialFailures,
+    intent: response.data.intent,
+    filteredCount: response.data.filteredCount,
     pagination: response.data.pagination,
   };
 }

@@ -65,7 +65,6 @@ export function formatMarketplaceName(marketplaceId: string) {
     ebay: "eBay",
     etsy: "Etsy",
     rakuten: "Rakuten Ichiba",
-    stockx: "StockX",
   };
 
   return marketplaceNames[marketplaceId] ?? marketplaceId;

@@ -1,6 +1,9 @@
 import type {
+  ApiListingRelevance,
+  ApiProductMetadata,
   ApiPriceHistorySummary,
   ApiPriceTarget,
+  ApiSearchIntent,
   ApiSearchPartialFailure,
   MarketplaceSource,
 } from "@/services/api";
@@ -31,12 +34,16 @@ export interface Listing {
   is_favorite: boolean;
   price_history: ApiPriceHistorySummary | null;
   price_target: ApiPriceTarget | null;
+  product: ApiProductMetadata | null;
+  relevance: ApiListingRelevance | null;
 }
 
 export interface ListingSearchResult {
   listings: Listing[];
   sources: MarketplaceSource[];
   partialFailures: ApiSearchPartialFailure[];
+  intent: ApiSearchIntent;
+  filteredCount: number;
   pagination: {
     nextCursor: string | null;
     hasMore: boolean;

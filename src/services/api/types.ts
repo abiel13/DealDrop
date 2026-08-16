@@ -1,4 +1,4 @@
-export type MarketplaceSource = "ebay" | "etsy" | "rakuten" | "stockx";
+export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
 
 export type WatchlistMarketplaceScope = "selected" | "all";
 export type WatchlistAlertMode = "instant" | "digest";
@@ -66,6 +66,8 @@ export interface ApiListing {
   isFavorite: boolean;
   priceHistory: ApiPriceHistorySummary | null;
   priceTarget: ApiPriceTarget | null;
+  product: ApiProductMetadata | null;
+  relevance: ApiListingRelevance | null;
 }
 
 export type ApiPriceHistoryStatus = "available" | "insufficient_history" | "unavailable";
@@ -89,6 +91,54 @@ export interface ApiPriceTarget {
   currency: string | null;
   difference: number | null;
   sameCurrency: boolean;
+}
+
+export type ApiProductCategory =
+  | "accessories"
+  | "apparel"
+  | "beauty"
+  | "books"
+  | "cameras"
+  | "collectibles"
+  | "computers"
+  | "electronics"
+  | "footwear"
+  | "home"
+  | "sports"
+  | "vehicles"
+  | "phones"
+  | "other";
+
+export interface ApiProductMetadata {
+  category: ApiProductCategory | null;
+  productType: string | null;
+  brand: string | null;
+  model: string | null;
+  attributes: Record<string, string>;
+  confidence: "low" | "medium" | "high";
+  classificationSource: "marketplace" | "title" | "mixed" | "unknown";
+}
+
+export interface ApiListingRelevance {
+  score: number;
+  confidence: "low" | "medium" | "high";
+  excluded: boolean;
+  reasons: string[];
+  warnings: string[];
+}
+
+export interface ApiSearchIntent {
+  rawQuery: string;
+  normalizedQuery: string;
+  requiredTerms: string[];
+  excludedTerms: string[];
+  category: ApiProductCategory | null;
+  brand: string | null;
+  model: string | null;
+  productType: string | null;
+  attributes: Record<string, string>;
+  intentConfidence: "low" | "medium" | "high";
+  strictCategory: boolean;
 }
 
 export interface ApiSearchPriceFilter {
@@ -134,6 +184,8 @@ export interface ApiSearchPartialFailure {
 
 export interface ApiSearchResult {
   listings: ApiListing[];
+  intent: ApiSearchIntent;
+  filteredCount: number;
   sources: MarketplaceSource[];
   partialFailures: ApiSearchPartialFailure[];
   pagination: {
