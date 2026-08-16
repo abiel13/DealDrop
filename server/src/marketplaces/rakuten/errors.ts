@@ -48,14 +48,6 @@ export class RakutenUnsupportedFilterError extends MarketplaceError {
   }
 }
 
-export function getRakutenErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : typeof error === "string"
-      ? error
-      : "Unknown Rakuten Ichiba error";
-}
-
 export function isRetryableRakutenError(error: unknown) {
   return (
     error instanceof RakutenMarketplaceError &&

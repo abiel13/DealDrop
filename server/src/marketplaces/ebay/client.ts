@@ -3,7 +3,6 @@ import {
   EbayAuthenticationError,
   EbayMarketplaceError,
   EbayUnsupportedFilterError,
-  getEbayErrorMessage,
   isRetryableEbayError,
 } from "./errors";
 import { EbayOAuthTokenClient } from "./token-client";
@@ -29,7 +28,7 @@ export class EbayMarketplaceClient {
     const startedAt = Date.now();
     const url = buildEbaySearchUrl(this.config, request);
     this.logger.info("eBay Marketplace search started", {
-      query: request.searchQuery,
+      queryLength: request.searchQuery.length,
       marketplaceId: this.config.marketplaceId,
       offset: request.pagination?.cursor ?? "0",
     });
@@ -41,7 +40,7 @@ export class EbayMarketplaceClient {
         const response = await this.requestWithRetry(url, token, request.searchQuery);
         this.logger.info("eBay Marketplace search completed", {
           durationMs: Date.now() - startedAt,
-          query: request.searchQuery,
+          queryLength: request.searchQuery.length,
         });
         return response;
       } catch (error) {
@@ -55,7 +54,7 @@ export class EbayMarketplaceClient {
         const response = await this.requestWithRetry(url, refreshedToken, request.searchQuery);
         this.logger.info("eBay Marketplace search completed after token refresh", {
           durationMs: Date.now() - startedAt,
-          query: request.searchQuery,
+          queryLength: request.searchQuery.length,
         });
         return response;
       }
@@ -63,8 +62,7 @@ export class EbayMarketplaceClient {
       const category = error instanceof EbayMarketplaceError ? error.category : "unavailable";
       this.logger.error("eBay Marketplace search failed", {
         category,
-        error: getEbayErrorMessage(error),
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
       });
       throw error;
     }
@@ -134,8 +132,8 @@ export class EbayMarketplaceClient {
         this.logger.warn("Retrying eBay Marketplace request", {
           attempt,
           delayMs,
-          error: getEbayErrorMessage(error),
-          query,
+          errorCategory: error instanceof EbayMarketplaceError ? error.category : "unavailable",
+          queryLength: query.length,
         });
         await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
       }

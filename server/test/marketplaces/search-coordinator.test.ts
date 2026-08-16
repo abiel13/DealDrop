@@ -265,7 +265,7 @@ test("returns partial failures for multiple unavailable sources", async () => {
     {
       source: MARKETPLACE_IDS.etsy,
       category: "unavailable",
-      message: "etsy marketplace search is unavailable.",
+      message: "etsy is unavailable.",
     },
   ]);
   assert.equal(response.pagination.hasMore, true);

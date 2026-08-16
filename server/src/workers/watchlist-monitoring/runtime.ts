@@ -39,7 +39,7 @@ export async function createWatchlistMonitoringRuntime(
       adapters[MARKETPLACE_IDS.ebay] = createEbayMarketplaceAdapter(ebayConfig, logger);
     } catch (error) {
       logger.warn("eBay monitoring adapter disabled", {
-        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.name : typeof error,
         source: MARKETPLACE_IDS.ebay,
       });
     }
@@ -51,7 +51,7 @@ export async function createWatchlistMonitoringRuntime(
       adapters[MARKETPLACE_IDS.etsy] = createEtsyMarketplaceAdapter(etsyConfig, logger);
     } catch (error) {
       logger.warn("Etsy monitoring adapter disabled", {
-        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.name : typeof error,
         source: MARKETPLACE_IDS.etsy,
       });
     }
@@ -63,7 +63,7 @@ export async function createWatchlistMonitoringRuntime(
       adapters[MARKETPLACE_IDS.rakuten] = createRakutenMarketplaceAdapter(rakutenConfig, logger);
     } catch (error) {
       logger.warn("Rakuten Ichiba monitoring adapter disabled", {
-        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.name : typeof error,
         source: MARKETPLACE_IDS.rakuten,
       });
     }

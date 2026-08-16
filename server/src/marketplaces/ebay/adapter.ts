@@ -9,7 +9,6 @@ import { MARKETPLACE_IDS } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
 import type { EbayMarketplaceConfig } from "./config";
 import { EbayMarketplaceClient } from "./client";
-import { getEbayErrorMessage } from "./errors";
 import { normalizeEbayListing } from "./normalizer";
 import { parseEbaySearchResponse } from "./parser";
 
@@ -41,8 +40,7 @@ export class EbayMarketplaceAdapter implements MarketplaceAdapter {
       const parsed = parseEbaySearchResponse(response, (error) => {
         this.logger.warn("Skipped invalid eBay Marketplace listing", {
           category: error.category,
-          error: error.message,
-          query: request.searchQuery,
+          queryLength: request.searchQuery.length,
         });
       });
 
@@ -56,9 +54,8 @@ export class EbayMarketplaceAdapter implements MarketplaceAdapter {
       };
     } catch (error) {
       this.logger.error("eBay Marketplace adapter failed", {
-        category: error instanceof Error && "category" in error ? error.category : "parse",
-        error: getEbayErrorMessage(error),
-        query: request.searchQuery,
+        errorCategory: error instanceof Error && "category" in error ? error.category : "parse",
+        queryLength: request.searchQuery.length,
       });
       throw error;
     }

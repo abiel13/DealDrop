@@ -42,14 +42,6 @@ export class EbayUnsupportedFilterError extends MarketplaceError {
   }
 }
 
-export function getEbayErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : typeof error === "string"
-      ? error
-      : "Unknown eBay error";
-}
-
 export function isRetryableEbayError(error: unknown) {
   return (
     error instanceof EbayMarketplaceError &&

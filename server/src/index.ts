@@ -36,6 +36,7 @@ async function main() {
     enableStockXOauthCallback: config.environment !== "production",
     mobileApi,
     repository,
+    security: config.apiSecurity,
     health: createSupabaseHealthProvider({
       client: databaseClient,
       config: monitoringConfig,
