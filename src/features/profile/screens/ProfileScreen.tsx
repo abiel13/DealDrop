@@ -14,6 +14,8 @@ import type { AppIconName } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { getWeeklySummary } from "@/features/analytics/services/analytics.service";
+import { shouldShowWeeklySummary } from "@/features/analytics/utils/weekly-summary-navigation";
 import { authRoutes } from "@/features/auth/routes";
 import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
@@ -73,6 +75,12 @@ export function ProfileScreen() {
     queryKey: profileQueryKey,
     queryFn: () => getOrCreateProfile(user!),
     enabled: Boolean(user),
+  });
+  const weeklySummaryQuery = useQuery({
+    queryKey: ["weekly-summary", user?.id],
+    queryFn: getWeeklySummary,
+    enabled: Boolean(user),
+    retry: false,
   });
 
   const updateNameMutation = useMutation({
@@ -260,6 +268,17 @@ export function ProfileScreen() {
             Manage subscription
           </Button>
         </Card>
+
+        {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (
+          <AccountSection title="Insights">
+            <AccountRow
+              icon="refresh"
+              title="Weekly summary"
+              subtitle="Review your latest watchlist activity"
+              onPress={() => router.push(authRoutes.weeklySummary)}
+            />
+          </AccountSection>
+        )}
 
         <AccountSection title="Preferences">
           <AccountRow

@@ -39,7 +39,11 @@ export function NotificationsScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const params = useLocalSearchParams<{ notificationId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    matchId?: string | string[];
+    notificationId?: string | string[];
+  }>();
+  const matchId = Array.isArray(params.matchId) ? params.matchId[0] : params.matchId;
   const notificationId = Array.isArray(params.notificationId)
     ? params.notificationId[0]
     : params.notificationId;
@@ -71,6 +75,11 @@ export function NotificationsScreen() {
     mutationFn: (id: string) => markNotificationRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] }),
   });
+  const focusedNotificationId =
+    notificationId ??
+    (matchId
+      ? notificationsQuery.data?.find((notification) => notification.match_id === matchId)?.id
+      : undefined);
   const preferencesMutation = useMutation({
     mutationFn: (preferences: NotificationPreferences) =>
       updateNotificationPreferences(preferences),
@@ -89,11 +98,11 @@ export function NotificationsScreen() {
   });
 
   useEffect(() => {
-    const notification = notificationsQuery.data?.find((item) => item.id === notificationId);
+    const notification = notificationsQuery.data?.find((item) => item.id === focusedNotificationId);
     if (notification && !notification.read_at && !readMutation.isPending) {
       readMutation.mutate(notification.id);
     }
-  }, [notificationId, notificationsQuery.data, readMutation]);
+  }, [focusedNotificationId, notificationsQuery.data, readMutation]);
 
   if (notificationsQuery.isLoading || preferencesQuery.isLoading) {
     return <Loading />;
@@ -395,24 +404,41 @@ export function NotificationsScreen() {
           />
         ) : (
           <View className="gap-3">
-            {notifications.map((notification) => (
-              <Pressable key={notification.id} onPress={() => openNotification(notification)}>
-                <Card padding="md" className={notification.read_at ? undefined : "bg-primary-soft"}>
-                  <View className="gap-2">
-                    <View className="flex-row items-start justify-between gap-3">
-                      <AppText variant="title" className="flex-1">
-                        {notification.title}
+            {notifications.map((notification) => {
+              const isFocused = notification.id === focusedNotificationId;
+
+              return (
+                <Pressable
+                  key={notification.id}
+                  accessibilityState={{ selected: isFocused }}
+                  onPress={() => openNotification(notification)}
+                >
+                  <Card
+                    padding="md"
+                    className={
+                      isFocused
+                        ? "border-2 border-primary bg-primary-soft"
+                        : notification.read_at
+                          ? undefined
+                          : "bg-primary-soft"
+                    }
+                  >
+                    <View className="gap-2">
+                      <View className="flex-row items-start justify-between gap-3">
+                        <AppText variant="title" className="flex-1">
+                          {notification.title}
+                        </AppText>
+                        {!notification.read_at && <AppText variant="caption">New</AppText>}
+                      </View>
+                      <AppText variant="body">{notification.body}</AppText>
+                      <AppText variant="caption">
+                        {formatNotificationDate(notification.created_at)}
                       </AppText>
-                      {!notification.read_at && <AppText variant="caption">New</AppText>}
                     </View>
-                    <AppText variant="body">{notification.body}</AppText>
-                    <AppText variant="caption">
-                      {formatNotificationDate(notification.created_at)}
-                    </AppText>
-                  </View>
-                </Card>
-              </Pressable>
-            ))}
+                  </Card>
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>
