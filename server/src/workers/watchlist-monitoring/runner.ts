@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { deduplicateMarketplaceListings } from "../../listings/deduplication";
 import { MarketplaceError } from "../../marketplaces/shared/errors";
 import type { MarketplaceErrorCategory, MarketplaceSource } from "../../marketplaces/shared/types";
@@ -40,18 +42,26 @@ export async function runWatchlistMonitoringWorker(
     repository,
     sleep = defaultSleep,
   } = dependencies;
+  const runId = dependencies.runId ?? randomUUID();
+  const startedAt = dependencies.startedAt ?? new Date().toISOString();
+  const startedAtMs = new Date(startedAt).getTime();
   const watchlists = (await repository.getActiveWatchlistsForSources(availableSources)).filter(
     (watchlist) => isWatchlistMonitorable(watchlist),
   );
   const groups = groupWatchlists(watchlists);
   const ingestion = new ListingIngestionPipeline(repository, logger);
   const summary: WatchlistMonitoringRunSummary = {
+    runId,
+    startedAt,
+    finishedAt: startedAt,
+    durationMs: 0,
     watchlists: watchlists.length,
     searchGroups: groups.length,
     listings: 0,
     matches: 0,
     failures: [],
     notificationDelivery: null,
+    notificationQueue: null,
   };
   const existingListingsBySource = new Map<
     MarketplaceSource,
@@ -60,6 +70,7 @@ export async function runWatchlistMonitoringWorker(
 
   logger.info("Watchlist monitoring run started", {
     searchGroups: groups.length,
+    runId,
     sources: [...availableSources],
     watchlists: watchlists.length,
   });
@@ -144,10 +155,35 @@ export async function runWatchlistMonitoringWorker(
     });
   }
 
+  if (repository.getNotificationQueueHealth) {
+    try {
+      summary.notificationQueue = await repository.getNotificationQueueHealth();
+      logger.info("Watchlist monitoring notification queue health recorded", {
+        ...summary.notificationQueue,
+      });
+    } catch (error) {
+      const failure = toFailure("notifications", "queue_health", error, []);
+      summary.failures.push(failure);
+      logger.error("Watchlist monitoring notification queue health failed", {
+        category: failure.category,
+        error: failure.message,
+      });
+    }
+  }
+
+  const finishedAt = new Date().toISOString();
+  summary.finishedAt = finishedAt;
+  summary.durationMs = Number.isFinite(startedAtMs)
+    ? Math.max(0, new Date(finishedAt).getTime() - startedAtMs)
+    : 0;
+
   logger.info("Watchlist monitoring run completed", {
+    durationMs: summary.durationMs,
     failures: summary.failures.length,
     listings: summary.listings,
     matches: summary.matches,
+    notificationQueue: summary.notificationQueue,
+    runId: summary.runId,
     searchGroups: summary.searchGroups,
     watchlists: summary.watchlists,
   });

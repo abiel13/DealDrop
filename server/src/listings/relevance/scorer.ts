@@ -156,11 +156,13 @@ function compatibleCategories(requested: DealDropProductCategory, actual: DealDr
 
   return (
     requested === DEALDROP_PRODUCT_CATEGORIES.electronics &&
-    [
-      DEALDROP_PRODUCT_CATEGORIES.phones,
-      DEALDROP_PRODUCT_CATEGORIES.cameras,
-      DEALDROP_PRODUCT_CATEGORIES.computers,
-    ].includes(actual)
+    (
+      [
+        DEALDROP_PRODUCT_CATEGORIES.phones,
+        DEALDROP_PRODUCT_CATEGORIES.cameras,
+        DEALDROP_PRODUCT_CATEGORIES.computers,
+      ] as DealDropProductCategory[]
+    ).includes(actual)
   );
 }
 

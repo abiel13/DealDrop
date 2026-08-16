@@ -6,6 +6,7 @@ import { loadServerConfig } from "./config/env";
 import { loadServerEnvironment } from "./config/load-env";
 import { createServerDatabaseClient } from "./database/client";
 import { errorContext, logger } from "./lib/logger";
+import { createSupabaseHealthProvider } from "./operations/health";
 import {
   createWatchlistMonitoringRuntime,
   loadWatchlistMonitoringConfig,
@@ -35,6 +36,12 @@ async function main() {
     enableStockXOauthCallback: config.environment !== "production",
     mobileApi,
     repository,
+    health: createSupabaseHealthProvider({
+      client: databaseClient,
+      config: monitoringConfig,
+      logger,
+      runtime,
+    }),
   });
 
   server.listen(config.port, config.host, () => {

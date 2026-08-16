@@ -66,6 +66,8 @@ test("groups compatible searches and runs ingestion, matching, and durable check
     },
     logger,
     repository,
+    runId: "run-1",
+    startedAt: "2026-08-16T11:59:00.000Z",
   });
 
   assert.equal(result.watchlists, 4);
@@ -94,6 +96,9 @@ test("groups compatible searches and runs ingestion, matching, and durable check
   ]);
   assert.equal(result.failures.length, 0);
   assert.equal(result.notificationDelivery?.processed, 0);
+  assert.equal(result.runId, "run-1");
+  assert.equal(result.startedAt, "2026-08-16T11:59:00.000Z");
+  assert.equal(result.notificationQueue?.oldestPendingAgeMs, 60_000);
 });
 
 test("retries transient source failures without stopping another marketplace", async () => {
@@ -243,6 +248,16 @@ function createRepository(
         exhausted: 0,
         cancelled: 0,
         deferred: 0,
+      };
+    },
+    async getNotificationQueueHealth() {
+      return {
+        pending: 1,
+        processing: 0,
+        failed: 0,
+        exhausted: 0,
+        oldestPendingAt: "2026-08-16T11:58:00.000Z",
+        oldestPendingAgeMs: 60_000,
       };
     },
     ...overrides,

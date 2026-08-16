@@ -23,6 +23,7 @@ import {
   searchBodySchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
+import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
 
 const API_PREFIX = "/api/v1";
 const MAX_BODY_BYTES = 1_000_000;
@@ -33,6 +34,7 @@ export interface HttpServerOptions {
   enableStockXOauthCallback?: boolean;
   repository?: MobileApiRepositoryContract;
   mobileApi?: MobileApiService;
+  health?: HealthProvider;
 }
 
 function json(
@@ -78,12 +80,20 @@ async function handleRequest(
   });
 
   try {
+    if (method === "GET" && (path === "/health/live" || path === `${API_PREFIX}/health/live`)) {
+      json(response, 200, createLivenessHealth());
+      return;
+    }
+
     if (method === "GET" && (path === "/health" || path === `${API_PREFIX}/health`)) {
-      json(response, 200, {
-        status: "ok",
-        service: "dealdrop-server",
-        timestamp: new Date().toISOString(),
-      });
+      let health: OperationalHealthSnapshot;
+      try {
+        health = options.health ? await options.health.getHealth() : createDefaultReadinessHealth();
+      } catch {
+        logger.error("Readiness health check failed", { requestId });
+        health = createFallbackHealthFailure();
+      }
+      json(response, health.status === "ok" ? 200 : 503, health);
       return;
     }
 
@@ -445,6 +455,90 @@ function sendError(response: ServerResponse, requestId: string, error: ApiError)
     },
     meta: { requestId },
   });
+}
+
+function createLivenessHealth() {
+  return {
+    status: "ok" as const,
+    service: "dealdrop-server" as const,
+    timestamp: new Date().toISOString(),
+    checks: {
+      process: {
+        status: "ok" as const,
+        pid: process.pid,
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+    },
+  };
+}
+
+function createDefaultReadinessHealth(): OperationalHealthSnapshot {
+  return {
+    status: "ok",
+    service: "dealdrop-server",
+    timestamp: new Date().toISOString(),
+    checks: {
+      process: {
+        status: "ok",
+        pid: process.pid,
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+      database: { status: "ok" },
+      marketplace: {
+        status: "ok",
+        configuredSources: [],
+        availableSources: [],
+        disabledSources: [],
+        lastSourceFailures: [],
+      },
+      worker: {
+        status: "ok",
+        lastRunAgeMs: null,
+        lastRunDurationMs: null,
+        lastSuccessfulRunAt: null,
+        watchlistCount: null,
+        matchesCreated: null,
+        queueItemsProcessed: null,
+        queueItemsSent: null,
+        queueItemsRetried: null,
+        queueItemsExhausted: null,
+        sourceFailureStreaks: {},
+        notificationFailureStreak: null,
+      },
+      notificationQueue: {
+        status: "ok",
+        pending: 0,
+        processing: 0,
+        failed: 0,
+        exhausted: 0,
+        oldestPendingAt: null,
+        oldestPendingAgeMs: null,
+      },
+    },
+    alerts: [],
+  };
+}
+
+function createFallbackHealthFailure(): OperationalHealthSnapshot {
+  const health = createDefaultReadinessHealth();
+  return {
+    ...health,
+    status: "unhealthy",
+    checks: {
+      ...health.checks,
+      database: { status: "unavailable" },
+      marketplace: { ...health.checks.marketplace, status: "unavailable" },
+      worker: { ...health.checks.worker, status: "unavailable" },
+      notificationQueue: { ...health.checks.notificationQueue, status: "unavailable" },
+    },
+    alerts: [
+      {
+        code: "database_unavailable",
+        severity: "critical",
+        message: "The readiness health check failed.",
+      },
+    ],
+  };
 }
 
 function toApiError(error: unknown): ApiError {

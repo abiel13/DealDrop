@@ -85,6 +85,15 @@ export interface NotificationDeliverySummary {
   deferred: number;
 }
 
+export interface NotificationQueueHealth {
+  pending: number;
+  processing: number;
+  failed: number;
+  exhausted: number;
+  oldestPendingAt: string | null;
+  oldestPendingAgeMs: number | null;
+}
+
 class ExpoPushDeliveryError extends Error {
   constructor(
     message: string,
@@ -343,6 +352,55 @@ export async function processNotificationQueue(
   }
 
   return summary;
+}
+
+export async function getNotificationQueueHealth(
+  client: SupabaseClient,
+  now = new Date(),
+): Promise<NotificationQueueHealth> {
+  const statuses = ["pending", "processing", "failed", "exhausted"] as const;
+  const counts = await Promise.all(
+    statuses.map(async (status) => {
+      const { count, error } = await client
+        .from("notification_queue")
+        .select("id", { count: "exact", head: true })
+        .eq("status", status);
+
+      if (error) {
+        throw error;
+      }
+
+      return [status, count ?? 0] as const;
+    }),
+  );
+
+  const { data, error } = await client
+    .from("notification_queue")
+    .select("created_at")
+    .in("status", ["pending", "failed"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ created_at: string }>();
+
+  if (error) {
+    throw error;
+  }
+
+  const oldestPendingAt = data?.created_at ?? null;
+  const oldestPendingTimestamp = oldestPendingAt ? new Date(oldestPendingAt).getTime() : NaN;
+  const oldestPendingAgeMs = Number.isFinite(oldestPendingTimestamp)
+    ? Math.max(0, now.getTime() - oldestPendingTimestamp)
+    : null;
+  const countByStatus = new Map(counts);
+
+  return {
+    pending: countByStatus.get("pending") ?? 0,
+    processing: countByStatus.get("processing") ?? 0,
+    failed: countByStatus.get("failed") ?? 0,
+    exhausted: countByStatus.get("exhausted") ?? 0,
+    oldestPendingAt,
+    oldestPendingAgeMs,
+  };
 }
 
 function getPreference(row: NotificationPreferenceRow | undefined): NotificationPreferenceRow {

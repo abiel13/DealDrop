@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { matchesWatchlist } from "../matching/watchlist";
 import {
+  getNotificationQueueHealth,
   processNotificationQueue,
+  type NotificationQueueHealth,
   type NotificationDeliverySummary,
 } from "../notifications/delivery";
 import { deduplicateIngestionListings } from "./listing-ingestion";
@@ -249,6 +251,10 @@ export class ListingRepository {
 
   processNotificationQueue(): Promise<NotificationDeliverySummary> {
     return processNotificationQueue(this.client);
+  }
+
+  getNotificationQueueHealth(): Promise<NotificationQueueHealth> {
+    return getNotificationQueueHealth(this.client);
   }
 
   async markWatchlistChecked(watchlistId: string) {

@@ -24,6 +24,9 @@ test("loads configurable monitoring intervals, retries, limits, and source selec
     retryBaseDelayMs: 250,
     searchLimit: 50,
     searchTimeoutMs: 45_000,
+    staleAfterMs: 900_000,
+    sourceFailureAlertThreshold: 3,
+    notificationFailureAlertThreshold: 3,
   });
 });
 
