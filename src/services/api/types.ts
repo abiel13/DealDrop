@@ -1,6 +1,7 @@
 export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
 
 export type WatchlistMarketplaceScope = "selected" | "all";
+export type WatchlistAlertMode = "instant" | "digest";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -177,6 +178,7 @@ export interface ApiWatchlist {
   name: string;
   searchQuery: string;
   filters: ApiSearchFilters;
+  alertMode: WatchlistAlertMode;
   marketplaceScope: WatchlistMarketplaceScope;
   marketplaceIds: MarketplaceSource[];
   isActive: boolean;
@@ -190,6 +192,7 @@ export interface ApiWatchlistInput {
   name: string;
   searchQuery: string;
   filters?: ApiSearchFilters;
+  alertMode?: WatchlistAlertMode;
   marketplaceScope?: WatchlistMarketplaceScope;
   marketplaceIds?: MarketplaceSource[];
   isActive?: boolean;
@@ -219,6 +222,11 @@ export interface ApiNotification {
 export interface ApiNotificationPreferences {
   pushEnabled: boolean;
   newMatchEnabled: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  timezone: string;
+  dailyAlertLimit: number;
 }
 
 export interface ApiPushTokenRegistration {

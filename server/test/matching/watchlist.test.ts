@@ -242,6 +242,7 @@ function createWatchlist(
     userId: "user-1",
     searchQuery: "camera",
     filters: {},
+    alertMode: "instant",
     marketplaceScope: "selected",
     marketplaceIds,
     ...overrides,

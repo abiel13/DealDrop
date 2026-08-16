@@ -8,6 +8,18 @@ export interface NotificationNavigationIntent {
   route: Href;
 }
 
+export function isValidNotificationClockTime(value: string) {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+export function getDeviceTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 export function resolveNotificationIntent(data: unknown): NotificationNavigationIntent | null {
   if (!data || typeof data !== "object") {
     return null;

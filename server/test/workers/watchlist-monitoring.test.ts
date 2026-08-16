@@ -211,6 +211,7 @@ function createRepository(
         retried: 0,
         exhausted: 0,
         cancelled: 0,
+        deferred: 0,
       };
     },
     ...overrides,
@@ -227,6 +228,7 @@ function watchlist(
     userId: "user-1",
     searchQuery,
     filters: {},
+    alertMode: "instant",
     marketplaceScope: "selected",
     marketplaceIds,
   };

@@ -4,10 +4,36 @@ import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  createDeliveryBatches,
+  createPushMessage,
   ExpoPushNotificationProvider,
   processNotificationQueue,
+  type NotificationQueueRow,
   type PushNotificationProvider,
 } from "../../src/notifications/delivery";
+
+test("digest delivery groups matches and preserves the first listing deep link", () => {
+  const rows = [
+    deliveryRow("notification-1", "listing-1"),
+    deliveryRow("notification-2", "listing-2"),
+  ];
+  const batches = createDeliveryBatches(rows);
+  const message = createPushMessage(batches[0]!);
+
+  assert.equal(batches.length, 1);
+  assert.equal(message.title, "2 new deals found");
+  assert.equal(message.data.url, "/listing/listing-1");
+  assert.deepEqual(message.data.listing_ids, ["listing-1", "listing-2"]);
+  assert.deepEqual(message.data.notification_ids, ["notification-1", "notification-2"]);
+});
+
+test("instant delivery keeps separate queue batches", () => {
+  const first = deliveryRow("notification-1", "listing-1");
+  const second = deliveryRow("notification-2", "listing-2");
+  second.notifications.data.alert_mode = "instant";
+
+  assert.equal(createDeliveryBatches([first, second]).length, 2);
+});
 
 test("Expo provider sends safe notification content and deep-link data", async () => {
   let requestBody: Record<string, unknown> | null = null;
@@ -118,6 +144,11 @@ interface QueueState {
     user_id: string;
     push_enabled: boolean;
     new_match_enabled: boolean;
+    quiet_hours_enabled: boolean;
+    quiet_hours_start: string | null;
+    quiet_hours_end: string | null;
+    timezone: string;
+    daily_alert_limit: number;
   };
 }
 
@@ -151,7 +182,30 @@ function createQueueState(): QueueState {
       user_id: "user-1",
       push_enabled: true,
       new_match_enabled: true,
+      quiet_hours_enabled: false,
+      quiet_hours_start: null,
+      quiet_hours_end: null,
+      timezone: "UTC",
+      daily_alert_limit: 20,
     },
+  };
+}
+
+function deliveryRow(notificationId: string, listingId: string): NotificationQueueRow {
+  return {
+    id: `queue-${notificationId}`,
+    notification_id: notificationId,
+    user_id: "user-1",
+    push_token_id: "token-1",
+    attempts: 0,
+    next_attempt_at: new Date(0).toISOString(),
+    created_at: new Date(0).toISOString(),
+    notifications: {
+      title: "New match: Camera",
+      body: "Camera for USD 150 on ebay · Camera deals · listed 2h ago.",
+      data: { alert_mode: "digest", listing_id: listingId, notification_id: notificationId },
+    },
+    push_tokens: { expo_push_token: "ExponentPushToken[test]", is_active: true },
   };
 }
 
@@ -206,6 +260,9 @@ function createQuery(options: {
       return query;
     },
     lte() {
+      return query;
+    },
+    gte() {
       return query;
     },
     lt() {

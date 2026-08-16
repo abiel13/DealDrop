@@ -131,6 +131,7 @@ export class MobileApiService {
       name: string;
       searchQuery: string;
       filters: WatchlistFilters;
+      alertMode: "instant" | "digest";
       isActive: boolean;
       isFavorite: boolean;
       marketplaceScope?: "selected" | "all";
@@ -155,6 +156,7 @@ export class MobileApiService {
       name: string;
       searchQuery: string;
       filters: WatchlistFilters;
+      alertMode: "instant" | "digest";
       isActive: boolean;
       isFavorite: boolean;
       marketplaceScope: "selected" | "all";
@@ -290,6 +292,7 @@ function toWatchlist(watchlist: RawApiWatchlist): ApiWatchlist {
     name: watchlist.name,
     searchQuery: watchlist.search_query,
     filters: watchlist.filters,
+    alertMode: watchlist.alert_mode,
     marketplaceScope: watchlist.marketplace_scope,
     marketplaceIds:
       watchlist.marketplace_scope === "all"

@@ -271,7 +271,15 @@ function createRepository(
       return true;
     },
     async getNotificationPreferences() {
-      return { pushEnabled: true, newMatchEnabled: true };
+      return {
+        pushEnabled: true,
+        newMatchEnabled: true,
+        quietHoursEnabled: false,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+        timezone: "UTC",
+        dailyAlertLimit: 20,
+      };
     },
     async updateNotificationPreferences(_userId, preferences) {
       return preferences;
@@ -361,6 +369,7 @@ function watchlist(): RawApiWatchlist {
     user_id: USER_ID,
     marketplace_id: MARKETPLACE_IDS.ebay,
     marketplace_scope: "selected",
+    alert_mode: "instant",
     name: "Camera deals",
     search_query: "camera",
     filters: {},

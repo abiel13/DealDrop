@@ -1,8 +1,12 @@
 import { z } from "zod";
 
 import { ApiValidationError } from "./errors";
-import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
-import { DEALDROP_PRODUCT_CATEGORIES } from "../marketplaces/shared/types";
+import {
+  DEALDROP_PRODUCT_CATEGORIES,
+  MARKETPLACE_IDS,
+  type MarketplaceSource,
+} from "../marketplaces/shared/types";
+import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
 import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
@@ -103,6 +107,7 @@ const watchlistPayloadShape = {
   name: z.string().trim().min(1).max(120),
   searchQuery: z.string().trim().min(1).max(200),
   filters: watchlistFiltersSchema.default({}),
+  alertMode: z.enum(["instant", "digest"]).default("instant"),
   marketplaceScope: z.enum(["selected", "all"]).optional(),
   marketplaceIds: marketplaceIdsSchema.optional(),
   isActive: z.boolean().optional(),
@@ -116,6 +121,7 @@ export const updateWatchlistSchema = z
     name: watchlistPayloadShape.name.optional(),
     searchQuery: watchlistPayloadShape.searchQuery.optional(),
     filters: watchlistFiltersSchema.optional(),
+    alertMode: z.enum(["instant", "digest"]).optional(),
     marketplaceScope: watchlistPayloadShape.marketplaceScope,
     marketplaceIds: watchlistPayloadShape.marketplaceIds,
     isActive: watchlistPayloadShape.isActive,
@@ -130,8 +136,51 @@ export const notificationPreferencesSchema = z
   .object({
     pushEnabled: z.boolean(),
     newMatchEnabled: z.boolean(),
+    quietHoursEnabled: z.boolean(),
+    quietHoursStart: z.string().trim().nullable(),
+    quietHoursEnd: z.string().trim().nullable(),
+    timezone: z.string().trim().min(1).max(100),
+    dailyAlertLimit: z.number().int().min(1).max(100),
   })
-  .strict();
+  .strict()
+  .superRefine((preferences, context) => {
+    if (!isValidTimeZone(preferences.timezone)) {
+      context.addIssue({
+        code: "custom",
+        message: "timezone must be a valid IANA timezone.",
+        path: ["timezone"],
+      });
+    }
+
+    for (const [field, value] of [
+      ["quietHoursStart", preferences.quietHoursStart],
+      ["quietHoursEnd", preferences.quietHoursEnd],
+    ] as const) {
+      if (value !== null && !isValidClockTime(value)) {
+        context.addIssue({
+          code: "custom",
+          message: `${field} must use HH:MM format.`,
+          path: [field],
+        });
+      }
+    }
+
+    if (preferences.quietHoursEnabled) {
+      if (preferences.quietHoursStart === null || preferences.quietHoursEnd === null) {
+        context.addIssue({
+          code: "custom",
+          message: "Quiet hours require both a start and end time.",
+          path: ["quietHoursEnabled"],
+        });
+      } else if (preferences.quietHoursStart === preferences.quietHoursEnd) {
+        context.addIssue({
+          code: "custom",
+          message: "Quiet hours start and end times must be different.",
+          path: ["quietHoursEnd"],
+        });
+      }
+    }
+  });
 
 export const pushTokenSchema = z
   .object({

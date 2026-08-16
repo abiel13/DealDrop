@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseBody, watchlistFiltersSchema } from "../../src/api/validation";
+import {
+  notificationPreferencesSchema,
+  parseBody,
+  watchlistFiltersSchema,
+} from "../../src/api/validation";
 
 test("normalizes filter terms and currency while preserving a complete distance filter", () => {
   const filters = parseBody(watchlistFiltersSchema, {
@@ -31,6 +35,44 @@ test("rejects excluded keyword arrays larger than the supported limit", () => {
     () =>
       parseBody(watchlistFiltersSchema, {
         excludedKeywords: Array.from({ length: 21 }, (_, index) => `term-${index}`),
+      }),
+    /request body is invalid/i,
+  );
+});
+
+test("validates actionable notification preferences", () => {
+  const preferences = parseBody(notificationPreferencesSchema, {
+    pushEnabled: true,
+    newMatchEnabled: true,
+    quietHoursEnabled: true,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    timezone: "Africa/Lagos",
+    dailyAlertLimit: 10,
+  });
+
+  assert.deepEqual(preferences, {
+    pushEnabled: true,
+    newMatchEnabled: true,
+    quietHoursEnabled: true,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    timezone: "Africa/Lagos",
+    dailyAlertLimit: 10,
+  });
+});
+
+test("rejects invalid quiet hours and timezones", () => {
+  assert.throws(
+    () =>
+      parseBody(notificationPreferencesSchema, {
+        pushEnabled: true,
+        newMatchEnabled: true,
+        quietHoursEnabled: true,
+        quietHoursStart: "22:00",
+        quietHoursEnd: "22:00",
+        timezone: "Not/A_Timezone",
+        dailyAlertLimit: 10,
       }),
     /request body is invalid/i,
   );

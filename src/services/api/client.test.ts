@@ -108,6 +108,7 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
       excludedKeywords: ["case"],
       price: { max: 500, currency: "USD" },
     },
+    alertMode: "digest",
     marketplaceScope: "selected",
     marketplaceIds: ["ebay", "etsy"],
   });
@@ -120,8 +121,52 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
       excludedKeywords: ["case"],
       price: { max: 500, currency: "USD" },
     },
+    alertMode: "digest",
     marketplaceScope: "selected",
     marketplaceIds: ["ebay", "etsy"],
+  });
+});
+
+test("persists timezone-aware delivery preferences", async () => {
+  let requestBody: unknown;
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(init?.body as string) as unknown;
+      return response(
+        200,
+        envelope({
+          pushEnabled: false,
+          newMatchEnabled: true,
+          quietHoursEnabled: true,
+          quietHoursStart: "22:00",
+          quietHoursEnd: "07:00",
+          timezone: "Africa/Lagos",
+          dailyAlertLimit: 10,
+        }),
+      );
+    },
+  });
+
+  await client.updateNotificationPreferences({
+    pushEnabled: false,
+    newMatchEnabled: true,
+    quietHoursEnabled: true,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    timezone: "Africa/Lagos",
+    dailyAlertLimit: 10,
+  });
+
+  assert.deepEqual(requestBody, {
+    pushEnabled: false,
+    newMatchEnabled: true,
+    quietHoursEnabled: true,
+    quietHoursStart: "22:00",
+    quietHoursEnd: "07:00",
+    timezone: "Africa/Lagos",
+    dailyAlertLimit: 10,
   });
 });
 

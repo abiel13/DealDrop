@@ -8,8 +8,10 @@ export interface DealDropWatchlist {
 }
 
 export type WatchlistMarketplaceScope = "selected" | "all";
+export type WatchlistAlertMode = "instant" | "digest";
 
 export interface MarketplaceWatchlist extends DealDropWatchlist {
+  alertMode: WatchlistAlertMode;
   marketplaceScope: WatchlistMarketplaceScope;
   marketplaceIds: MarketplaceSource[];
 }

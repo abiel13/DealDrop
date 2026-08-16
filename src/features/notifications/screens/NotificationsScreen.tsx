@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { Input } from "@/components/ui/Input";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
@@ -21,11 +22,17 @@ import {
   updateNotificationPreferences,
 } from "../services/notification.service";
 import type { AppNotification, NotificationPreferences } from "../types/notification.types";
-import { resolveNotificationIntent } from "../utils/notification.utils";
+import {
+  getDeviceTimeZone,
+  isValidNotificationClockTime,
+  resolveNotificationIntent,
+} from "../utils/notification.utils";
 
 function formatNotificationDate(value: string) {
   return new Date(value).toLocaleString();
 }
+
+type SchedulingField = "quietHoursStart" | "quietHoursEnd" | "timeZone" | "dailyAlertLimit";
 
 export function NotificationsScreen() {
   const { user } = useAuth();
@@ -39,6 +46,15 @@ export function NotificationsScreen() {
     "idle" | "enabled" | "unavailable" | "error"
   >("idle");
   const [isSettingUpPush, setIsSettingUpPush] = useState(false);
+  const [quietHoursStart, setQuietHoursStart] = useState("");
+  const [quietHoursEnd, setQuietHoursEnd] = useState("");
+  const [timeZone, setTimeZone] = useState("");
+  const [dailyAlertLimit, setDailyAlertLimit] = useState("");
+  const [editedSchedulingFields, setEditedSchedulingFields] = useState<Set<SchedulingField>>(
+    new Set(),
+  );
+  const [preferenceSaveError, setPreferenceSaveError] = useState<string | null>(null);
+  const schedulingSavePending = useRef(false);
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", user?.id],
@@ -59,6 +75,15 @@ export function NotificationsScreen() {
       updateNotificationPreferences(preferences),
     onSuccess: (preferences) => {
       queryClient.setQueryData(["notification-preferences", user?.id], preferences);
+      setPreferenceSaveError(null);
+      if (schedulingSavePending.current) {
+        schedulingSavePending.current = false;
+        setEditedSchedulingFields(new Set());
+      }
+    },
+    onError: () => {
+      schedulingSavePending.current = false;
+      setPreferenceSaveError("We couldn't save your notification preferences.");
     },
   });
 
@@ -77,8 +102,16 @@ export function NotificationsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-background px-6">
         <ErrorState
-          title="Couldn't load notifications"
-          description="Please check your connection and try again."
+          title={
+            preferencesQuery.isError
+              ? "Couldn't load notification preferences"
+              : "Couldn't load notifications"
+          }
+          description={
+            preferencesQuery.isError
+              ? "Your alerts are still safe. Check your connection and try loading preferences again."
+              : "Please check your connection and try again."
+          }
         />
         <Button
           variant="outline"
@@ -96,8 +129,27 @@ export function NotificationsScreen() {
   const preferences = preferencesQuery.data ?? {
     push_enabled: true,
     new_match_enabled: true,
+    quiet_hours_enabled: false,
+    quiet_hours_start: null,
+    quiet_hours_end: null,
+    timezone: getDeviceTimeZone(),
+    daily_alert_limit: 20,
   };
   const notifications = notificationsQuery.data ?? [];
+  const schedulingDraft = {
+    quietHoursStart: editedSchedulingFields.has("quietHoursStart")
+      ? quietHoursStart
+      : (preferences.quiet_hours_start ?? "22:00"),
+    quietHoursEnd: editedSchedulingFields.has("quietHoursEnd")
+      ? quietHoursEnd
+      : (preferences.quiet_hours_end ?? "07:00"),
+    timeZone: editedSchedulingFields.has("timeZone")
+      ? timeZone
+      : preferences.timezone || getDeviceTimeZone(),
+    dailyAlertLimit: editedSchedulingFields.has("dailyAlertLimit")
+      ? dailyAlertLimit
+      : String(preferences.daily_alert_limit),
+  };
 
   function openNotification(notification: AppNotification) {
     if (!notification.read_at) {
@@ -111,7 +163,39 @@ export function NotificationsScreen() {
   }
 
   function updatePreferences(next: Partial<NotificationPreferences>) {
+    setPreferenceSaveError(null);
     preferencesMutation.mutate({ ...preferences, ...next });
+  }
+
+  function saveSchedulingPreferences(quietHoursEnabled = preferences.quiet_hours_enabled) {
+    const start = schedulingDraft.quietHoursStart.trim();
+    const end = schedulingDraft.quietHoursEnd.trim();
+    const limit = Number(schedulingDraft.dailyAlertLimit.trim());
+
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      setPreferenceSaveError("Set a daily alert limit between 1 and 100.");
+      return;
+    }
+
+    if (quietHoursEnabled) {
+      if (!isValidNotificationClockTime(start) || !isValidNotificationClockTime(end)) {
+        setPreferenceSaveError("Use HH:MM times such as 22:00 and 07:00 for quiet hours.");
+        return;
+      }
+      if (start === end) {
+        setPreferenceSaveError("Quiet hours start and end times must be different.");
+        return;
+      }
+    }
+
+    updatePreferences({
+      quiet_hours_enabled: quietHoursEnabled,
+      quiet_hours_start: start || null,
+      quiet_hours_end: end || null,
+      timezone: schedulingDraft.timeZone.trim() || getDeviceTimeZone(),
+      daily_alert_limit: limit,
+    });
+    schedulingSavePending.current = true;
   }
 
   async function enablePushNotifications() {
@@ -204,6 +288,81 @@ export function NotificationsScreen() {
               onValueChange={(value) => updatePreferences({ new_match_enabled: value })}
             />
           </View>
+        </Card>
+
+        <Card padding="md" className="gap-4">
+          <AppText variant="title">Delivery timing</AppText>
+          <AppText variant="bodySmall">
+            Quiet hours pause push delivery without removing alerts from your in-app history.
+          </AppText>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-4">
+              <AppText variant="label">Quiet hours</AppText>
+              <AppText variant="bodySmall">
+                Use the timezone below when deciding when to pause alerts.
+              </AppText>
+            </View>
+            <Switch
+              value={preferences.quiet_hours_enabled}
+              disabled={preferencesMutation.isPending}
+              onValueChange={(value) => saveSchedulingPreferences(value)}
+            />
+          </View>
+          <View className="flex-row gap-3">
+            <Input
+              className="flex-1"
+              label="Starts"
+              placeholder="22:00"
+              value={schedulingDraft.quietHoursStart}
+              onChangeText={(value) => {
+                setEditedSchedulingFields((current) => new Set(current).add("quietHoursStart"));
+                setQuietHoursStart(value);
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Input
+              className="flex-1"
+              label="Ends"
+              placeholder="07:00"
+              value={schedulingDraft.quietHoursEnd}
+              onChangeText={(value) => {
+                setEditedSchedulingFields((current) => new Set(current).add("quietHoursEnd"));
+                setQuietHoursEnd(value);
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <Input
+            label="Timezone"
+            placeholder="e.g. Africa/Lagos"
+            value={schedulingDraft.timeZone}
+            onChangeText={(value) => {
+              setEditedSchedulingFields((current) => new Set(current).add("timeZone"));
+              setTimeZone(value);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Input
+            label="Daily alert limit"
+            placeholder="20"
+            keyboardType="number-pad"
+            value={schedulingDraft.dailyAlertLimit}
+            onChangeText={(value) => {
+              setEditedSchedulingFields((current) => new Set(current).add("dailyAlertLimit"));
+              setDailyAlertLimit(value);
+            }}
+          />
+          <Button
+            variant="outline"
+            loading={preferencesMutation.isPending}
+            onPress={() => saveSchedulingPreferences()}
+          >
+            Save delivery preferences
+          </Button>
+          {preferenceSaveError && <AppText variant="error">{preferenceSaveError}</AppText>}
         </Card>
 
         {notifications.length === 0 ? (
