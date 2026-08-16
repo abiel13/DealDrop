@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AppText } from "@/components/ui/Text";
 import { supabase } from "@/lib/supabase";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 
 import { AuthShell } from "../components/AuthShell";
 import { authRoutes } from "../routes";
@@ -52,6 +53,8 @@ export function LoginScreen() {
       if (profileError) {
         console.warn("DealDrop profile could not be created", profileError.message);
       }
+
+      trackProductEventNonBlocking("account_activated", {}, `account-activated:${data.user.id}`);
     }
 
     router.replace(authRoutes.home);

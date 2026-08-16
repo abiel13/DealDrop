@@ -18,6 +18,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { AppIcon } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -234,7 +235,10 @@ export function ListingDetailsScreen() {
           <Button
             leftIcon={<AppIcon name="storefront" size={18} color="white" />}
             rightIcon={<AppIcon name="arrow-forward" size={18} color="white" />}
-            onPress={() => void Linking.openURL(listing.url)}
+            onPress={() => {
+              trackProductEventNonBlocking("listing_opened_externally", { listingId: listing.id });
+              void Linking.openURL(listing.url);
+            }}
           >
             View on {formatMarketplaceName(listing.marketplace_id)}
           </Button>

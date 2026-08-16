@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
 import { apiClient, type ApiNotification, type ApiNotificationPreferences } from "@/services/api";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 
 import type {
   AppNotification,
@@ -19,6 +20,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   quiet_hours_end: null,
   timezone: "UTC",
   daily_alert_limit: 20,
+  weekly_summary_enabled: true,
 };
 
 function toNotification(notification: ApiNotification): AppNotification {
@@ -44,6 +46,7 @@ function toPreferences(preferences: ApiNotificationPreferences): NotificationPre
     quiet_hours_end: preferences.quietHoursEnd,
     timezone: preferences.timezone,
     daily_alert_limit: preferences.dailyAlertLimit,
+    weekly_summary_enabled: preferences.weeklySummaryEnabled,
   };
 }
 
@@ -70,6 +73,7 @@ export async function updateNotificationPreferences(preferences: NotificationPre
     quietHoursEnd: preferences.quiet_hours_end,
     timezone: preferences.timezone,
     dailyAlertLimit: preferences.daily_alert_limit,
+    weeklySummaryEnabled: preferences.weekly_summary_enabled,
   });
   return toPreferences(response.data);
 }
@@ -83,11 +87,15 @@ function getExpoProjectId() {
 }
 
 export async function registerPushToken() {
+  const platform = Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web";
+
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
+    trackPushPermissionResult("unavailable", platform);
     return null;
   }
 
   if (!Device.isDevice) {
+    trackPushPermissionResult("unavailable", platform);
     return null;
   }
 
@@ -105,8 +113,11 @@ export async function registerPushToken() {
       : await Notifications.requestPermissionsAsync();
 
   if (status !== "granted") {
+    trackPushPermissionResult("denied", platform);
     return null;
   }
+
+  trackPushPermissionResult("granted", platform);
 
   const projectId = getExpoProjectId();
   if (!projectId) {
@@ -125,4 +136,15 @@ export async function registerPushToken() {
   });
 
   return expoPushToken;
+}
+
+function trackPushPermissionResult(
+  result: "granted" | "denied" | "unavailable",
+  platform: "ios" | "android" | "web",
+) {
+  trackProductEventNonBlocking(
+    "push_permission_result",
+    { result, platform },
+    `push-permission:${platform}:${result}`,
+  );
 }

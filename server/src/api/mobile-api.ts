@@ -11,6 +11,7 @@ import {
   validateWatchlistMarketplaceSelection,
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
+import type { ProductEventInput } from "../analytics/events";
 import { ApiNotFoundError, ApiValidationError } from "./errors";
 import { encodeApiCursor } from "./pagination";
 import type { MobileApiRepositoryContract, StoredMatch } from "./mobile-repository";
@@ -22,6 +23,7 @@ import type {
   ApiNotificationPreferences,
   ApiSearchResult,
   ApiWatchlist,
+  ApiWeeklySummary,
   RawApiWatchlist,
 } from "./types";
 
@@ -104,6 +106,14 @@ export class MobileApiService {
     if (!updated) {
       throw new ApiNotFoundError("The listing was not found.");
     }
+  }
+
+  async recordProductEvent(userId: string, input: ProductEventInput) {
+    await this.dependencies.repository.recordProductEvent(userId, input);
+  }
+
+  getWeeklySummary(userId: string): Promise<ApiWeeklySummary> {
+    return this.dependencies.repository.getWeeklySummary(userId);
   }
 
   async getWatchlists(userId: string, cursor: string | null, limit: number) {

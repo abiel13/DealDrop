@@ -24,6 +24,7 @@ import { AppIcon } from "@/components/ui/Icon";
 import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { authRoutes, listingRoute } from "@/features/auth/routes";
 import { useTheme } from "@/providers/ThemeProvider";
 
@@ -560,7 +561,12 @@ export function ListingFeedScreen() {
           <ListingCard
             listing={item}
             disabled={favoriteMutation.isPending || matchActionMutation.isPending}
-            onPress={() => router.push(listingRoute(item.id))}
+            onPress={() => {
+              if (item.match_id) {
+                trackProductEventNonBlocking("match_opened", { matchId: item.match_id });
+              }
+              router.push(listingRoute(item.id));
+            }}
             onFavoriteToggle={() => {
               favoriteMutation.mutate({ listingId: item.id, isFavorite: !item.is_favorite });
             }}

@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
 
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 
 import { markNotificationRead, registerPushToken } from "../services/notification.service";
 import {
@@ -42,6 +43,14 @@ export function useNotificationObserver(canNavigateToListing: boolean) {
 
       handledIntentKeys.current.add(intent.key);
       pendingIntent.current = null;
+
+      if (intent.notificationId) {
+        trackProductEventNonBlocking(
+          "notification_opened",
+          { notificationId: intent.notificationId },
+          `notification-opened:${intent.notificationId}`,
+        );
+      }
 
       if (user && intent.notificationId) {
         void markNotificationRead(intent.notificationId).catch((error: unknown) => {
