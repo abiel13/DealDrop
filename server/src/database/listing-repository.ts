@@ -7,6 +7,7 @@ import {
 } from "../notifications/delivery";
 import { deduplicateIngestionListings } from "./listing-ingestion";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
+import { isMarketplaceProductMetadata } from "../listings/relevance";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import type {
   MarketplaceWatchlist,
@@ -53,6 +54,7 @@ export interface StoredListing {
   posted_at: string | null;
   fetched_at: string;
   raw_data: Record<string, unknown>;
+  normalized_data: Record<string, unknown>;
 }
 
 export type StoredListingReference = Pick<StoredListing, "id" | "marketplace_id" | "external_id">;
@@ -115,6 +117,7 @@ export class ListingRepository {
       fetched_at: observedAt,
       last_seen_at: observedAt,
       is_active: true,
+      normalized_data: listing.product ?? {},
       raw_data: {
         ...(listing.metadata ?? {}),
         imageUrls: listing.imageUrls,
@@ -186,7 +189,7 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("listings")
       .select(
-        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data",
+        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data,normalized_data",
       )
       .in("marketplace_id", uniqueSources)
       .eq("is_active", true)
@@ -319,6 +322,9 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     latitude: stored.latitude,
     longitude: stored.longitude,
     postedAt: stored.posted_at,
+    ...(isMarketplaceProductMetadata(stored.normalized_data)
+      ? { product: stored.normalized_data }
+      : {}),
     metadata: stored.raw_data,
   };
 }

@@ -41,11 +41,6 @@ test("catalog exposes known marketplace capabilities and enabled status", () => 
       enabled: false,
       capabilities: null,
     },
-    {
-      source: MARKETPLACE_IDS.stockx,
-      enabled: false,
-      capabilities: null,
-    },
   ]);
   assert.deepEqual(getEnabledMarketplaceSources({ [MARKETPLACE_IDS.ebay]: ebayAdapter }), [
     MARKETPLACE_IDS.ebay,

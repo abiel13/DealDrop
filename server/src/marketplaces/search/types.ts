@@ -6,6 +6,7 @@ import type {
   MarketplaceSource,
 } from "../shared/types";
 import type { MarketplaceDuplicateGroup } from "../../listings/deduplication";
+import type { DealDropSearchIntent } from "../../listings/relevance";
 
 export type MarketplaceSearchSourceSelection = MarketplaceSource[] | "all";
 
@@ -21,6 +22,8 @@ export interface MarketplaceSearchPartialFailure {
 
 export interface MarketplaceSearchCoordinatorResponse {
   listings: MarketplaceListing[];
+  intent: DealDropSearchIntent;
+  filteredCount: number;
   pagination: MarketplacePagination;
   sources: MarketplaceSource[];
   partialFailures: MarketplaceSearchPartialFailure[];

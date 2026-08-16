@@ -89,6 +89,15 @@ export function ListingCard({
             {listing.title}
           </AppText>
 
+          {listing.relevance && listing.relevance.reasons.length > 0 && (
+            <AppText variant="caption" className="text-primary" numberOfLines={2}>
+              {listing.relevance.confidence === "high"
+                ? "High-confidence match · "
+                : "Likely match · "}
+              {listing.relevance.reasons.slice(0, 2).join(" · ")}
+            </AppText>
+          )}
+
           {listing.location && (
             <View className="flex-row items-center gap-1.5">
               <AppIcon name="place" size={15} color={theme.colors.textSecondary} />

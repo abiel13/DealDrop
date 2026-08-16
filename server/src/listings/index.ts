@@ -6,3 +6,5 @@ export type {
   MarketplaceDuplicateGroup,
   MarketplaceListingReference,
 } from "./deduplication";
+
+export * from "./relevance";

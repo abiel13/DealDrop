@@ -136,6 +136,10 @@ function sortListings(listings: Listing[], sort: ListingSort) {
   });
 }
 
+function formatIntentValue(value: string | null) {
+  return value ? value.replace(/\b\w/g, (letter) => letter.toUpperCase()) : null;
+}
+
 export function ListingFeedScreen() {
   const theme = useTheme();
   const { user } = useAuth();
@@ -203,6 +207,9 @@ export function ListingFeedScreen() {
         ).values(),
       ]
     : [];
+  const searchIntent = marketplaceSearchQuery.data?.pages[0]?.intent ?? null;
+  const filteredSearchListings =
+    marketplaceSearchQuery.data?.pages.reduce((total, page) => total + page.filteredCount, 0) ?? 0;
   const favoriteMutation = useMutation({
     mutationFn: ({ listingId, isFavorite }: { listingId: string; isFavorite: boolean }) =>
       setListingFavorite(listingId, isFavorite),
@@ -422,6 +429,31 @@ export function ListingFeedScreen() {
               onSubmitEditing={() => setSubmittedSearch(search.trim())}
             />
 
+            {isMarketplaceSearch &&
+              searchIntent &&
+              (searchIntent.category || searchIntent.productType) && (
+                <View className="gap-1 rounded-2xl bg-primary-soft px-4 py-3">
+                  <AppText
+                    variant="caption"
+                    className="font-semibold uppercase tracking-[1px] text-primary"
+                  >
+                    Search intent
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    {[
+                      formatIntentValue(searchIntent.brand),
+                      formatIntentValue(searchIntent.model),
+                      formatIntentValue(searchIntent.productType ?? searchIntent.category),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    {filteredSearchListings > 0
+                      ? ` · ${filteredSearchListings} obvious mismatch${filteredSearchListings === 1 ? "" : "es"} filtered`
+                      : ""}
+                  </AppText>
+                </View>
+              )}
+
             {isMarketplaceSearch && partialFailures.length > 0 && (
               <View className="flex-row items-start gap-3 rounded-2xl bg-primary-soft p-4">
                 <AppIcon name="info" size={19} color={theme.colors.primary} />
@@ -515,7 +547,9 @@ export function ListingFeedScreen() {
               }
               description={
                 isMarketplaceSearch
-                  ? "Try another search to find more listings."
+                  ? filteredSearchListings > 0
+                    ? "The available listings did not confidently match this product. Try broadening or refining your search."
+                    : "Try another search to find more listings."
                   : search || filter !== "all"
                     ? "Try changing your search or filter."
                     : "Run your marketplace worker after creating a watchlist to populate this feed."

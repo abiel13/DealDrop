@@ -36,6 +36,8 @@ function toListing(
     match_id: match?.id ?? null,
     match_status: match?.status ?? null,
     feedback: match?.feedback ?? null,
+    product: listing.product,
+    relevance: listing.relevance,
   };
 }
 
@@ -87,6 +89,8 @@ export async function searchListings(
     listings,
     sources: response.data.sources,
     partialFailures: response.data.partialFailures,
+    intent: response.data.intent,
+    filteredCount: response.data.filteredCount,
     pagination: response.data.pagination,
   };
 }
