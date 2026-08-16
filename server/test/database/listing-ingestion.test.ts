@@ -61,14 +61,14 @@ test("ingestion deduplicates repeated source identities before persistence", asy
 test("repository upsert preserves normalized values, null currency, raw metadata, and fetch time", async () => {
   let upsertedRows: unknown;
   let upsertOptions: unknown;
-  const query = {
+  const listingQuery = {
     upsert(rows: unknown, options: unknown) {
       upsertedRows = rows;
       upsertOptions = options;
-      return query;
+      return listingQuery;
     },
     select() {
-      return query;
+      return listingQuery;
     },
     returns<T>() {
       return Promise.resolve({
@@ -83,9 +83,14 @@ test("repository upsert preserves normalized values, null currency, raw metadata
       });
     },
   };
+  const observationQuery = {
+    upsert() {
+      return observationQuery;
+    },
+  };
   const client = {
-    from() {
-      return query;
+    from(table: string) {
+      return table === "listings" ? listingQuery : observationQuery;
     },
   } as unknown as SupabaseClient;
   const repository = new ListingRepository(client);
@@ -129,6 +134,66 @@ test("repository upsert preserves normalized values, null currency, raw metadata
   assert.deepEqual(upsertOptions, {
     onConflict: "marketplace_id,external_id",
     ignoreDuplicates: false,
+  });
+});
+
+test("repository stores one same-timestamp normalized price observation identity", async () => {
+  const observationBatches: unknown[] = [];
+  let listingUpsertCount = 0;
+  const listingQuery = {
+    upsert() {
+      listingUpsertCount += 1;
+      return listingQuery;
+    },
+    select() {
+      return listingQuery;
+    },
+    returns<T>() {
+      return Promise.resolve({
+        data: [
+          {
+            id: "stored-1",
+            marketplace_id: MARKETPLACE_IDS.ebay,
+            external_id: "item-1",
+          },
+        ] as T[],
+        error: null,
+      });
+    },
+  };
+  const observationQuery = {
+    upsert(rows: unknown, options: unknown) {
+      observationBatches.push({ rows, options });
+      return observationQuery;
+    },
+  };
+  const client = {
+    from(table: string) {
+      return table === "listings" ? listingQuery : observationQuery;
+    },
+  } as unknown as SupabaseClient;
+  const repository = new ListingRepository(client);
+  const observedAt = "2026-08-14T12:00:00.000Z";
+
+  await repository.upsertListings([listing(MARKETPLACE_IDS.ebay, "item-1")], observedAt);
+  await repository.upsertListings([listing(MARKETPLACE_IDS.ebay, "item-1")], observedAt);
+
+  assert.equal(listingUpsertCount, 2);
+  assert.equal(observationBatches.length, 2);
+  assert.deepEqual(observationBatches[0], observationBatches[1]);
+  assert.deepEqual(observationBatches[0], {
+    rows: [
+      {
+        listing_id: "stored-1",
+        observed_at: observedAt,
+        price: 20,
+        currency: "USD",
+      },
+    ],
+    options: {
+      onConflict: "listing_id,observed_at,price,currency",
+      ignoreDuplicates: true,
+    },
   });
 });
 

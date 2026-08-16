@@ -64,8 +64,33 @@ export interface ApiListing {
   fetchedAt: string | null;
   matchedAt: string | null;
   isFavorite: boolean;
+  priceHistory: ApiPriceHistorySummary | null;
+  priceTarget: ApiPriceTarget | null;
   product: ApiProductMetadata | null;
   relevance: ApiListingRelevance | null;
+}
+
+export type ApiPriceHistoryStatus = "available" | "insufficient_history" | "unavailable";
+export type ApiDealIndicator = "below_history" | "typical" | "above_history";
+
+export interface ApiPriceHistorySummary {
+  status: ApiPriceHistoryStatus;
+  observationCount: number;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  averagePrice: number | null;
+  currency: string | null;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  dealIndicator: ApiDealIndicator | null;
+  explanation: string;
+}
+
+export interface ApiPriceTarget {
+  price: number;
+  currency: string | null;
+  difference: number | null;
+  sameCurrency: boolean;
 }
 
 export type ApiProductCategory =

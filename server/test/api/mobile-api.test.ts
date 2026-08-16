@@ -177,7 +177,29 @@ test("listing details and notification routes remain user-scoped", async () => {
   const repository = createRepository({
     getListingForUser: async (userId) => {
       listingUsers.push(userId);
-      return { listing: rawListing(), matchedAt: null, isFavorite: true };
+      return {
+        listing: rawListing(),
+        matchedAt: null,
+        isFavorite: true,
+        priceHistory: {
+          status: "available",
+          observationCount: 3,
+          lowestPrice: 80,
+          highestPrice: 120,
+          averagePrice: 100,
+          currency: "USD",
+          firstObservedAt: "2026-08-07T00:00:00.000Z",
+          lastObservedAt: "2026-08-09T00:01:00.000Z",
+          dealIndicator: "below_history",
+          explanation: "The current price is below recent history.",
+        },
+        priceTarget: {
+          price: 125,
+          currency: "USD",
+          difference: -25,
+          sameCurrency: true,
+        },
+      };
     },
     getNotifications: async (userId) => {
       notificationUsers.push(userId);
@@ -200,7 +222,13 @@ test("listing details and notification routes remain user-scoped", async () => {
       }),
     ]);
     const listingBody = (await listingResponse.json()) as {
-      data: { id: string; isFavorite: boolean; source: string };
+      data: {
+        id: string;
+        isFavorite: boolean;
+        source: string;
+        priceHistory: { status: string; lowestPrice: number };
+        priceTarget: { price: number; difference: number };
+      };
     };
     const notificationBody = (await notificationResponse.json()) as {
       data: Array<{ id: string; matchId: string }>;
@@ -210,6 +238,10 @@ test("listing details and notification routes remain user-scoped", async () => {
     assert.equal(listingBody.data.id, LISTING_ID);
     assert.equal(listingBody.data.isFavorite, true);
     assert.equal(listingBody.data.source, MARKETPLACE_IDS.ebay);
+    assert.equal(listingBody.data.priceHistory.status, "available");
+    assert.equal(listingBody.data.priceHistory.lowestPrice, 80);
+    assert.equal(listingBody.data.priceTarget.price, 125);
+    assert.equal(listingBody.data.priceTarget.difference, -25);
     assert.equal(notificationResponse.status, 200);
     assert.equal(notificationBody.data[0]?.id, NOTIFICATION_ID);
     assert.deepEqual(listingUsers, [USER_ID]);

@@ -30,6 +30,8 @@ function toListing(
     fetched_at: listing.fetchedAt,
     matched_at: matchedAt,
     is_favorite: listing.isFavorite,
+    price_history: listing.priceHistory,
+    price_target: listing.priceTarget,
     product: listing.product,
     relevance: listing.relevance,
   };

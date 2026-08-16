@@ -1,6 +1,8 @@
 import type {
   ApiListingRelevance,
   ApiProductMetadata,
+  ApiPriceHistorySummary,
+  ApiPriceTarget,
   ApiSearchIntent,
   ApiSearchPartialFailure,
   MarketplaceSource,
@@ -30,6 +32,8 @@ export interface Listing {
   fetched_at: string | null;
   matched_at: string | null;
   is_favorite: boolean;
+  price_history: ApiPriceHistorySummary | null;
+  price_target: ApiPriceTarget | null;
   product: ApiProductMetadata | null;
   relevance: ApiListingRelevance | null;
 }

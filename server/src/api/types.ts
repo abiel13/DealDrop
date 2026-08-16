@@ -9,6 +9,7 @@ import type {
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
 import type { DealDropSearchIntent } from "../listings/relevance";
+import type { DealIndicator, PriceHistoryStatus } from "../pricing/price-history";
 import type {
   WatchlistAlertMode,
   WatchlistFilters,
@@ -51,8 +52,30 @@ export interface ApiListing {
   fetchedAt: string | null;
   matchedAt: string | null;
   isFavorite: boolean;
+  priceHistory: ApiPriceHistorySummary | null;
+  priceTarget: ApiPriceTarget | null;
   product: MarketplaceProductMetadata | null;
   relevance: MarketplaceListingRelevance | null;
+}
+
+export interface ApiPriceHistorySummary {
+  status: PriceHistoryStatus;
+  observationCount: number;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  averagePrice: number | null;
+  currency: string | null;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  dealIndicator: DealIndicator | null;
+  explanation: string;
+}
+
+export interface ApiPriceTarget {
+  price: number;
+  currency: string | null;
+  difference: number | null;
+  sameCurrency: boolean;
 }
 
 export interface ApiMarketplace {
@@ -206,7 +229,13 @@ export interface RawApiNotification {
 
 export function toApiListing(
   listing: MarketplaceListing | RawApiListing,
-  options: { id?: string | null; matchedAt?: string | null; isFavorite?: boolean } = {},
+  options: {
+    id?: string | null;
+    matchedAt?: string | null;
+    isFavorite?: boolean;
+    priceHistory?: ApiPriceHistorySummary | null;
+    priceTarget?: ApiPriceTarget | null;
+  } = {},
 ): ApiListing {
   const isNormalized = "externalId" in listing;
 
@@ -232,6 +261,8 @@ export function toApiListing(
     fetchedAt: isNormalized ? null : listing.fetched_at,
     matchedAt: options.matchedAt ?? null,
     isFavorite: options.isFavorite ?? false,
+    priceHistory: options.priceHistory ?? null,
+    priceTarget: options.priceTarget ?? null,
     product: isNormalized
       ? (listing.product ?? null)
       : isMarketplaceProductMetadata(listing.normalized_data)
