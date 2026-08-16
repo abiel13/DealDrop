@@ -25,12 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
 import { deleteAccount, getOrCreateProfile, updateProfileName } from "../services/profile.service";
-
-const accountLinks = {
-  privacy: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? "https://dealdrop.app/privacy",
-  terms: process.env.EXPO_PUBLIC_TERMS_URL ?? "https://dealdrop.app/terms",
-  support: process.env.EXPO_PUBLIC_SUPPORT_URL ?? "mailto:support@dealdrop.app",
-};
+import { getAccountLinks } from "../utils/legal-links";
 
 function ProfileSkeleton() {
   return (
@@ -66,6 +61,7 @@ export function ProfileScreen() {
   const { user } = useAuth();
   const premium = usePremium();
   const theme = useTheme();
+  const accountLinks = getAccountLinks();
   const [editedName, setEditedName] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -333,26 +329,34 @@ export function ProfileScreen() {
           <ThemeRow />
         </AccountSection>
 
-        <AccountSection title="Support & legal">
-          <AccountRow
-            icon="lock"
-            title="Privacy policy"
-            onPress={() => void openLink(accountLinks.privacy)}
-          />
-          <Divider />
-          <AccountRow
-            icon="info"
-            title="Terms of service"
-            onPress={() => void openLink(accountLinks.terms)}
-          />
-          <Divider />
-          <AccountRow
-            icon="mail"
-            title="Support"
-            subtitle="Get help with your account"
-            onPress={() => void openLink(accountLinks.support)}
-          />
-        </AccountSection>
+        {(accountLinks.privacy || accountLinks.terms || accountLinks.support) && (
+          <AccountSection title="Support & legal">
+            {accountLinks.privacy && (
+              <AccountRow
+                icon="lock"
+                title="Privacy policy"
+                onPress={() => void openLink(accountLinks.privacy!)}
+              />
+            )}
+            {accountLinks.privacy && accountLinks.terms && <Divider />}
+            {accountLinks.terms && (
+              <AccountRow
+                icon="info"
+                title="Terms of service"
+                onPress={() => void openLink(accountLinks.terms!)}
+              />
+            )}
+            {(accountLinks.privacy || accountLinks.terms) && accountLinks.support && <Divider />}
+            {accountLinks.support && (
+              <AccountRow
+                icon="mail"
+                title="Support"
+                subtitle="Get help with your account"
+                onPress={() => void openLink(accountLinks.support!)}
+              />
+            )}
+          </AccountSection>
+        )}
 
         <View className="gap-3">
           <SectionHeading title="Account" />
