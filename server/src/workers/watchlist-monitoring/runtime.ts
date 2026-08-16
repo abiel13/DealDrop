@@ -2,8 +2,6 @@ import { createEbayMarketplaceAdapter } from "../../marketplaces/ebay/adapter";
 import { loadEbayMarketplaceConfig } from "../../marketplaces/ebay/config";
 import { createEtsyMarketplaceAdapter } from "../../marketplaces/etsy/adapter";
 import { loadEtsyMarketplaceConfig } from "../../marketplaces/etsy/config";
-import { createStockXMarketplaceAdapter } from "../../marketplaces/stockx/adapter";
-import { loadStockXMarketplaceConfig } from "../../marketplaces/stockx/config";
 import { createRakutenMarketplaceAdapter } from "../../marketplaces/rakuten/adapter";
 import { loadRakutenMarketplaceConfig } from "../../marketplaces/rakuten/config";
 import {
@@ -53,18 +51,6 @@ export async function createWatchlistMonitoringRuntime(
       logger.warn("Etsy monitoring adapter disabled", {
         error: error instanceof Error ? error.message : String(error),
         source: MARKETPLACE_IDS.etsy,
-      });
-    }
-  }
-
-  if (config.enabledSources.includes(MARKETPLACE_IDS.stockx)) {
-    try {
-      const stockXConfig = loadStockXMarketplaceConfig(env);
-      adapters[MARKETPLACE_IDS.stockx] = createStockXMarketplaceAdapter(stockXConfig, logger);
-    } catch (error) {
-      logger.warn("StockX monitoring adapter disabled", {
-        error: error instanceof Error ? error.message : String(error),
-        source: MARKETPLACE_IDS.stockx,
       });
     }
   }
