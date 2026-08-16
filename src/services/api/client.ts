@@ -104,11 +104,26 @@ export class DealDropApiClient {
     });
   }
 
-  async getMatches(watchlistId?: string) {
-    const path = watchlistId
+  async getMatches(watchlistId?: string, includeDismissed = false) {
+    const basePath = watchlistId
       ? `/watchlists/${encodeURIComponent(watchlistId)}/matches`
       : "/matches";
+    const path = includeDismissed ? `${basePath}?includeDismissed=true` : basePath;
     return this.request<ApiMatch[]>(path);
+  }
+
+  async setMatchStatus(matchId: string, status: ApiMatch["status"]) {
+    return this.request<{ updated: boolean }>(`/matches/${encodeURIComponent(matchId)}/status`, {
+      method: "PATCH",
+      body: { status },
+    });
+  }
+
+  async setMatchFeedback(matchId: string, feedback: ApiMatch["feedback"]) {
+    return this.request<{ updated: boolean }>(`/matches/${encodeURIComponent(matchId)}/feedback`, {
+      method: "PATCH",
+      body: { feedback },
+    });
   }
 
   async getNotifications() {

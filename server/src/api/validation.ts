@@ -126,11 +126,44 @@ export const updateWatchlistSchema = z
     marketplaceIds: watchlistPayloadShape.marketplaceIds,
     isActive: watchlistPayloadShape.isActive,
     isFavorite: watchlistPayloadShape.isFavorite,
+    lifecycleState: z.enum(["active", "paused", "snoozed", "completed"]).optional(),
+    snoozedUntil: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, "At least one watchlist field is required.");
+  .refine((value) => Object.keys(value).length > 0, "At least one watchlist field is required.")
+  .superRefine((value, context) => {
+    if (value.lifecycleState === "snoozed") {
+      if (!value.snoozedUntil) {
+        context.addIssue({
+          code: "custom",
+          message: "snoozedUntil is required when a watchlist is snoozed.",
+          path: ["snoozedUntil"],
+        });
+      } else if (new Date(value.snoozedUntil).getTime() <= Date.now()) {
+        context.addIssue({
+          code: "custom",
+          message: "snoozedUntil must be in the future.",
+          path: ["snoozedUntil"],
+        });
+      }
+    } else if (value.snoozedUntil !== undefined && value.snoozedUntil !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "snoozedUntil can only be set for a snoozed watchlist.",
+        path: ["snoozedUntil"],
+      });
+    }
+  });
 
 export const favoriteSchema = z.object({ isFavorite: z.boolean() }).strict();
+
+export const matchStatusSchema = z
+  .object({ status: z.enum(["unread", "read", "dismissed"]) })
+  .strict();
+
+export const matchFeedbackSchema = z
+  .object({ feedback: z.enum(["relevant", "not_relevant"]).nullable() })
+  .strict();
 
 export const notificationPreferencesSchema = z
   .object({

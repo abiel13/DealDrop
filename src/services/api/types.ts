@@ -2,6 +2,7 @@ export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
 
 export type WatchlistMarketplaceScope = "selected" | "all";
 export type WatchlistAlertMode = "instant" | "digest";
+export type WatchlistLifecycleState = "active" | "paused" | "snoozed" | "completed";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -208,6 +209,9 @@ export interface ApiWatchlist {
   marketplaceIds: MarketplaceSource[];
   isActive: boolean;
   isFavorite: boolean;
+  lifecycleState: WatchlistLifecycleState;
+  snoozedUntil: string | null;
+  completedAt: string | null;
   lastCheckedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -222,11 +226,14 @@ export interface ApiWatchlistInput {
   marketplaceIds?: MarketplaceSource[];
   isActive?: boolean;
   isFavorite?: boolean;
+  lifecycleState?: WatchlistLifecycleState;
+  snoozedUntil?: string | null;
 }
 
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";
+  feedback: "relevant" | "not_relevant" | null;
   matchedAt: string;
   watchlist: Pick<ApiWatchlist, "id" | "name">;
   listing: ApiListing;

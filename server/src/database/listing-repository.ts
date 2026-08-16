@@ -12,6 +12,7 @@ import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/
 import type {
   MarketplaceWatchlist,
   WatchlistFilters,
+  WatchlistLifecycleState,
   WatchlistMarketplaceScope,
 } from "../types/backend";
 import {
@@ -28,6 +29,9 @@ interface StoredWatchlist {
   alert_mode: "instant" | "digest";
   marketplace_id: string;
   marketplace_scope: WatchlistMarketplaceScope;
+  lifecycle_state?: WatchlistLifecycleState;
+  snoozed_until?: string | null;
+  completed_at?: string | null;
   watchlist_marketplaces?: Array<{ marketplace_id: string }>;
 }
 
@@ -203,6 +207,10 @@ export class ListingRepository {
     listings: MarketplaceListing[],
     storedListings: StoredListingReference[],
   ) {
+    if (!isWatchlistMonitorable(watchlist)) {
+      return 0;
+    }
+
     const listingIdsByIdentity = new Map(
       storedListings.map((listing) => [
         listingIdentity(listing.marketplace_id, listing.external_id),
@@ -258,9 +266,8 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("watchlists")
       .select(
-        "id,user_id,search_query,filters,alert_mode,marketplace_id,marketplace_scope,watchlist_marketplaces(marketplace_id)",
+        "id,user_id,search_query,filters,alert_mode,marketplace_id,marketplace_scope,lifecycle_state,snoozed_until,completed_at,watchlist_marketplaces(marketplace_id)",
       )
-      .eq("is_active", true)
       .order("updated_at", { ascending: true })
       .returns<StoredWatchlist[]>();
 
@@ -268,8 +275,34 @@ export class ListingRepository {
       throw error;
     }
 
-    return data ?? [];
+    return (data ?? []).filter((watchlist) => isStoredWatchlistMonitorable(watchlist));
   }
+}
+
+export function isWatchlistMonitorable(
+  watchlist: Pick<MarketplaceWatchlist, "lifecycleState" | "snoozedUntil">,
+  now = new Date(),
+) {
+  if (watchlist.lifecycleState === "paused" || watchlist.lifecycleState === "completed") {
+    return false;
+  }
+
+  if (watchlist.lifecycleState === "snoozed") {
+    const snoozedUntil = watchlist.snoozedUntil ? new Date(watchlist.snoozedUntil) : null;
+    return Boolean(snoozedUntil && Number.isFinite(snoozedUntil.getTime()) && snoozedUntil <= now);
+  }
+
+  return true;
+}
+
+function isStoredWatchlistMonitorable(watchlist: StoredWatchlist, now = new Date()) {
+  return isWatchlistMonitorable(
+    {
+      lifecycleState: watchlist.lifecycle_state ?? (watchlist.snoozed_until ? "snoozed" : "active"),
+      snoozedUntil: watchlist.snoozed_until ?? null,
+    },
+    now,
+  );
 }
 
 function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
@@ -319,6 +352,9 @@ function toMarketplaceWatchlist(
     alertMode: stored.alert_mode ?? "instant",
     marketplaceScope,
     marketplaceIds: marketplaceScope === "all" ? available : selectedMarketplaceIds,
+    lifecycleState: stored.lifecycle_state ?? "active",
+    snoozedUntil: stored.snoozed_until ?? null,
+    completedAt: stored.completed_at ?? null,
   };
 }
 

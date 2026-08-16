@@ -245,6 +245,9 @@ function createWatchlist(
     alertMode: "instant",
     marketplaceScope: "selected",
     marketplaceIds,
+    lifecycleState: "active",
+    snoozedUntil: null,
+    completedAt: null,
     ...overrides,
   };
 }

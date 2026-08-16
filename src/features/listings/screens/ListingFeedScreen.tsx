@@ -32,6 +32,8 @@ import {
   getListingErrorMessage,
   getMatchedListings,
   searchListings,
+  setMatchFeedback,
+  setMatchStatus,
   setListingFavorite,
 } from "../services/listing.service";
 import type {
@@ -148,12 +150,13 @@ export function ListingFeedScreen() {
   const [filter, setFilter] = useState<ListingFilter>("all");
   const [operationError, setOperationError] = useState<string | null>(null);
   const userId = user?.id ?? "";
-  const matchedListingsQueryKey = ["matched-listings", userId] as const;
+  const showingDismissed = !submittedSearch && filter === "dismissed";
+  const matchedListingsQueryKey = ["matched-listings", userId, showingDismissed] as const;
   const marketplaceSearchQueryKey = ["marketplace-search-pages", userId, submittedSearch] as const;
 
   const listingsQuery = useQuery({
     queryKey: matchedListingsQueryKey,
-    queryFn: getMatchedListings,
+    queryFn: () => getMatchedListings({ includeDismissed: showingDismissed }),
     enabled: Boolean(userId),
   });
   const marketplaceSearchQuery = useInfiniteQuery({
@@ -260,6 +263,30 @@ export function ListingFeedScreen() {
     },
   });
 
+  const matchActionMutation = useMutation({
+    mutationFn: ({
+      matchId,
+      action,
+    }: {
+      matchId: string;
+      action:
+        | { type: "feedback"; value: "relevant" | "not_relevant" }
+        | { type: "status"; value: "unread" | "dismissed" };
+    }) =>
+      action.type === "feedback"
+        ? setMatchFeedback(matchId, action.value)
+        : setMatchStatus(matchId, action.value),
+    onMutate: () => {
+      setOperationError(null);
+    },
+    onError: () => {
+      setOperationError("We couldn't update that match. Please try again.");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["matched-listings", userId] });
+    },
+  });
+
   const visibleListings = useMemo(() => {
     const activeListings = isMarketplaceSearch
       ? marketplaceSearchListings
@@ -270,6 +297,10 @@ export function ListingFeedScreen() {
       }
 
       if (filter === "favorites" && !listing.is_favorite) {
+        return false;
+      }
+
+      if (filter === "dismissed" && listing.match_status !== "dismissed") {
         return false;
       }
 
@@ -476,6 +507,13 @@ export function ListingFeedScreen() {
                   selected={filter === "with_images"}
                   onPress={() => setFilter("with_images")}
                 />
+                {!isMarketplaceSearch && (
+                  <OptionPill
+                    label="Dismissed"
+                    selected={filter === "dismissed"}
+                    onPress={() => setFilter("dismissed")}
+                  />
+                )}
                 <View className="mx-1 h-10 w-px bg-background-muted" />
                 <OptionPill
                   label="Newest"
@@ -521,11 +559,38 @@ export function ListingFeedScreen() {
         renderItem={({ item }) => (
           <ListingCard
             listing={item}
-            disabled={favoriteMutation.isPending}
+            disabled={favoriteMutation.isPending || matchActionMutation.isPending}
             onPress={() => router.push(listingRoute(item.id))}
             onFavoriteToggle={() => {
               favoriteMutation.mutate({ listingId: item.id, isFavorite: !item.is_favorite });
             }}
+            onFeedback={
+              item.match_id
+                ? (feedback) =>
+                    matchActionMutation.mutate({
+                      matchId: item.match_id as string,
+                      action: { type: "feedback", value: feedback },
+                    })
+                : undefined
+            }
+            onDismiss={
+              item.match_id && item.match_status !== "dismissed"
+                ? () =>
+                    matchActionMutation.mutate({
+                      matchId: item.match_id as string,
+                      action: { type: "status", value: "dismissed" },
+                    })
+                : undefined
+            }
+            onUndoDismiss={
+              item.match_id && item.match_status === "dismissed"
+                ? () =>
+                    matchActionMutation.mutate({
+                      matchId: item.match_id as string,
+                      action: { type: "status", value: "unread" },
+                    })
+                : undefined
+            }
           />
         )}
       />

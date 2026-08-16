@@ -15,7 +15,10 @@ interface WatchlistCardProps {
   onDelete: () => void;
   onEdit: () => void;
   onFavoriteToggle: () => void;
-  onPauseToggle: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onSnooze: () => void;
+  onComplete: () => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -96,36 +99,58 @@ function formatWatchlistMarketplaces(watchlist: Watchlist) {
     : "Marketplace unavailable";
 }
 
+function getLifecycleState(watchlist: Watchlist) {
+  return watchlist.lifecycle_state ?? (watchlist.is_active ? "active" : "paused");
+}
+
+function getLifecycleLabel(watchlist: Watchlist) {
+  const state = getLifecycleState(watchlist);
+  if (state === "snoozed" && watchlist.snoozed_until) {
+    const until = new Date(watchlist.snoozed_until);
+    if (Number.isFinite(until.getTime())) {
+      return `Snoozed until ${until.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    }
+  }
+
+  return state[0].toUpperCase() + state.slice(1);
+}
+
 export function WatchlistCard({
   watchlist,
   disabled = false,
   onDelete,
   onEdit,
   onFavoriteToggle,
-  onPauseToggle,
+  onPause,
+  onResume,
+  onSnooze,
+  onComplete,
 }: WatchlistCardProps) {
   const theme = useTheme();
+  const lifecycleState = getLifecycleState(watchlist);
+  const isActive = lifecycleState === "active";
+  const isCompleted = lifecycleState === "completed";
 
   const filterSummary = getFilterSummary(watchlist.filters);
 
   return (
     <Card padding="none" className="overflow-hidden">
-      <View className={watchlist.is_active ? "bg-primary-soft p-4" : "bg-background-muted p-4"}>
+      <View className={isActive ? "bg-primary-soft p-4" : "bg-background-muted p-4"}>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-2">
             <View className="flex-row items-center gap-2">
               <View
                 className={`h-2.5 w-2.5 rounded-full ${
-                  watchlist.is_active ? "bg-success" : "bg-text-tertiary"
+                  isActive ? "bg-success" : "bg-text-tertiary"
                 }`}
               />
               <AppText
                 variant="caption"
                 className={`font-semibold uppercase tracking-[1.5px] ${
-                  watchlist.is_active ? "text-success" : "text-text-secondary"
+                  isActive ? "text-success" : "text-text-secondary"
                 }`}
               >
-                {watchlist.is_active ? "Active" : "Paused"}
+                {getLifecycleLabel(watchlist)}
               </AppText>
             </View>
             <AppText variant="title" numberOfLines={2}>
@@ -179,7 +204,7 @@ export function WatchlistCard({
           <AppText variant="caption">{formatLastChecked(watchlist.last_checked_at)}</AppText>
         </View>
 
-        <View className="flex-row gap-2">
+        <View className="flex-row flex-wrap gap-2">
           <Button
             disabled={disabled}
             size="sm"
@@ -189,15 +214,24 @@ export function WatchlistCard({
           >
             Edit
           </Button>
+          {!isCompleted && (
+            <Button disabled={disabled} size="sm" variant="secondary" onPress={onSnooze}>
+              Snooze
+            </Button>
+          )}
           <Button
             disabled={disabled}
             size="sm"
             variant="secondary"
-            className="flex-1"
-            onPress={onPauseToggle}
+            onPress={isActive ? onPause : onResume}
           >
-            {watchlist.is_active ? "Pause" : "Resume"}
+            {isActive ? "Pause" : "Resume"}
           </Button>
+          {!isCompleted && (
+            <Button disabled={disabled} size="sm" variant="secondary" onPress={onComplete}>
+              Complete
+            </Button>
+          )}
           <Button
             disabled={disabled}
             size="sm"

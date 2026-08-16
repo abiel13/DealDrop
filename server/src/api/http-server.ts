@@ -15,6 +15,8 @@ import {
   createWatchlistSchema,
   updateWatchlistSchema,
   favoriteSchema,
+  matchStatusSchema,
+  matchFeedbackSchema,
   notificationPreferencesSchema,
   pushTokenSchema,
   searchBodySchema,
@@ -285,6 +287,7 @@ async function routeProtectedRequest(
       resourceId,
       decodeApiCursor(url.searchParams.get("cursor")),
       limit,
+      url.searchParams.get("includeDismissed") === "true",
     );
     sendSuccess(response, requestId, page.items, page.pagination);
     return;
@@ -317,8 +320,35 @@ async function routeProtectedRequest(
       null,
       decodeApiCursor(url.searchParams.get("cursor")),
       limit,
+      url.searchParams.get("includeDismissed") === "true",
     );
     sendSuccess(response, requestId, page.items, page.pagination);
+    return;
+  }
+
+  if (
+    resource === "matches" &&
+    resourceId &&
+    action === "status" &&
+    (method === "PATCH" || method === "PUT")
+  ) {
+    assertResourceId(resourceId);
+    const input = parseBody(matchStatusSchema, await readJsonBody(request));
+    await api.setMatchStatus(userId, resourceId, input.status);
+    sendSuccess(response, requestId, { updated: true });
+    return;
+  }
+
+  if (
+    resource === "matches" &&
+    resourceId &&
+    action === "feedback" &&
+    (method === "PATCH" || method === "PUT")
+  ) {
+    assertResourceId(resourceId);
+    const input = parseBody(matchFeedbackSchema, await readJsonBody(request));
+    await api.setMatchFeedback(userId, resourceId, input.feedback);
+    sendSuccess(response, requestId, { updated: true });
     return;
   }
 

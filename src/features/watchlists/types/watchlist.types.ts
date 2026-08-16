@@ -1,4 +1,9 @@
-import type { ApiSearchFilters, MarketplaceSource, WatchlistAlertMode } from "@/services/api";
+import type {
+  ApiSearchFilters,
+  MarketplaceSource,
+  WatchlistAlertMode,
+  WatchlistLifecycleState,
+} from "@/services/api";
 
 export type WatchlistFilters = ApiSearchFilters;
 
@@ -14,6 +19,9 @@ export interface Watchlist {
   alert_mode: WatchlistAlertMode;
   is_active: boolean;
   is_favorite: boolean;
+  lifecycle_state: WatchlistLifecycleState;
+  snoozed_until: string | null;
+  completed_at: string | null;
   last_checked_at: string | null;
   created_at: string;
   updated_at: string;

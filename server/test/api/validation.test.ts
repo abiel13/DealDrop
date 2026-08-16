@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   notificationPreferencesSchema,
   parseBody,
+  updateWatchlistSchema,
   watchlistFiltersSchema,
 } from "../../src/api/validation";
 
@@ -73,6 +74,24 @@ test("rejects invalid quiet hours and timezones", () => {
         quietHoursEnd: "22:00",
         timezone: "Not/A_Timezone",
         dailyAlertLimit: 10,
+      }),
+    /request body is invalid/i,
+  );
+});
+
+test("requires a future time when snoozing a watchlist", () => {
+  const snoozedUntil = new Date(Date.now() + 60_000).toISOString();
+  const parsed = parseBody(updateWatchlistSchema, {
+    lifecycleState: "snoozed",
+    snoozedUntil,
+  });
+
+  assert.deepEqual(parsed, { lifecycleState: "snoozed", snoozedUntil });
+  assert.throws(
+    () =>
+      parseBody(updateWatchlistSchema, {
+        lifecycleState: "snoozed",
+        snoozedUntil: new Date(Date.now() - 60_000).toISOString(),
       }),
     /request body is invalid/i,
   );

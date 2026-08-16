@@ -5,6 +5,7 @@ import type { Listing, ListingSearchResult } from "../types/listing.types";
 function toListing(
   listing: ApiListing,
   matchedAt: string | null = listing.matchedAt,
+  match: Pick<ApiMatch, "id" | "status" | "feedback"> | null = null,
 ): Listing | null {
   if (!listing.id) {
     return null;
@@ -32,17 +33,20 @@ function toListing(
     is_favorite: listing.isFavorite,
     price_history: listing.priceHistory,
     price_target: listing.priceTarget,
+    match_id: match?.id ?? null,
+    match_status: match?.status ?? null,
+    feedback: match?.feedback ?? null,
     product: listing.product,
     relevance: listing.relevance,
   };
 }
 
 function toMatchedListing(match: ApiMatch) {
-  return toListing(match.listing, match.matchedAt);
+  return toListing(match.listing, match.matchedAt, match);
 }
 
-export async function getMatchedListings() {
-  const response = await apiClient.getMatches();
+export async function getMatchedListings(options: { includeDismissed?: boolean } = {}) {
+  const response = await apiClient.getMatches(undefined, options.includeDismissed);
   const uniqueListings = new Map<string, Listing>();
 
   for (const match of response.data) {
@@ -93,6 +97,17 @@ export async function searchListings(
 
 export async function setListingFavorite(listingId: string, isFavorite: boolean) {
   await apiClient.setListingFavorite(listingId, isFavorite);
+}
+
+export async function setMatchStatus(matchId: string, status: "unread" | "read" | "dismissed") {
+  await apiClient.setMatchStatus(matchId, status);
+}
+
+export async function setMatchFeedback(
+  matchId: string,
+  feedback: "relevant" | "not_relevant" | null,
+) {
+  await apiClient.setMatchFeedback(matchId, feedback);
 }
 
 export function getListingErrorMessage() {
