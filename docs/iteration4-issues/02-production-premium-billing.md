@@ -11,6 +11,12 @@ Every authenticated user is currently held behind the RevenueCat premium gate. A
 
 Ensure a new user can reliably start, restore, manage, and continue using the approved access model on real iOS and Android production builds.
 
+## Approved access model
+
+DealDrop is paid-only after a 7-day free trial. There is no free tier. A user without the active `premium` entitlement is shown the RevenueCat paywall; a cancelled or expired subscription removes access after RevenueCat reports that the entitlement is inactive.
+
+If RevenueCat is temporarily unavailable, the app shows a recoverable subscription-check error with retry and log-out actions. It does not silently convert a billing failure into free access.
+
 ## Scope
 
 - Confirm and document the approved access model: paid-only after trial or free tier with premium limits.
@@ -43,6 +49,51 @@ Ensure a new user can reliably start, restore, manage, and continue using the ap
 - Keep RevenueCat configuration in the existing premium service and provider.
 - Do not place RevenueCat secret keys or Supabase service-role credentials in Expo public variables.
 - Store and app-review requirements must be checked before submission.
+
+## Release configuration
+
+The mobile app expects these EAS environment variables in `development`, `preview`, and `production` as needed:
+
+- `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`: the RevenueCat Android app-specific public SDK key.
+- `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`: the RevenueCat iOS app-specific public SDK key.
+- `EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID`: the shared active entitlement identifier; the committed project example uses `premium`, and production must set the value explicitly.
+
+The public RevenueCat SDK keys and entitlement identifier are safe to embed in the client bundle, but RevenueCat secret API keys, Supabase service-role credentials, and store signing credentials must never use `EXPO_PUBLIC_*` variables. Configure the build profiles to use the matching EAS environment, then run:
+
+```bash
+npm run verify:premium-config
+eas env:list --environment production
+eas build --platform ios --profile production
+eas build --platform android --profile production
+```
+
+Before building, configure RevenueCat with:
+
+- iOS app bundle ID `com.abiel13.DealDrop` and Android package ID `com.abiel13.DealDrop`.
+- An entitlement matching `EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID`.
+- A current offering with at least one product connected to both stores.
+- The 7-day introductory trial, renewal period, localized prices, cancellation copy, and legal links required for each store.
+- Customer Center management and restore behavior for the active entitlement.
+
+Prices, product identifiers, renewal periods, and localized legal copy remain in RevenueCat and App Store Connect/Google Play configuration. They are intentionally not duplicated in the mobile bundle.
+
+## Billing verification matrix
+
+Run this matrix against sandbox/test-store accounts on production-like iOS and Android builds. Record the build number, platform, store account, RevenueCat app user ID, product identifier, and result for every row.
+
+| Scenario               | Action                                                                                              | Expected result                                                                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| New user               | Sign in with a new Supabase account and open the paywall                                            | RevenueCat app user ID equals the Supabase user ID; the paywall shows the store's current price, 7-day trial, renewal, and cancellation terms. |
+| Purchase               | Start the trial and complete a test-store purchase                                                  | The `premium` entitlement becomes active and the authenticated app opens without restarting.                                                   |
+| Cancelled subscription | Cancel in the platform subscription settings, then refresh or relaunch                              | Access remains available until the store entitlement expires, then the paywall returns.                                                        |
+| Expired trial          | Use a test account whose trial has expired without renewal                                          | The entitlement is inactive and the paywall is shown; no free-tier access is granted.                                                          |
+| Restore                | Sign out, sign in to the same Supabase account on a clean install/device, and tap Restore purchases | The same RevenueCat app user ID is restored and the active entitlement unlocks after refresh and app restart.                                  |
+| Subscription change    | Change or renew the plan in the store, then open Profile                                            | Customer Center and the Profile status reflect the latest RevenueCat customer info.                                                            |
+| Account isolation      | Sign out of account A, sign in to account B, and restore                                            | Account B does not inherit account A's entitlement unless the configured RevenueCat transfer behavior explicitly permits it.                   |
+| Network/SDK failure    | Block network access or use a build with missing RevenueCat configuration                           | A clear retryable billing error is shown; the app does not present the failure as a successful subscription or permanently hang on loading.    |
+| Profile management     | From Profile, open Manage subscription and Restore purchases                                        | Customer Center opens on both platforms, and restore provides a success or no-active-subscription result.                                      |
+
+The native store, RevenueCat dashboard, and EAS environment steps require project-owner access and cannot be verified by JavaScript unit tests alone.
 
 ## Definition of done
 

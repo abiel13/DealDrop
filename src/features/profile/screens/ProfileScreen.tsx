@@ -19,6 +19,8 @@ import { shouldShowWeeklySummary } from "@/features/analytics/utils/weekly-summa
 import { authRoutes } from "@/features/auth/routes";
 import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
+import { hasPremiumEntitlement } from "@/features/premium/services/premium.service";
+import { getPremiumErrorMessage } from "@/features/premium/utils/premium-errors";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
@@ -69,6 +71,8 @@ export function ProfileScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
+  const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const profileQueryKey = ["profile", user?.id] as const;
   const profileQuery = useQuery({
@@ -139,6 +143,7 @@ export function ProfileScreen() {
 
   async function handleManageSubscription() {
     setActionError(null);
+    setActionMessage(null);
     setIsManagingSubscription(true);
 
     try {
@@ -147,6 +152,30 @@ export function ProfileScreen() {
       setActionError("We couldn't open subscription management. Please try again later.");
     } finally {
       setIsManagingSubscription(false);
+    }
+  }
+
+  async function handleRestorePurchases() {
+    setActionError(null);
+    setActionMessage(null);
+    setIsRestoringPurchases(true);
+
+    try {
+      const customerInfo = await premium.restorePurchases();
+      if (customerInfo && hasPremiumEntitlement(customerInfo)) {
+        setActionMessage("Your Premium subscription was restored for this account.");
+      } else {
+        setActionError("No active Premium subscription was found for this account.");
+      }
+    } catch (restoreError) {
+      setActionError(
+        getPremiumErrorMessage(
+          restoreError,
+          "We couldn't restore your subscription. Please try again later.",
+        ),
+      );
+    } finally {
+      setIsRestoringPurchases(false);
     }
   }
 
@@ -260,14 +289,27 @@ export function ProfileScreen() {
               </AppText>
             </View>
           </View>
-          <Button
-            variant="primary"
-            loading={isManagingSubscription}
-            onPress={() => void handleManageSubscription()}
-          >
-            Manage subscription
-          </Button>
+          <View className="gap-3">
+            <Button
+              variant="primary"
+              loading={isManagingSubscription}
+              disabled={isRestoringPurchases}
+              onPress={() => void handleManageSubscription()}
+            >
+              Manage subscription
+            </Button>
+            <Button
+              variant="outline"
+              loading={isRestoringPurchases}
+              disabled={isManagingSubscription}
+              onPress={() => void handleRestorePurchases()}
+            >
+              Restore purchases
+            </Button>
+          </View>
         </Card>
+
+        {actionMessage && <AppText className="text-primary">{actionMessage}</AppText>}
 
         {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (
           <AccountSection title="Insights">

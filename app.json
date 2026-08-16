@@ -8,7 +8,8 @@
     "scheme": "dealdrop",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.abiel13.DealDrop"
     },
     "android": {
       "adaptiveIcon": {
