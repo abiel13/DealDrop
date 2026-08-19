@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Pressable, View } from "react-native";
@@ -14,6 +14,7 @@ import { trackProductEventNonBlocking } from "@/features/analytics/services/anal
 import { AuthShell } from "../components/AuthShell";
 import { authRoutes } from "../routes";
 import { ensureProfile, getAuthErrorMessage } from "../services/auth.service";
+import { markFirstUseOnboardingPending } from "../services/first-use-onboarding";
 
 const registerSchema = z
   .object({
@@ -58,10 +59,15 @@ export function RegisterScreen() {
       return;
     }
 
+    if (data.user) {
+      await markFirstUseOnboardingPending(data.user.id);
+    }
+
     if (data.session && data.user) {
       const { error: profileError } = await ensureProfile(data.user, { fullName });
 
       if (profileError) {
+        await supabase.auth.signOut();
         setFormError(
           "Your account was created, but we could not finish your profile. Please try signing in.",
         );
@@ -70,7 +76,7 @@ export function RegisterScreen() {
 
       trackProductEventNonBlocking("account_activated", {}, `account-activated:${data.user.id}`);
 
-      router.replace(authRoutes.watchlists);
+      router.replace("/watchlist-form?onboarding=true" as Href);
       return;
     }
 

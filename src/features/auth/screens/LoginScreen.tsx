@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Pressable, View } from "react-native";
@@ -14,6 +14,7 @@ import { trackProductEventNonBlocking } from "@/features/analytics/services/anal
 import { AuthShell } from "../components/AuthShell";
 import { authRoutes } from "../routes";
 import { ensureProfile, getAuthErrorMessage } from "../services/auth.service";
+import { consumeFirstUseOnboarding } from "../services/first-use-onboarding";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
@@ -51,10 +52,17 @@ export function LoginScreen() {
       const { error: profileError } = await ensureProfile(data.user);
 
       if (profileError) {
-        console.warn("DealDrop profile could not be created", profileError.message);
+        await supabase.auth.signOut();
+        setFormError("We couldn't finish setting up your profile. Please try signing in again.");
+        return;
       }
 
       trackProductEventNonBlocking("account_activated", {}, `account-activated:${data.user.id}`);
+
+      if (await consumeFirstUseOnboarding(data.user.id)) {
+        router.replace("/watchlist-form?onboarding=true" as Href);
+        return;
+      }
     }
 
     router.replace(authRoutes.home);
