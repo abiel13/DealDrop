@@ -7,6 +7,7 @@ import "../global.css";
 import { Loading } from "@/components/ui/Loading";
 import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
 import { PremiumGateScreen } from "@/features/premium/screens/PremiumGateScreen";
+import { PremiumUnavailableScreen } from "@/features/premium/screens/PremiumUnavailableScreen";
 import { PremiumProvider, usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { useNotificationObserver } from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
@@ -47,6 +48,16 @@ function RootNavigator() {
 
   if (user && premium.isLoading) {
     return <Loading />;
+  }
+
+  if (user && !premium.isPremium && premium.error) {
+    return (
+      <PremiumUnavailableScreen
+        error={premium.error}
+        isConfigurationError={premium.errorKind === "configuration"}
+        onRetry={premium.retry}
+      />
+    );
   }
 
   if (user && !premium.isPremium) {

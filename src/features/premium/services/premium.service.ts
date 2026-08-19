@@ -1,10 +1,18 @@
 import { Platform } from "react-native";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
 import RevenueCatUI, { type PAYWALL_RESULT } from "react-native-purchases-ui";
-import type { CustomerInfo, CustomerInfoUpdateListener } from "react-native-purchases";
+import type {
+  CustomerInfo,
+  CustomerInfoUpdateListener,
+  PurchasesOffering,
+} from "react-native-purchases";
 
+import { getPremiumConfigurationIssue, getPremiumPlatform } from "../utils/premium-configuration";
+import { PremiumConfigurationError } from "../utils/premium-errors";
+
+export const PREMIUM_TRIAL_DAYS = 7;
 export const PREMIUM_ENTITLEMENT_ID =
-  process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID ?? "premium";
+  process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID?.trim() ?? "";
 
 function getApiKey() {
   if (Platform.OS === "android") {
@@ -19,21 +27,28 @@ function getApiKey() {
 }
 
 export function getPremiumConfigurationError() {
-  if (Platform.OS !== "android" && Platform.OS !== "ios") {
-    return "Premium subscriptions are available in the Android and iOS apps.";
-  }
+  return (
+    getPremiumConfigurationIssue({
+      platform: getPremiumPlatform(Platform.OS),
+      apiKey: getApiKey(),
+      entitlementId: PREMIUM_ENTITLEMENT_ID,
+    })?.message ?? null
+  );
+}
 
-  if (!getApiKey()) {
-    return "Premium subscriptions are not configured for this app yet.";
+function assertPremiumConfigured() {
+  const configurationError = getPremiumConfigurationError();
+  if (configurationError) {
+    throw new PremiumConfigurationError(configurationError);
   }
-
-  return null;
 }
 
 export function configurePremiumSdk() {
+  assertPremiumConfigured();
+
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error(getPremiumConfigurationError() ?? "RevenueCat API key is missing.");
+    throw new PremiumConfigurationError("RevenueCat API key is missing.");
   }
 
   Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
@@ -41,25 +56,70 @@ export function configurePremiumSdk() {
 }
 
 export async function identifyPremiumUser(userId: string) {
-  return (await Purchases.logIn(userId)).customerInfo;
+  const customerInfo = (await Purchases.logIn(userId)).customerInfo;
+  const appUserId = await Purchases.getAppUserID();
+
+  if (appUserId !== userId) {
+    throw new Error(
+      "RevenueCat returned a different customer identity than the signed-in account.",
+    );
+  }
+
+  return customerInfo;
 }
 
 export async function getPremiumCustomerInfo() {
   return Purchases.getCustomerInfo();
 }
 
-export async function restorePremiumPurchases() {
+export async function getPremiumCustomerInfoForUser(userId: string) {
+  const appUserId = await Purchases.getAppUserID();
+
+  if (appUserId !== userId) {
+    return identifyPremiumUser(userId);
+  }
+
+  return getPremiumCustomerInfo();
+}
+
+export async function getPremiumOffering(): Promise<PurchasesOffering> {
+  assertPremiumConfigured();
+
+  const offerings = await Purchases.getOfferings();
+  const currentOffering = offerings.current;
+
+  if (!currentOffering || currentOffering.availablePackages.length === 0) {
+    throw new PremiumConfigurationError(
+      "Premium products are not configured for this platform yet. Please try again later.",
+    );
+  }
+
+  return currentOffering;
+}
+
+export async function restorePremiumPurchases(userId: string) {
+  assertPremiumConfigured();
+
+  const appUserId = await Purchases.getAppUserID();
+  if (appUserId !== userId) {
+    await identifyPremiumUser(userId);
+  }
+
   return Purchases.restorePurchases();
 }
 
 export async function presentPremiumPaywall(): Promise<PAYWALL_RESULT> {
+  const offering = await getPremiumOffering();
+
   return RevenueCatUI.presentPaywallIfNeeded({
     requiredEntitlementIdentifier: PREMIUM_ENTITLEMENT_ID,
+    offering,
     displayCloseButton: false,
   });
 }
 
 export async function presentPremiumCustomerCenter() {
+  assertPremiumConfigured();
   return RevenueCatUI.presentCustomerCenter();
 }
 

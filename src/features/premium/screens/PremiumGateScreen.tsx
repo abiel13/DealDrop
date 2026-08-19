@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
+import { PAYWALL_RESULT } from "react-native-purchases-ui";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -14,6 +15,8 @@ import { useTheme } from "@/providers/ThemeProvider";
 import { supabase } from "@/lib/supabase";
 
 import { usePremium } from "../hooks/PremiumProvider";
+import { hasPremiumEntitlement, PREMIUM_TRIAL_DAYS } from "../services/premium.service";
+import { getPremiumErrorMessage } from "../utils/premium-errors";
 
 const premiumBenefits: {
   icon: AppIconName;
@@ -55,12 +58,16 @@ export function PremiumGateScreen() {
     setIsOpeningPaywall(true);
 
     try {
-      await presentPaywall();
+      const result = await presentPaywall();
+      if (result === PAYWALL_RESULT.ERROR) {
+        setActionError("Subscription options are temporarily unavailable. Please try again.");
+      }
     } catch (paywallError: unknown) {
       setActionError(
-        paywallError instanceof Error
-          ? paywallError.message
-          : "We couldn't open subscription options. Please try again.",
+        getPremiumErrorMessage(
+          paywallError,
+          "We couldn't open subscription options. Please try again.",
+        ),
       );
     } finally {
       setIsOpeningPaywall(false);
@@ -72,12 +79,16 @@ export function PremiumGateScreen() {
     setIsRestoring(true);
 
     try {
-      await restorePurchases();
+      const customerInfo = await restorePurchases();
+      if (customerInfo && !hasPremiumEntitlement(customerInfo)) {
+        setActionError("No active Premium subscription was found for this account.");
+      }
     } catch (restoreError: unknown) {
       setActionError(
-        restoreError instanceof Error
-          ? restoreError.message
-          : "We couldn't restore your subscription. Please try again.",
+        getPremiumErrorMessage(
+          restoreError,
+          "We couldn't restore your subscription. Please try again.",
+        ),
       );
     } finally {
       setIsRestoring(false);
@@ -105,8 +116,8 @@ export function PremiumGateScreen() {
           </AppText>
           <AppText variant="display">Stay ready for the right deal.</AppText>
           <AppText variant="body" className="text-text-secondary">
-            Try the full DealDrop experience for 7 days. After the trial, an active subscription is
-            required to continue using the app.
+            Try the full DealDrop experience for {PREMIUM_TRIAL_DAYS} days. After the trial, an
+            active subscription is required to continue using the app.
           </AppText>
         </View>
 
@@ -118,7 +129,7 @@ export function PremiumGateScreen() {
               </View>
               <View className="gap-1">
                 <AppText variant="title">Premium access</AppText>
-                <AppText variant="caption">7-day free trial</AppText>
+                <AppText variant="caption">{PREMIUM_TRIAL_DAYS}-day free trial</AppText>
               </View>
             </View>
             <View className="rounded-full bg-surface px-3 py-1">
@@ -146,8 +157,8 @@ export function PremiumGateScreen() {
         <View className="gap-2 rounded-2xl bg-surface-muted px-4 py-4">
           <AppText variant="label">Trial and billing</AppText>
           <AppText variant="bodySmall">
-            Start with 7 days at no charge. The subscription checkout shows the available plan
-            price, renewal terms, and confirmation details before you subscribe.
+            Start with {PREMIUM_TRIAL_DAYS} days at no charge. The subscription checkout shows the
+            available plan price, renewal terms, and confirmation details before you subscribe.
           </AppText>
         </View>
 
@@ -159,7 +170,7 @@ export function PremiumGateScreen() {
             disabled={isRestoring}
             onPress={() => void handleStartTrial()}
           >
-            Start 7-day free trial
+            Start {PREMIUM_TRIAL_DAYS}-day free trial
           </Button>
           <Button
             variant="outline"

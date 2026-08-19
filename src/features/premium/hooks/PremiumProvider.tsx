@@ -8,14 +8,19 @@ import {
   addPremiumCustomerInfoListener,
   configurePremiumSdk,
   getPremiumConfigurationError,
-  getPremiumCustomerInfo,
+  getPremiumCustomerInfoForUser,
+  getPremiumOffering,
   hasPremiumEntitlement,
-  identifyPremiumUser,
   logOutPremiumUser,
   presentPremiumPaywall,
   presentPremiumCustomerCenter,
   restorePremiumPurchases,
 } from "../services/premium.service";
+import {
+  getPremiumErrorKind,
+  getPremiumErrorMessage,
+  PremiumConfigurationError,
+} from "../utils/premium-errors";
 
 const PremiumContext = createContext<PremiumContextValue | undefined>(undefined);
 
@@ -27,6 +32,8 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   const [isConfigured, setIsConfigured] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(user));
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<PremiumContextValue["errorKind"]>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -45,45 +52,50 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) {
           setCustomerInfo(null);
           setError(null);
+          setErrorKind(null);
           setIsLoading(false);
         }
         return;
       }
 
+      if (currentUserIdRef.current !== user.id && isMounted) {
+        setCustomerInfo(null);
+      }
+
       if (isMounted) {
         setIsLoading(true);
         setError(null);
+        setErrorKind(null);
       }
 
       try {
         const configurationError = getPremiumConfigurationError();
         if (configurationError) {
-          throw new Error(configurationError);
+          throw new PremiumConfigurationError(configurationError);
         }
 
         if (!configuredRef.current) {
           configurePremiumSdk();
           configuredRef.current = true;
-          setIsConfigured(true);
+          if (isMounted) {
+            setIsConfigured(true);
+          }
         }
 
-        const nextCustomerInfo =
-          currentUserIdRef.current === user.id
-            ? await getPremiumCustomerInfo()
-            : await identifyPremiumUser(user.id);
+        const nextCustomerInfo = await getPremiumCustomerInfoForUser(user.id);
         currentUserIdRef.current = user.id;
 
         if (isMounted) {
           setCustomerInfo(nextCustomerInfo);
         }
+
+        if (!hasPremiumEntitlement(nextCustomerInfo)) {
+          await getPremiumOffering();
+        }
       } catch (syncError) {
         if (isMounted) {
-          setError(
-            syncError instanceof Error
-              ? syncError.message
-              : "We couldn't verify your premium subscription.",
-          );
-          setCustomerInfo(null);
+          setError(getPremiumErrorMessage(syncError));
+          setErrorKind(getPremiumErrorKind(syncError));
         }
       } finally {
         if (isMounted) {
@@ -97,7 +109,7 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [retryToken, user]);
 
   useEffect(() => {
     if (!isConfigured) {
@@ -110,8 +122,20 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   }, [isConfigured]);
 
   async function refresh() {
-    const nextCustomerInfo = await getPremiumCustomerInfo();
-    setCustomerInfo(nextCustomerInfo);
+    if (!user) {
+      return;
+    }
+
+    try {
+      const nextCustomerInfo = await getPremiumCustomerInfoForUser(user.id);
+      setCustomerInfo(nextCustomerInfo);
+      setError(null);
+      setErrorKind(null);
+    } catch (refreshError) {
+      setError(getPremiumErrorMessage(refreshError));
+      setErrorKind(getPremiumErrorKind(refreshError));
+      throw refreshError;
+    }
   }
 
   async function presentPaywall() {
@@ -126,19 +150,37 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function restorePurchases() {
-    const nextCustomerInfo = await restorePremiumPurchases();
-    setCustomerInfo(nextCustomerInfo);
-    return nextCustomerInfo;
+    if (!user) {
+      return null;
+    }
+
+    try {
+      const nextCustomerInfo = await restorePremiumPurchases(user.id);
+      setCustomerInfo(nextCustomerInfo);
+      setError(null);
+      setErrorKind(null);
+      return nextCustomerInfo;
+    } catch (restoreError) {
+      setError(getPremiumErrorMessage(restoreError));
+      setErrorKind(getPremiumErrorKind(restoreError));
+      throw restoreError;
+    }
+  }
+
+  async function retry() {
+    setRetryToken((currentToken) => currentToken + 1);
   }
 
   const value: PremiumContextValue = {
     isPremium: customerInfo ? hasPremiumEntitlement(customerInfo) : false,
     isLoading,
     error,
+    errorKind,
     presentPaywall,
     manageSubscription,
     restorePurchases,
     refresh,
+    retry,
   };
 
   return <PremiumContext.Provider value={value}>{children}</PremiumContext.Provider>;

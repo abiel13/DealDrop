@@ -11,6 +11,7 @@ import type { Watchlist, WatchlistFilters } from "../types/watchlist.types";
 
 interface WatchlistCardProps {
   watchlist: Watchlist;
+  focused?: boolean;
   disabled?: boolean;
   onDelete: () => void;
   onEdit: () => void;
@@ -117,6 +118,7 @@ function getLifecycleLabel(watchlist: Watchlist) {
 
 export function WatchlistCard({
   watchlist,
+  focused = false,
   disabled = false,
   onDelete,
   onEdit,
@@ -134,7 +136,7 @@ export function WatchlistCard({
   const filterSummary = getFilterSummary(watchlist.filters);
 
   return (
-    <Card padding="none" className="overflow-hidden">
+    <Card padding="none" className={`overflow-hidden ${focused ? "border-2 border-primary" : ""}`}>
       <View className={isActive ? "bg-primary-soft p-4" : "bg-background-muted p-4"}>
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-2">

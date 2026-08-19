@@ -1,6 +1,6 @@
 import { Alert, FlatList, RefreshControl, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -57,6 +57,10 @@ export function WatchlistsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ watchlistId?: string | string[] }>();
+  const focusedWatchlistId = Array.isArray(params.watchlistId)
+    ? params.watchlistId[0]
+    : params.watchlistId;
   const [search, setSearch] = useState("");
   const [operationError, setOperationError] = useState<string | null>(null);
   const userId = user?.id ?? "";
@@ -143,15 +147,23 @@ export function WatchlistsScreen() {
 
   const filteredWatchlists = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const watchlists = watchlistsQuery.data ?? [];
 
-    if (!normalizedSearch) {
-      return watchlistsQuery.data ?? [];
+    const filtered = normalizedSearch
+      ? watchlists.filter((watchlist) =>
+          `${watchlist.name} ${watchlist.search_query}`.toLowerCase().includes(normalizedSearch),
+        )
+      : watchlists;
+
+    if (!focusedWatchlistId) {
+      return filtered;
     }
 
-    return (watchlistsQuery.data ?? []).filter((watchlist) =>
-      `${watchlist.name} ${watchlist.search_query}`.toLowerCase().includes(normalizedSearch),
-    );
-  }, [search, watchlistsQuery.data]);
+    const focusedWatchlist = filtered.find((watchlist) => watchlist.id === focusedWatchlistId);
+    return focusedWatchlist
+      ? [focusedWatchlist, ...filtered.filter((watchlist) => watchlist.id !== focusedWatchlistId)]
+      : filtered;
+  }, [focusedWatchlistId, search, watchlistsQuery.data]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
@@ -243,6 +255,7 @@ export function WatchlistsScreen() {
     return (
       <WatchlistCard
         watchlist={item}
+        focused={item.id === focusedWatchlistId}
         disabled={isMutating}
         onDelete={() => confirmDelete(item)}
         onEdit={() => router.push(watchlistFormRoute(item.id))}
