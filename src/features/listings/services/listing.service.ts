@@ -1,6 +1,12 @@
-import { apiClient, type ApiListing, type ApiMatch } from "@/services/api";
+import {
+  apiClient,
+  type ApiListing,
+  type ApiListingQuery,
+  type ApiMatch,
+  type ApiMatchQuery,
+} from "@/services/api";
 
-import type { Listing, ListingSearchResult } from "../types/listing.types";
+import type { Listing, ListingPage, ListingSearchResult } from "../types/listing.types";
 
 function toListing(
   listing: ApiListing,
@@ -45,8 +51,11 @@ function toMatchedListing(match: ApiMatch) {
   return toListing(match.listing, match.matchedAt, match);
 }
 
-export async function getMatchedListings(options: { includeDismissed?: boolean } = {}) {
-  const response = await apiClient.getMatches(undefined, options.includeDismissed);
+async function getMatchListings(
+  watchlistId: string | undefined,
+  options: ApiMatchQuery = {},
+): Promise<ListingPage> {
+  const response = await apiClient.getMatches(watchlistId, options);
   const uniqueListings = new Map<string, Listing>();
 
   for (const match of response.data) {
@@ -60,7 +69,34 @@ export async function getMatchedListings(options: { includeDismissed?: boolean }
     }
   }
 
-  return [...uniqueListings.values()];
+  return {
+    listings: [...uniqueListings.values()],
+    pagination: {
+      nextCursor: response.meta.pagination?.nextCursor ?? null,
+      hasMore: response.meta.pagination?.hasMore ?? false,
+    },
+  };
+}
+
+export function getMatchedListings(options: ApiMatchQuery = {}) {
+  return getMatchListings(undefined, options);
+}
+
+export function getWatchlistMatches(watchlistId: string, options: ApiMatchQuery = {}) {
+  return getMatchListings(watchlistId, options);
+}
+
+export async function getSavedListings(options: ApiListingQuery = {}): Promise<ListingPage> {
+  const response = await apiClient.getSavedListings(options);
+  return {
+    listings: response.data
+      .map((listing) => toListing(listing))
+      .filter((listing): listing is Listing => Boolean(listing)),
+    pagination: {
+      nextCursor: response.meta.pagination?.nextCursor ?? null,
+      hasMore: response.meta.pagination?.hasMore ?? false,
+    },
+  };
 }
 
 export async function getListing(listingId: string) {

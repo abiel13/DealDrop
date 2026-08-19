@@ -14,6 +14,7 @@ interface WatchlistCardProps {
   focused?: boolean;
   disabled?: boolean;
   onDelete: () => void;
+  onOpen: () => void;
   onEdit: () => void;
   onFavoriteToggle: () => void;
   onPause: () => void;
@@ -121,6 +122,7 @@ export function WatchlistCard({
   focused = false,
   disabled = false,
   onDelete,
+  onOpen,
   onEdit,
   onFavoriteToggle,
   onPause,
@@ -137,7 +139,13 @@ export function WatchlistCard({
 
   return (
     <Card padding="none" className={`overflow-hidden ${focused ? "border-2 border-primary" : ""}`}>
-      <View className={isActive ? "bg-primary-soft p-4" : "bg-background-muted p-4"}>
+      <Pressable
+        accessibilityLabel={`Open ${watchlist.name} watchlist`}
+        accessibilityRole="button"
+        className={isActive ? "bg-primary-soft p-4" : "bg-background-muted p-4"}
+        disabled={disabled}
+        onPress={onOpen}
+      >
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1 gap-2">
             <View className="flex-row items-center gap-2">
@@ -179,7 +187,7 @@ export function WatchlistCard({
             />
           </Pressable>
         </View>
-      </View>
+      </Pressable>
 
       <View className="gap-4 p-4">
         <View className="gap-2">
@@ -207,6 +215,9 @@ export function WatchlistCard({
         </View>
 
         <View className="flex-row flex-wrap gap-2">
+          <Button disabled={disabled} size="sm" variant="primary" onPress={onOpen}>
+            View matches
+          </Button>
           <Button
             disabled={disabled}
             size="sm"

@@ -10,6 +10,14 @@ export interface AppNotification {
   created_at: string;
 }
 
+export interface NotificationPage {
+  notifications: AppNotification[];
+  pagination: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+}
+
 export interface NotificationPreferences {
   push_enabled: boolean;
   new_match_enabled: boolean;

@@ -14,7 +14,11 @@ import {
 import type { ProductEventInput } from "../analytics/events";
 import { ApiNotFoundError, ApiValidationError } from "./errors";
 import { encodeApiCursor } from "./pagination";
-import type { MobileApiRepositoryContract, StoredMatch } from "./mobile-repository";
+import type {
+  MatchQueryOptions,
+  MobileApiRepositoryContract,
+  StoredMatch,
+} from "./mobile-repository";
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
@@ -223,6 +227,7 @@ export class MobileApiService {
     cursor: string | null,
     limit: number,
     includeDismissed = false,
+    options: MatchQueryOptions = {},
   ) {
     if (watchlistId) {
       const watchlist = await this.dependencies.repository.getWatchlist(userId, watchlistId);
@@ -237,9 +242,30 @@ export class MobileApiService {
       cursor,
       limit,
       includeDismissed,
+      options,
     );
     return {
       items: page.items.map(toMatch),
+      pagination: {
+        nextCursor: page.nextCursor ? encodeApiCursor(page.nextCursor) : null,
+        hasMore: page.hasMore,
+        limit,
+      },
+    };
+  }
+
+  async getFavoriteListings(userId: string, cursor: string | null, limit: number) {
+    const page = await this.dependencies.repository.getFavoriteListings(userId, cursor, limit);
+    return {
+      items: page.items.map((item) =>
+        toApiListing(item.listing, {
+          id: item.listing.id,
+          matchedAt: item.matchedAt,
+          isFavorite: true,
+          priceHistory: item.priceHistory,
+          priceTarget: item.priceTarget,
+        }),
+      ),
       pagination: {
         nextCursor: page.nextCursor ? encodeApiCursor(page.nextCursor) : null,
         hasMore: page.hasMore,

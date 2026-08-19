@@ -10,6 +10,8 @@ export const authRoutes = {
   profile: "/profile" as Href,
   weeklySummary: "/weekly-summary" as Href,
   watchlists: "/watchlists" as Href,
+  savedListings: "/saved-listings" as Href,
+  history: "/history" as Href,
   watchlistForm: "/watchlist-form" as Href,
   listing: "/listing" as Href,
 };
@@ -28,4 +30,8 @@ export function notificationsMatchRoute(matchId: string) {
 
 export function watchlistsRoute(watchlistId: string) {
   return `${authRoutes.watchlists}?watchlistId=${encodeURIComponent(watchlistId)}` as Href;
+}
+
+export function watchlistRoute(watchlistId: string) {
+  return `/watchlist/${encodeURIComponent(watchlistId)}` as Href;
 }

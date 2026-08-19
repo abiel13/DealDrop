@@ -239,6 +239,23 @@ export interface ApiMatch {
   listing: ApiListing;
 }
 
+export interface ApiMatchQuery {
+  includeDismissed?: boolean;
+  status?: "dismissed";
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface ApiNotificationQuery {
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface ApiListingQuery {
+  cursor?: string | null;
+  limit?: number;
+}
+
 export interface ApiNotification {
   id: string;
   matchId: string | null;

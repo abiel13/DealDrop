@@ -11,7 +11,7 @@ import { AppIcon } from "@/components/ui/Icon";
 import { SearchBar } from "@/components/ui/Searchbar";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
-import { authRoutes, watchlistFormRoute } from "@/features/auth/routes";
+import { authRoutes, watchlistFormRoute, watchlistRoute } from "@/features/auth/routes";
 import { useTheme } from "@/providers/ThemeProvider";
 
 import { WatchlistCard } from "../components/WatchlistCard";
@@ -258,6 +258,7 @@ export function WatchlistsScreen() {
         focused={item.id === focusedWatchlistId}
         disabled={isMutating}
         onDelete={() => confirmDelete(item)}
+        onOpen={() => router.push(watchlistRoute(item.id))}
         onEdit={() => router.push(watchlistFormRoute(item.id))}
         onFavoriteToggle={() => {
           favoriteMutation.mutate({ id: item.id, isFavorite: !item.is_favorite });

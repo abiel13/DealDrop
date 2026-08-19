@@ -52,3 +52,11 @@ export interface ListingSearchResult {
     hasMore: boolean;
   };
 }
+
+export interface ListingPage {
+  listings: Listing[];
+  pagination: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+}

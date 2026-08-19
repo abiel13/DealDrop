@@ -9,6 +9,7 @@ import type {
   MobileApiRepositoryContract,
   Page,
   StoredListingAccess,
+  StoredFavoriteListing,
   StoredMatch,
 } from "../../src/api/mobile-repository";
 import type {
@@ -254,11 +255,13 @@ test("listing details and notification routes remain user-scoped", async () => {
 
 test("match lifecycle routes keep dismissal and feedback user-scoped", async () => {
   let includeDismissed = false;
+  let receivedMatchOptions: { status?: "dismissed" } | undefined;
   let receivedStatus: string | undefined;
   let receivedFeedback: string | null | undefined;
   const repository = createRepository({
-    async getMatches(_userId, _watchlistId, _cursor, _limit, include) {
+    async getMatches(_userId, _watchlistId, _cursor, _limit, include, options) {
       includeDismissed = Boolean(include);
+      receivedMatchOptions = options;
       return page<StoredMatch>([]);
     },
     async setMatchStatus(_userId, _matchId, status) {
@@ -278,9 +281,12 @@ test("match lifecycle routes keep dismissal and feedback user-scoped", async () 
 
   try {
     const headers = { Authorization: "Bearer valid-token" };
-    const matchesResponse = await fetch(`${baseUrl}/api/v1/matches?includeDismissed=true`, {
-      headers,
-    });
+    const matchesResponse = await fetch(
+      `${baseUrl}/api/v1/matches?includeDismissed=true&status=dismissed`,
+      {
+        headers,
+      },
+    );
     const statusResponse = await fetch(`${baseUrl}/api/v1/matches/${MATCH_ID}/status`, {
       method: "PATCH",
       headers: { ...headers, "Content-Type": "application/json" },
@@ -296,8 +302,50 @@ test("match lifecycle routes keep dismissal and feedback user-scoped", async () 
     assert.equal(statusResponse.status, 200);
     assert.equal(feedbackResponse.status, 200);
     assert.equal(includeDismissed, true);
+    assert.deepEqual(receivedMatchOptions, { status: "dismissed" });
     assert.equal(receivedStatus, "dismissed");
     assert.equal(receivedFeedback, "not_relevant");
+  } finally {
+    await close(server);
+  }
+});
+
+test("saved listings are paginated independently from match history", async () => {
+  let requestedLimit = 0;
+  const repository = createRepository({
+    async getFavoriteListings(_userId, _cursor, limit) {
+      requestedLimit = limit;
+      return page<StoredFavoriteListing>([
+        {
+          listing: rawListing(),
+          matchedAt: null,
+          isFavorite: true,
+          savedAt: "2026-08-09T00:00:00.000Z",
+        },
+      ]);
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/favorites?limit=12`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const body = (await response.json()) as {
+      data: Array<{ id: string; isFavorite: boolean }>;
+      meta: { pagination: { hasMore: boolean; limit: number } };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.data[0]?.id, LISTING_ID);
+    assert.equal(body.data[0]?.isFavorite, true);
+    assert.equal(body.meta.pagination.limit, 12);
+    assert.equal(body.meta.pagination.hasMore, false);
+    assert.equal(requestedLimit, 12);
   } finally {
     await close(server);
   }
@@ -415,6 +463,9 @@ function createRepository(
     },
     async getMatches() {
       return page<StoredMatch>([]);
+    },
+    async getFavoriteListings() {
+      return page([]);
     },
     async setMatchStatus() {
       return true;

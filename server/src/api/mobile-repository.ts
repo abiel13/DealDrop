@@ -35,12 +35,20 @@ export interface StoredMatch extends RawApiMatch {
   feedback: NonNullable<RawApiMatch["feedback"]> | null;
 }
 
+export interface MatchQueryOptions {
+  status?: "dismissed";
+}
+
 export interface StoredListingAccess {
   listing: RawApiListing;
   matchedAt: string | null;
   isFavorite: boolean;
   priceHistory?: PriceHistorySummary | null;
   priceTarget?: ApiPriceTarget | null;
+}
+
+export interface StoredFavoriteListing extends StoredListingAccess {
+  savedAt: string;
 }
 
 interface StoredListingMatch {
@@ -119,7 +127,13 @@ export interface MobileApiRepositoryContract {
     cursor: string | null,
     limit: number,
     includeDismissed?: boolean,
+    options?: MatchQueryOptions,
   ): Promise<Page<StoredMatch>>;
+  getFavoriteListings(
+    userId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<StoredFavoriteListing>>;
   setMatchStatus(
     userId: string,
     matchId: string,
@@ -443,6 +457,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     cursor: string | null,
     limit: number,
     includeDismissed = false,
+    options: MatchQueryOptions = {},
   ) {
     let query = this.client
       .from("matches")
@@ -455,7 +470,9 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       .order("id", { ascending: false })
       .limit(limit + 1);
 
-    if (!includeDismissed) {
+    if (options.status) {
+      query = query.eq("status", options.status);
+    } else if (!includeDismissed) {
       query = query.neq("status", "dismissed");
     }
 
@@ -485,6 +502,46 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       feedback: feedbackByMatchId.get(row.id) ?? null,
     }));
     return toPage(items, limit, (item) => item.matched_at);
+  }
+
+  async getFavoriteListings(userId: string, cursor: string | null, limit: number) {
+    let query = this.client
+      .from("favorites")
+      .select(`created_at,listing:listings!inner(${LISTING_COLUMNS})`)
+      .eq("user_id", userId)
+      .eq("listing.is_active", true)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit + 1);
+
+    if (cursor) {
+      query = query.lt("created_at", cursor);
+    }
+
+    const { data, error } = await query.returns<
+      Array<{
+        created_at: string;
+        listing: RawApiListing | RawApiListing[] | null;
+      }>
+    >();
+    if (error) {
+      throw error;
+    }
+
+    const items: StoredFavoriteListing[] = [];
+    for (const row of data ?? []) {
+      const listing = unwrap(row.listing);
+      if (listing) {
+        items.push({
+          listing,
+          matchedAt: null,
+          isFavorite: true,
+          savedAt: row.created_at,
+        });
+      }
+    }
+
+    return toPage(items, limit, (item) => item.savedAt);
   }
 
   async setMatchStatus(
