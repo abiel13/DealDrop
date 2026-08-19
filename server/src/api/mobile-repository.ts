@@ -184,6 +184,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         .from("matches")
         .select("matched_at,watchlist:watchlists!inner(filters)")
         .eq("user_id", userId)
+        .eq("watchlist.user_id", userId)
         .eq("listing_id", listingId)
         .neq("status", "dismissed")
         .order("matched_at", { ascending: false })
@@ -449,6 +450,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         `id,watchlist_id,listing_id,status,matched_at,listing:listings!inner(${MATCH_LISTING_COLUMNS}),watchlist:watchlists!inner(id,name)`,
       )
       .eq("user_id", userId)
+      .eq("watchlist.user_id", userId)
       .order("matched_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1);

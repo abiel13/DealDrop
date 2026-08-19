@@ -175,7 +175,7 @@ export class MarketplaceSearchCoordinator {
   ) {
     const timeoutMs = this.sourceTimeoutMs[source] ?? this.defaultTimeoutMs;
     this.logger.info("Marketplace search source started", {
-      query: request.searchQuery,
+      queryLength: request.searchQuery.length,
       source,
       timeoutMs,
     });
@@ -187,7 +187,7 @@ export class MarketplaceSearchCoordinator {
     );
     this.logger.info("Marketplace search source completed", {
       listings: response.listings.length,
-      query: request.searchQuery,
+      queryLength: request.searchQuery.length,
       source,
     });
     return { response };
@@ -249,7 +249,7 @@ function toPartialFailure(
     return {
       source,
       category: error.category,
-      message: error.message,
+      message: safePartialFailureMessage(source, error.category),
     };
   }
 
@@ -257,15 +257,34 @@ function toPartialFailure(
     return {
       source,
       category: "timeout",
-      message: error.message,
+      message: safePartialFailureMessage(source, "timeout"),
     };
   }
 
   return {
     source,
     category: "unavailable",
-    message: `${source} marketplace search is unavailable.`,
+    message: safePartialFailureMessage(source, "unavailable"),
   };
+}
+
+function safePartialFailureMessage(source: MarketplaceSource, category: string) {
+  switch (category) {
+    case "authentication":
+      return `${displaySource(source)} authentication failed.`;
+    case "rate_limit":
+      return `${displaySource(source)} rate limit reached.`;
+    case "timeout":
+      return `${source} marketplace search timed out.`;
+    case "unavailable":
+      return `${source} is unavailable.`;
+    default:
+      return `${source} marketplace search failed.`;
+  }
+}
+
+function displaySource(source: MarketplaceSource) {
+  return source === "ebay" ? "eBay" : source.charAt(0).toUpperCase() + source.slice(1);
 }
 
 export function sortListings(listings: MarketplaceListing[]) {

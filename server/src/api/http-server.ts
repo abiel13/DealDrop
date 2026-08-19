@@ -6,9 +6,22 @@ import { MarketplaceError } from "../marketplaces/shared/errors";
 import { MarketplaceSearchCoordinatorError } from "../marketplaces/search/errors";
 import type { WorkerLogger } from "../types/backend";
 import type { RequestAuthenticator } from "./auth";
-import { ApiError, ApiNotFoundError } from "./errors";
+import { ApiConcurrencyError, ApiError, ApiNotFoundError, ApiRateLimitError } from "./errors";
 import { decodeApiCursor, parseLimit } from "./pagination";
 import { MobileApiService } from "./mobile-api";
+import {
+  enforceCorsOrigin,
+  enforceRateLimit,
+  FixedWindowRateLimiter,
+  operationForRoute,
+  requestClientAddress,
+  resolveApiSecurityConfig,
+  SearchConcurrencyLimiter,
+  setPreflightHeaders,
+  setRateLimitHeaders,
+  setSecurityHeaders,
+  type ApiSecurityOptions,
+} from "./security";
 import {
   parseBody,
   parseSearchQuery,
@@ -26,7 +39,6 @@ import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
 
 const API_PREFIX = "/api/v1";
-const MAX_BODY_BYTES = 1_000_000;
 
 export interface HttpServerOptions {
   adapters?: MarketplaceAdapterRegistry;
@@ -35,6 +47,7 @@ export interface HttpServerOptions {
   repository?: MobileApiRepositoryContract;
   mobileApi?: MobileApiService;
   health?: HealthProvider;
+  security?: ApiSecurityOptions;
 }
 
 function json(
@@ -64,11 +77,17 @@ async function handleRequest(
 ) {
   const requestId = randomUUID();
   const startedAt = Date.now();
-  const method = request.method ?? "GET";
-  const url = new URL(request.url ?? "/", "http://localhost");
-  const path = url.pathname;
+  const method = (request.method ?? "GET").toUpperCase();
+  const security = resolveApiSecurityConfig(options.security);
+  const rateLimiter = options.security?.rateLimiter ?? new FixedWindowRateLimiter();
+  const searchConcurrency =
+    options.security?.searchConcurrency ??
+    new SearchConcurrencyLimiter(security.maxConcurrentSearches);
+  const rawUrl = request.url ?? "/";
+  let path = "unknown";
+  let url: URL;
 
-  logger.info("HTTP request started", { method, path, requestId });
+  setSecurityHeaders(response, security);
   response.once("finish", () => {
     logger.info("HTTP request completed", {
       durationMs: Date.now() - startedAt,
@@ -80,6 +99,22 @@ async function handleRequest(
   });
 
   try {
+    if (Buffer.byteLength(rawUrl) > security.maxUrlBytes) {
+      throw new ApiError(414, "url_too_long", "The request URL is too long.");
+    }
+
+    enforceCorsOrigin(request, response, security);
+    if (method === "OPTIONS") {
+      setPreflightHeaders(response);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    url = new URL(rawUrl, "http://localhost");
+    path = url.pathname;
+    logger.info("HTTP request started", { method, path, requestId });
+
     if (method === "GET" && (path === "/health/live" || path === `${API_PREFIX}/health/live`)) {
       json(response, 200, createLivenessHealth());
       return;
@@ -125,10 +160,37 @@ async function handleRequest(
       throw new ApiError(503, "api_unavailable", "The authenticated API is not configured.");
     }
     const user = await authenticator.authenticate(request);
-    const api = options.mobileApi ?? createMobileApi(options, logger);
     const segments = path.slice(`${API_PREFIX}/`.length).split("/").filter(Boolean);
+    const operation = operationForRoute(method, segments);
+    const rateLimit = enforceRateLimit(rateLimiter, operation, security, [
+      `user:${user.id}`,
+      `ip:${requestClientAddress(request, security.trustProxy)}`,
+    ]);
+    setRateLimitHeaders(response, rateLimit);
 
-    await routeProtectedRequest(method, segments, url, request, response, requestId, user.id, api);
+    const api = options.mobileApi ?? createMobileApi(options, logger);
+    const acquiredSearchCapacity = operation !== "search" || searchConcurrency.tryAcquire();
+    if (!acquiredSearchCapacity) {
+      throw new ApiConcurrencyError();
+    }
+
+    try {
+      await routeProtectedRequest(
+        method,
+        segments,
+        url,
+        request,
+        response,
+        requestId,
+        user.id,
+        api,
+        security.maxBodyBytes,
+      );
+    } finally {
+      if (operation === "search") {
+        searchConcurrency.release();
+      }
+    }
   } catch (error) {
     const apiError = toApiError(error);
     logger.error("HTTP request failed", {
@@ -208,6 +270,7 @@ async function routeProtectedRequest(
   requestId: string,
   userId: string,
   api: MobileApiService,
+  maxBodyBytes: number,
 ) {
   const [resource, resourceId, action] = segments;
 
@@ -227,7 +290,7 @@ async function routeProtectedRequest(
   }
 
   if (method === "POST" && resource === "events" && !resourceId) {
-    const input = parseBody(productEventSchema, await readJsonBody(request));
+    const input = parseBody(productEventSchema, await readJsonBody(request, maxBodyBytes));
     await api.recordProductEvent(userId, input);
     sendSuccess(response, requestId, { recorded: true });
     return;
@@ -239,7 +302,7 @@ async function routeProtectedRequest(
   }
 
   if (method === "POST" && resource === "search" && !resourceId) {
-    const input = parseBody(searchBodySchema, await readJsonBody(request));
+    const input = parseBody(searchBodySchema, await readJsonBody(request, maxBodyBytes));
     input.pagination = {
       ...input.pagination,
       cursor: decodeApiCursor(input.pagination?.cursor),
@@ -266,7 +329,7 @@ async function routeProtectedRequest(
     action === "favorite"
   ) {
     assertResourceId(resourceId);
-    const input = parseBody(favoriteSchema, await readJsonBody(request));
+    const input = parseBody(favoriteSchema, await readJsonBody(request, maxBodyBytes));
     await api.setListingFavorite(userId, resourceId, input.isFavorite);
     sendSuccess(response, requestId, { updated: true });
     return;
@@ -285,7 +348,7 @@ async function routeProtectedRequest(
     }
 
     if (method === "POST") {
-      const input = parseBody(createWatchlistSchema, await readJsonBody(request));
+      const input = parseBody(createWatchlistSchema, await readJsonBody(request, maxBodyBytes));
       sendSuccess(
         response,
         requestId,
@@ -324,7 +387,7 @@ async function routeProtectedRequest(
     }
 
     if (method === "PATCH") {
-      const input = parseBody(updateWatchlistSchema, await readJsonBody(request));
+      const input = parseBody(updateWatchlistSchema, await readJsonBody(request, maxBodyBytes));
       sendSuccess(response, requestId, await api.updateWatchlist(userId, resourceId, input));
       return;
     }
@@ -356,7 +419,7 @@ async function routeProtectedRequest(
     (method === "PATCH" || method === "PUT")
   ) {
     assertResourceId(resourceId);
-    const input = parseBody(matchStatusSchema, await readJsonBody(request));
+    const input = parseBody(matchStatusSchema, await readJsonBody(request, maxBodyBytes));
     await api.setMatchStatus(userId, resourceId, input.status);
     sendSuccess(response, requestId, { updated: true });
     return;
@@ -369,7 +432,7 @@ async function routeProtectedRequest(
     (method === "PATCH" || method === "PUT")
   ) {
     assertResourceId(resourceId);
-    const input = parseBody(matchFeedbackSchema, await readJsonBody(request));
+    const input = parseBody(matchFeedbackSchema, await readJsonBody(request, maxBodyBytes));
     await api.setMatchFeedback(userId, resourceId, input.feedback);
     sendSuccess(response, requestId, { updated: true });
     return;
@@ -393,14 +456,17 @@ async function routeProtectedRequest(
     }
 
     if (method === "PATCH") {
-      const input = parseBody(notificationPreferencesSchema, await readJsonBody(request));
+      const input = parseBody(
+        notificationPreferencesSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
       sendSuccess(response, requestId, await api.updateNotificationPreferences(userId, input));
       return;
     }
   }
 
   if (resource === "notifications" && resourceId === "push-token" && method === "POST") {
-    const input = parseBody(pushTokenSchema, await readJsonBody(request));
+    const input = parseBody(pushTokenSchema, await readJsonBody(request, maxBodyBytes));
     await api.registerPushToken(userId, input);
     sendSuccess(response, requestId, { registered: true });
     return;
@@ -447,14 +513,24 @@ function sendSuccess(
 }
 
 function sendError(response: ServerResponse, requestId: string, error: ApiError) {
-  json(response, error.statusCode, {
-    error: {
-      code: error.code,
-      message: error.message,
-      ...(error.details ? { details: error.details } : {}),
+  const headers: Record<string, string> = {};
+  if (error instanceof ApiRateLimitError || error instanceof ApiConcurrencyError) {
+    headers["Retry-After"] = String(error.retryAfterSeconds);
+  }
+
+  json(
+    response,
+    error.statusCode,
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      },
+      meta: { requestId },
     },
-    meta: { requestId },
-  });
+    headers,
+  );
 }
 
 function createLivenessHealth() {
@@ -571,44 +647,91 @@ function assertResourceId(value: string) {
   }
 }
 
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
+function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let body = "";
     let size = 0;
+    let settled = false;
+
+    const fail = (error: Error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      reject(error);
+    };
+
+    const contentLength = request.headers["content-length"];
+    if (typeof contentLength === "string") {
+      const declaredLength = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+        request.resume();
+        fail(new ApiError(413, "payload_too_large", "The request body is too large."));
+        return;
+      }
+    }
 
     request.setEncoding("utf8");
     request.on("data", (chunk: string) => {
+      if (settled) {
+        return;
+      }
+
       size += Buffer.byteLength(chunk);
-      if (size > MAX_BODY_BYTES) {
-        reject(new ApiError(413, "payload_too_large", "The request body is too large."));
-        request.destroy();
+      if (size > maxBodyBytes) {
+        request.resume();
+        fail(new ApiError(413, "payload_too_large", "The request body is too large."));
         return;
       }
 
       body += chunk;
     });
     request.on("end", () => {
+      if (settled) {
+        return;
+      }
+
       if (!body.trim()) {
-        reject(new ApiError(400, "invalid_json", "A JSON request body is required."));
+        fail(new ApiError(400, "invalid_json", "A JSON request body is required."));
         return;
       }
 
       try {
-        resolve(JSON.parse(body) as unknown);
+        const parsed = JSON.parse(body) as unknown;
+        settled = true;
+        resolve(parsed);
       } catch {
-        reject(new ApiError(400, "invalid_json", "The request body must contain valid JSON."));
+        fail(new ApiError(400, "invalid_json", "The request body must contain valid JSON."));
       }
     });
-    request.on("error", reject);
+    request.on("error", fail);
   });
 }
 
 export function createHttpServer(logger: WorkerLogger, options: HttpServerOptions = {}): Server {
-  return createServer((request, response) => {
-    void handleRequest(request, response, logger, options).catch((error: unknown) => {
+  const security = resolveApiSecurityConfig(options.security);
+  const securityOptions: ApiSecurityOptions = {
+    ...security,
+    rateLimiter: options.security?.rateLimiter ?? new FixedWindowRateLimiter(),
+    searchConcurrency:
+      options.security?.searchConcurrency ??
+      new SearchConcurrencyLimiter(security.maxConcurrentSearches),
+  };
+  const resolvedOptions: HttpServerOptions = { ...options, security: securityOptions };
+  const server = createServer((request, response) => {
+    void handleRequest(request, response, logger, resolvedOptions).catch((error: unknown) => {
       if (!response.writableEnded) {
+        setSecurityHeaders(response, security);
         sendError(response, randomUUID(), toApiError(error));
       }
     });
   });
+
+  server.requestTimeout = security.requestTimeoutMs;
+  server.headersTimeout = Math.min(security.requestTimeoutMs, 60_000);
+  server.timeout = security.requestTimeoutMs;
+  server.keepAliveTimeout = 5_000;
+  server.maxHeadersCount = 100;
+  return server;
 }

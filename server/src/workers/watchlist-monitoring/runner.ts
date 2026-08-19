@@ -134,7 +134,7 @@ export async function runWatchlistMonitoringWorker(
       logger.error("Watchlist monitoring search group failed", {
         category: failure.category,
         error: failure.message,
-        query: group.searchQuery,
+        queryLength: group.searchQuery.length,
         source: group.source,
         watchlistIds: failure.watchlistIds,
       });
@@ -249,13 +249,16 @@ async function searchGroupWithRetry(
       lastFailure = new MonitoringSearchFailure(
         partialFailure.source,
         partialFailure.category,
-        partialFailure.message,
+        safeMonitoringFailureMessage(partialFailure.source, partialFailure.category),
       );
     } catch (error) {
       lastFailure = new MonitoringSearchFailure(
         group.source,
         error instanceof MarketplaceError ? error.category : "unavailable",
-        error instanceof Error ? error.message : "Marketplace search failed.",
+        safeMonitoringFailureMessage(
+          group.source,
+          error instanceof MarketplaceError ? error.category : "unavailable",
+        ),
       );
     }
 
@@ -306,15 +309,50 @@ async function getExistingListings(
 function toFailure(
   source: MarketplaceSource | "notifications",
   category: string,
-  error: unknown,
+  _error: unknown,
   watchlistIds: string[],
 ): WatchlistMonitoringFailure {
   return {
     source,
     category,
-    message: error instanceof Error ? error.message : String(error),
+    message: safeFailureMessage(source, category),
     watchlistIds,
   };
+}
+
+function safeMonitoringFailureMessage(source: MarketplaceSource, category: string) {
+  switch (category) {
+    case "authentication":
+      return `${displaySource(source)} authentication failed.`;
+    case "rate_limit":
+      return `${displaySource(source)} rate limit reached.`;
+    case "timeout":
+      return `${source} marketplace search timed out.`;
+    default:
+      return `${source} marketplace search is unavailable.`;
+  }
+}
+
+function safeFailureMessage(source: MarketplaceSource | "notifications", category: string) {
+  if (source !== "notifications") {
+    if (category === "matching") {
+      return "Watchlist matching failed.";
+    }
+
+    if (category === "persistence") {
+      return "Watchlist persistence failed.";
+    }
+
+    return safeMonitoringFailureMessage(source, category);
+  }
+
+  return category === "queue_health"
+    ? "Notification queue health is unavailable."
+    : "Notification queue processing failed.";
+}
+
+function displaySource(source: MarketplaceSource) {
+  return source === "ebay" ? "eBay" : source.charAt(0).toUpperCase() + source.slice(1);
 }
 
 function stableSerialize(value: unknown): string {

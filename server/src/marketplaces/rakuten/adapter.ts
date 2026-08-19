@@ -8,7 +8,7 @@ import { MARKETPLACE_IDS } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
 import type { RakutenMarketplaceConfig } from "./config";
 import { RakutenMarketplaceClient } from "./client";
-import { RakutenUnsupportedFilterError, getRakutenErrorMessage } from "./errors";
+import { RakutenUnsupportedFilterError } from "./errors";
 import { normalizeRakutenListing } from "./normalizer";
 import { parseRakutenSearchResponse } from "./parser";
 
@@ -39,8 +39,7 @@ export class RakutenMarketplaceAdapter implements MarketplaceAdapter {
       const parsed = parseRakutenSearchResponse(response, (error) => {
         this.logger.warn("Skipped invalid Rakuten Ichiba item", {
           category: error.category,
-          error: error.message,
-          query: request.searchQuery,
+          queryLength: request.searchQuery.length,
           source: MARKETPLACE_IDS.rakuten,
         });
       });
@@ -54,9 +53,8 @@ export class RakutenMarketplaceAdapter implements MarketplaceAdapter {
       };
     } catch (error) {
       this.logger.error("Rakuten Ichiba adapter failed", {
-        category: error instanceof Error && "category" in error ? error.category : "parse",
-        error: getRakutenErrorMessage(error),
-        query: request.searchQuery,
+        errorCategory: error instanceof Error && "category" in error ? error.category : "parse",
+        queryLength: request.searchQuery.length,
         source: MARKETPLACE_IDS.rakuten,
       });
       throw error;
@@ -99,7 +97,7 @@ export class RakutenMarketplaceAdapter implements MarketplaceAdapter {
 
     if (this.config.availableOnly) {
       this.logger.info("Rakuten Ichiba availability filter enabled", {
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
         source: MARKETPLACE_IDS.rakuten,
       });
     }

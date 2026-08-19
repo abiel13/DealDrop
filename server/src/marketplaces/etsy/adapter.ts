@@ -8,7 +8,6 @@ import { MARKETPLACE_IDS } from "../shared/types";
 import type { WorkerLogger } from "../../types/backend";
 import type { EtsyMarketplaceConfig } from "./config";
 import { EtsyMarketplaceClient } from "./client";
-import { getEtsyErrorMessage } from "./errors";
 import { normalizeEtsyListing } from "./normalizer";
 import { parseEtsySearchResponse } from "./parser";
 
@@ -44,8 +43,7 @@ export class EtsyMarketplaceAdapter implements MarketplaceAdapter {
       const parsed = parseEtsySearchResponse(response, offset, limit, (error) => {
         this.logger.warn("Skipped invalid Etsy Marketplace listing", {
           category: error.category,
-          error: error.message,
-          query: request.searchQuery,
+          queryLength: request.searchQuery.length,
         });
       });
 
@@ -58,9 +56,8 @@ export class EtsyMarketplaceAdapter implements MarketplaceAdapter {
       };
     } catch (error) {
       this.logger.error("Etsy Marketplace adapter failed", {
-        category: error instanceof Error && "category" in error ? error.category : "parse",
-        error: getEtsyErrorMessage(error),
-        query: request.searchQuery,
+        errorCategory: error instanceof Error && "category" in error ? error.category : "parse",
+        queryLength: request.searchQuery.length,
       });
       throw error;
     }

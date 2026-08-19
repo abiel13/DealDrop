@@ -5,7 +5,6 @@ import {
   RakutenAuthenticationError,
   RakutenMarketplaceError,
   RakutenUnsupportedFilterError,
-  getRakutenErrorMessage,
   isRetryableRakutenError,
 } from "./errors";
 
@@ -26,7 +25,7 @@ export class RakutenMarketplaceClient {
 
     this.logger.info("Rakuten Ichiba search started", {
       page,
-      query: request.searchQuery,
+      queryLength: request.searchQuery.length,
       source: "rakuten",
     });
 
@@ -35,7 +34,7 @@ export class RakutenMarketplaceClient {
       this.logger.info("Rakuten Ichiba search completed", {
         durationMs: Date.now() - startedAt,
         page,
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
         resultCount: responseItemCount(response),
         source: "rakuten",
       });
@@ -43,9 +42,8 @@ export class RakutenMarketplaceClient {
     } catch (error) {
       this.logger.error("Rakuten Ichiba search failed", {
         category: error instanceof RakutenMarketplaceError ? error.category : "unavailable",
-        error: getRakutenErrorMessage(error),
         page,
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
         source: "rakuten",
       });
       throw error;
@@ -84,7 +82,7 @@ export class RakutenMarketplaceClient {
 
           if (response.status === 404) {
             this.logger.info("Rakuten Ichiba search returned no results", {
-              query,
+              queryLength: query.length,
               source: "rakuten",
             });
             return emptyRakutenSearchResponse();
@@ -134,8 +132,8 @@ export class RakutenMarketplaceClient {
         this.logger.warn("Retrying Rakuten Ichiba request", {
           attempt,
           delayMs,
-          error: getRakutenErrorMessage(error),
-          query,
+          errorCategory: error instanceof RakutenMarketplaceError ? error.category : "unavailable",
+          queryLength: query.length,
           source: "rakuten",
         });
         await new Promise<void>((resolve) => setTimeout(resolve, delayMs));

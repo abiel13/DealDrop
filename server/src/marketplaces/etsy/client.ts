@@ -3,7 +3,6 @@ import {
   EtsyAuthenticationError,
   EtsyMarketplaceError,
   EtsyUnsupportedFilterError,
-  getEtsyErrorMessage,
   isRetryableEtsyError,
 } from "./errors";
 import type { MarketplaceSearchRequest } from "../shared/adapter";
@@ -24,7 +23,7 @@ export class EtsyMarketplaceClient {
     const url = buildEtsySearchUrl(this.config, request, offset, limit);
     this.logger.info("Etsy Marketplace search started", {
       offset,
-      query: request.searchQuery,
+      queryLength: request.searchQuery.length,
     });
 
     try {
@@ -32,14 +31,13 @@ export class EtsyMarketplaceClient {
       const responseWithImages = await this.attachListingImages(response, request.searchQuery);
       this.logger.info("Etsy Marketplace search completed", {
         durationMs: Date.now() - startedAt,
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
       });
       return responseWithImages;
     } catch (error) {
       this.logger.error("Etsy Marketplace search failed", {
         category: error instanceof EtsyMarketplaceError ? error.category : "unavailable",
-        error: getEtsyErrorMessage(error),
-        query: request.searchQuery,
+        queryLength: request.searchQuery.length,
       });
       throw error;
     }
@@ -110,8 +108,8 @@ export class EtsyMarketplaceClient {
         this.logger.warn("Retrying Etsy Marketplace request", {
           attempt,
           delayMs,
-          error: getEtsyErrorMessage(error),
-          query,
+          errorCategory: error instanceof EtsyMarketplaceError ? error.category : "unavailable",
+          queryLength: query.length,
         });
         await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
       }
@@ -134,9 +132,9 @@ export class EtsyMarketplaceClient {
       return mergeListingImages(response, imageResponse);
     } catch (error) {
       this.logger.warn("Etsy Marketplace images unavailable", {
-        error: getEtsyErrorMessage(error),
+        errorCategory: error instanceof EtsyMarketplaceError ? error.category : "unavailable",
         listingCount: listingIds.length,
-        query,
+        queryLength: query.length,
       });
       return response;
     }
