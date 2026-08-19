@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f0c1d" />
+    <meta
+      name="description"
+      content="DealDrop watches enabled marketplaces for listings that match your saved watchlists, then alerts you when something worth seeing appears."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DealDrop" />
+    <meta property="og:title" content="DealDrop — Stop searching. Let DealDrop watch the market." />
+    <meta
+      property="og:description"
+      content="Create a watchlist once. DealDrop checks enabled marketplaces for relevant listings and alerts you when something worth seeing appears."
+    />
+    <meta property="og:url" content="https://get-deal-drop.com/" />
+    <meta property="og:image" content="https://get-deal-drop.com/favicon.svg" />
+    <link rel="canonical" href="https://get-deal-drop.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>DealDrop — Let the market come to you</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header" data-site-header>
+      <div class="container nav-wrap">
+        <a class="brand" href="/" aria-label="DealDrop home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" role="img">
+              <path d="M11 10.5h11.8c6.2 0 10.7 3.6 10.7 9.4s-4.5 9.6-10.7 9.6H11z" />
+              <path d="M11 16.2h8.8c2.7 0 4.5 1.3 4.5 3.7s-1.8 3.8-4.5 3.8H11z" class="mark-cut" />
+              <path d="M7 17.2h8.8M7 22.6h8.8M9.5 27.8h4.3" class="mark-speed" />
+              <path d="m15.5 31.5 4.6-4.6 4.6 4.6-4.6 4.6z" class="mark-tag" />
+              <circle cx="20.1" cy="31.5" r=".9" class="mark-hole" />
+            </svg>
+          </span>
+          <span>Deal<span class="brand-accent">Drop</span></span>
+        </a>
+
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+          <span class="sr-only">Toggle navigation</span>
+          <span></span><span></span>
+        </button>
+
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation">
+          <a href="#how-it-works">How it works</a>
+          <a href="#trust">Control</a>
+          <a href="#marketplaces">Marketplaces</a>
+          <a class="nav-cta" href="#app-coming-soon">Start your 7-day free trial</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero section-dark">
+        <div class="hero-grid container">
+          <div class="hero-copy" data-reveal>
+            <p class="eyebrow">
+              <span class="eyebrow-dot"></span>Marketplace watchlists for patient shoppers
+            </p>
+            <h1>Stop searching.<br /><em>Let DealDrop watch the market.</em></h1>
+            <p class="hero-lede">
+              Create a watchlist once. DealDrop checks enabled marketplaces for relevant listings
+              and alerts you when something worth seeing appears.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#app-coming-soon" data-app-link
+                >Start your 7-day free trial <span aria-hidden="true">↗</span></a
+              >
+              <a class="button button-quiet" href="#how-it-works"
+                >See how it works <span aria-hidden="true">↓</span></a
+              >
+            </div>
+            <p class="hero-note">
+              <span class="status-pulse"></span>7-day free trial · Premium access after the trial ·
+              App access coming soon
+            </p>
+          </div>
+
+          <div class="hero-visual" aria-label="Conceptual DealDrop product flow" data-reveal>
+            <div class="visual-annotation annotation-top">SEARCH ONCE <span></span> STAY READY</div>
+            <div class="radar-shell">
+              <div class="radar-glow"></div>
+              <div class="radar-ring ring-one"></div>
+              <div class="radar-ring ring-two"></div>
+              <div class="radar-sweep"></div>
+              <div class="radar-center"><span class="radar-pin"></span></div>
+              <div class="radar-signal signal-one"><span></span></div>
+              <div class="radar-signal signal-two"><span></span></div>
+              <div class="radar-signal signal-three"><span></span></div>
+              <div class="radar-label label-watchlist">
+                <span class="signal-number">01</span><strong>Watchlist live</strong
+                ><small>Compact camera · price range set</small>
+              </div>
+              <div class="radar-label label-match">
+                <span class="signal-number">02</span><strong>Useful match</strong
+                ><small>Price, condition, freshness</small>
+              </div>
+              <div class="radar-label label-alert">
+                <span class="signal-number">03</span><strong>Actionable alert</strong
+                ><small>Review it while it’s relevant</small>
+              </div>
+            </div>
+            <div class="visual-annotation annotation-bottom">
+              <span class="line"></span> A CONCEPTUAL PRODUCT FLOW
+            </div>
+          </div>
+        </div>
+        <div class="hero-bottom-line container">
+          <span>Watchlists</span><span>Marketplace checks</span><span>Useful matches</span
+          ><span>Notifications</span>
+        </div>
+      </section>
+
+      <section class="section section-intro" id="problem">
+        <div class="container intro-grid">
+          <div data-reveal>
+            <p class="eyebrow eyebrow-purple">The search loop</p>
+            <h2>The right listing rarely arrives on your schedule.</h2>
+          </div>
+          <div class="intro-copy" data-reveal>
+            <p>
+              Marketplace search is repetitive by design. Good listings disappear quickly, prices
+              move, and the same search across several sources can turn into a daily chore.
+            </p>
+            <p class="muted">
+              DealDrop gives that chore a place to live — then brings you back only when there is
+              something to review.
+            </p>
+          </div>
+        </div>
+        <div class="container problem-rail" data-reveal>
+          <div class="rail-item">
+            <span class="rail-index">01</span><span>Open the same search again</span>
+          </div>
+          <div class="rail-arrow" aria-hidden="true">→</div>
+          <div class="rail-item">
+            <span class="rail-index">02</span><span>Check another marketplace</span>
+          </div>
+          <div class="rail-arrow" aria-hidden="true">→</div>
+          <div class="rail-item">
+            <span class="rail-index">03</span><span>Wonder what changed</span>
+          </div>
+          <div class="rail-arrow" aria-hidden="true">→</div>
+          <div class="rail-item rail-item-highlight">
+            <span class="rail-index">04</span><span>Let DealDrop keep watch</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-lavender" id="how-it-works">
+        <div class="container">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow eyebrow-purple">How DealDrop works</p>
+            <h2>One thoughtful setup.<br /><em>Less manual checking.</em></h2>
+            <p>
+              Tell DealDrop what matters. It keeps the brief close while you get on with your day.
+            </p>
+          </div>
+          <div class="step-list">
+            <article class="step-row" data-reveal>
+              <div class="step-number">01</div>
+              <div class="step-marker">
+                <span class="marker-dot"></span><span class="marker-line"></span>
+              </div>
+              <div class="step-content">
+                <h3>Create a watchlist</h3>
+                <p>
+                  Save a search query for the thing you’re looking for — from a specific model to a
+                  broad category.
+                </p>
+              </div>
+              <div class="step-art art-search" aria-hidden="true">
+                <span class="art-search-label">Search query</span><strong>compact camera</strong
+                ><span class="art-chip">⌕</span>
+              </div>
+            </article>
+            <article class="step-row" data-reveal>
+              <div class="step-number">02</div>
+              <div class="step-marker">
+                <span class="marker-dot"></span><span class="marker-line"></span>
+              </div>
+              <div class="step-content">
+                <h3>Choose filters and sources</h3>
+                <p>
+                  Set the price, condition, location, and source preferences supported by your
+                  selected marketplaces.
+                </p>
+              </div>
+              <div class="step-art art-filters" aria-hidden="true">
+                <span class="mini-chip active">Price range</span
+                ><span class="mini-chip">Excellent+</span><span class="mini-chip">3 sources</span>
+              </div>
+            </article>
+            <article class="step-row" data-reveal>
+              <div class="step-number">03</div>
+              <div class="step-marker">
+                <span class="marker-dot"></span><span class="marker-line"></span>
+              </div>
+              <div class="step-content">
+                <h3>DealDrop monitors for matches</h3>
+                <p>
+                  Enabled sources are checked for relevant listings. Price observations and
+                  freshness help keep context attached.
+                </p>
+              </div>
+              <div class="step-art art-monitor" aria-hidden="true">
+                <span class="orbit orbit-a"></span><span class="orbit orbit-b"></span
+                ><span class="orbit-core"></span><span class="orbit-label">watching</span>
+              </div>
+            </article>
+            <article class="step-row" data-reveal>
+              <div class="step-number">04</div>
+              <div class="step-marker marker-last"><span class="marker-dot"></span></div>
+              <div class="step-content">
+                <h3>Review the useful signal</h3>
+                <p>
+                  Open a match, save a listing, follow a price drop, or tune the watchlist when the
+                  brief changes.
+                </p>
+              </div>
+              <div class="step-art art-notification" aria-hidden="true">
+                <span class="notification-icon">⌁</span
+                ><span><strong>New match</strong><small>Compact camera · review now</small></span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-dark proof-section" id="product-proof">
+        <div class="container proof-grid">
+          <div class="proof-copy" data-reveal>
+            <p class="eyebrow">A calmer way to shop</p>
+            <h2>Keep the context.<br /><em>Lose the checking.</em></h2>
+            <p>
+              DealDrop is built around the decisions that happen after a match: is it still
+              available, has the price moved, and is it worth opening now?
+            </p>
+            <div class="proof-list">
+              <span><i>↳</i> Watchlists that remember the brief</span>
+              <span><i>↳</i> Matches with source and freshness context</span>
+              <span><i>↳</i> Saved listings, price drops, and history</span>
+              <span><i>↳</i> Notifications you can quiet or control</span>
+            </div>
+          </div>
+          <div class="proof-flow" data-reveal>
+            <div class="proof-window-label">
+              <span class="window-dot"></span> DealDrop / match review
+              <span class="window-meta">concept</span>
+            </div>
+            <div class="proof-window">
+              <div class="proof-sidebar">
+                <span class="sidebar-logo">D</span><span class="sidebar-line active"></span
+                ><span class="sidebar-line"></span><span class="sidebar-line"></span
+                ><span class="sidebar-line short"></span>
+              </div>
+              <div class="proof-main">
+                <div class="proof-top">
+                  <span>Matches for <strong>compact camera</strong></span
+                  ><span class="small-status">● watching</span>
+                </div>
+                <div class="proof-match-card">
+                  <div class="match-image">
+                    <span class="camera-shape"></span><span class="image-spark">✦</span>
+                  </div>
+                  <div class="match-info">
+                    <span class="match-source">eBay · source context</span>
+                    <h3>Canon PowerShot G7 X</h3>
+                    <p>Excellent · compact camera</p>
+                    <div class="match-foot">
+                      <strong>Source price</strong><span class="drop-pill">↓ price observed</span>
+                    </div>
+                  </div>
+                  <span class="save-mark">♡</span>
+                </div>
+                <div class="proof-match-card muted-card">
+                  <div class="match-image image-two">
+                    <span class="camera-shape camera-two"></span>
+                  </div>
+                  <div class="match-info">
+                    <span class="match-source">Etsy · source context</span>
+                    <h3>Digital camera kit</h3>
+                    <p>Good · review listing</p>
+                    <div class="match-foot"><strong>Source price</strong></div>
+                  </div>
+                  <span class="save-mark saved">♥</span>
+                </div>
+              </div>
+            </div>
+            <p class="concept-note">
+              Illustrative product-flow concept — not a live account or user screenshot.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="marketplaces">
+        <div class="container transparency-grid">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow eyebrow-purple">Marketplace transparency</p>
+            <h2>Coverage is useful when it is honest.</h2>
+            <p>
+              DealDrop currently has adapters for the sources below. Whether a source is available
+              depends on configuration, region, and provider access.
+            </p>
+          </div>
+          <div class="source-board" data-reveal>
+            <div class="source-row">
+              <span class="source-name"><span class="source-dot dot-ebay"></span>eBay</span
+              ><span class="source-note">Browse listings</span><span class="source-arrow">↗</span>
+            </div>
+            <div class="source-row">
+              <span class="source-name"><span class="source-dot dot-etsy"></span>Etsy</span
+              ><span class="source-note">Open marketplace listings</span
+              ><span class="source-arrow">↗</span>
+            </div>
+            <div class="source-row">
+              <span class="source-name"
+                ><span class="source-dot dot-rakuten"></span>Rakuten Ichiba</span
+              ><span class="source-note">Retail catalog search</span
+              ><span class="source-arrow">↗</span>
+            </div>
+            <p class="board-footnote">
+              Source capabilities vary. Price, currency, condition, location, freshness, filters,
+              and deep links may differ by marketplace and environment.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-warm" id="trust">
+        <div class="container control-grid">
+          <div data-reveal>
+            <p class="eyebrow eyebrow-purple">Trust and control</p>
+            <h2>Your watchlist should work around your life.</h2>
+            <p class="section-lede">
+              Decide what DealDrop watches, how it alerts you, and when you are ready to let go.
+            </p>
+          </div>
+          <div class="control-list" data-reveal>
+            <div class="control-item">
+              <span class="control-icon">⌕</span>
+              <div>
+                <h3>Shape the brief</h3>
+                <p>Update queries, filters, and selected marketplaces as your search evolves.</p>
+              </div>
+            </div>
+            <div class="control-item">
+              <span class="control-icon">◷</span>
+              <div>
+                <h3>Set the pace</h3>
+                <p>
+                  Manage notification preferences and quiet hours without losing in-app history.
+                </p>
+              </div>
+            </div>
+            <div class="control-item">
+              <span class="control-icon">♡</span>
+              <div>
+                <h3>Keep what matters</h3>
+                <p>
+                  Favorite listings, review history, and give feedback when a match is not right.
+                </p>
+              </div>
+            </div>
+            <div class="control-item">
+              <span class="control-icon">×</span>
+              <div>
+                <h3>Leave cleanly</h3>
+                <p>
+                  Delete your account from the app. User-owned records are removed from the live
+                  service through the account-deletion flow.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-lavender trial-section" id="trial">
+        <div class="container trial-grid">
+          <div class="trial-copy" data-reveal>
+            <p class="eyebrow eyebrow-purple">Premium access</p>
+            <h2>Try the full watchlist experience for 7 days.</h2>
+            <p>
+              DealDrop has a 7-day free trial. Continued access after the trial requires an active
+              premium subscription.
+            </p>
+            <p class="muted">
+              Prices, renewal terms, and cancellation details are shown by the relevant app store
+              before you subscribe. No price is published here until store products are configured.
+            </p>
+          </div>
+          <div class="trial-card" data-reveal>
+            <span class="trial-badge">7 days</span>
+            <h3>Start with a better search habit.</h3>
+            <div class="trial-rule"></div>
+            <div class="trial-row">
+              <span>Watchlists</span><strong>Included during trial</strong>
+            </div>
+            <div class="trial-row"><span>Alerts</span><strong>Included during trial</strong></div>
+            <div class="trial-row">
+              <span>After trial</span><strong>Premium subscription required</strong>
+            </div>
+            <a class="button button-dark" href="#app-coming-soon" data-app-link
+              >Start your 7-day free trial <span aria-hidden="true">↗</span></a
+            >
+            <p class="trial-unavailable" id="app-access-note">
+              App access is coming soon. The CTA is ready for the configured app link.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section final-cta section-dark" id="app-coming-soon">
+        <div class="container final-cta-inner" data-reveal>
+          <p class="eyebrow">Search once. Keep watching.</p>
+          <h2>Let the next useful listing<br /><em>find its way to you.</em></h2>
+          <p>DealDrop watches the brief so you can spend your attention where it counts.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#app-coming-soon" data-app-link
+              >Start your 7-day free trial <span aria-hidden="true">↗</span></a
+            >
+            <span class="coming-soon-label">Coming soon</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
+          <a class="brand" href="/"
+            ><span class="brand-mark" aria-hidden="true"
+              ><svg viewBox="0 0 40 40">
+                <path d="M11 10.5h11.8c6.2 0 10.7 3.6 10.7 9.4s-4.5 9.6-10.7 9.6H11z" />
+                <path
+                  d="M11 16.2h8.8c2.7 0 4.5 1.3 4.5 3.7s-1.8 3.8-4.5 3.8H11z"
+                  class="mark-cut"
+                />
+                <path d="M7 17.2h8.8M7 22.6h8.8M9.5 27.8h4.3" class="mark-speed" />
+                <path d="m15.5 31.5 4.6-4.6 4.6 4.6-4.6 4.6z" class="mark-tag" />
+                <circle cx="20.1" cy="31.5" r=".9" class="mark-hole" /></svg></span
+            ><span>Deal<span class="brand-accent">Drop</span></span></a
+          >
+          <p>Never miss the perfect deal.</p>
+        </div>
+        <div class="footer-links">
+          <span class="footer-label">Explore</span><a href="#how-it-works">How it works</a
+          ><a href="#marketplaces">Marketplaces</a><a href="#app-coming-soon">Start your trial</a>
+        </div>
+        <div class="footer-links">
+          <span class="footer-label">Trust</span><a href="/privacy">Privacy</a
+          ><a href="/terms">Terms</a><a href="/support">Support</a>
+        </div>
+      </div>
+      <div class="container footer-bottom">
+        <span>© <span data-current-year></span> DealDrop</span
+        ><span>Built for the searches worth waiting for.</span>
+      </div>
+    </footer>
+
+    <script src="/site-config.js"></script>
+    <script src="/site.js"></script>
+  </body>
+</html>
