@@ -13,6 +13,9 @@ export interface WatchlistMonitoringConfig {
   retryBaseDelayMs: number;
   searchLimit: number;
   searchTimeoutMs: number;
+  staleAfterMs: number;
+  sourceFailureAlertThreshold: number;
+  notificationFailureAlertThreshold: number;
   enabledSources: MarketplaceSource[];
 }
 
@@ -101,6 +104,27 @@ export function loadWatchlistMonitoringConfig(
       30_000,
       1,
       300_000,
+    ),
+    staleAfterMs: boundedInteger(
+      env.WATCHLIST_MONITOR_STALE_AFTER_MS,
+      "WATCHLIST_MONITOR_STALE_AFTER_MS",
+      900_000,
+      60_000,
+      86_400_000,
+    ),
+    sourceFailureAlertThreshold: boundedInteger(
+      env.WATCHLIST_MONITOR_SOURCE_FAILURE_ALERT_THRESHOLD,
+      "WATCHLIST_MONITOR_SOURCE_FAILURE_ALERT_THRESHOLD",
+      3,
+      1,
+      100,
+    ),
+    notificationFailureAlertThreshold: boundedInteger(
+      env.WATCHLIST_MONITOR_NOTIFICATION_FAILURE_ALERT_THRESHOLD,
+      "WATCHLIST_MONITOR_NOTIFICATION_FAILURE_ALERT_THRESHOLD",
+      3,
+      1,
+      100,
     ),
     enabledSources: enabledSourcesValue(env.WATCHLIST_MONITOR_ENABLED_SOURCES),
   };

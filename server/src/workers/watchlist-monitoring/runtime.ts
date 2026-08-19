@@ -15,7 +15,9 @@ import type { WatchlistMonitoringConfig } from "./config";
 
 export interface WatchlistMonitoringRuntime {
   adapters: MarketplaceAdapterRegistry;
+  configuredSources: MarketplaceSource[];
   availableSources: MarketplaceSource[];
+  disabledSources: MarketplaceSource[];
   close(): Promise<void>;
 }
 
@@ -74,7 +76,9 @@ export async function createWatchlistMonitoringRuntime(
 
   return {
     adapters,
+    configuredSources: [...config.enabledSources],
     availableSources,
+    disabledSources: config.enabledSources.filter((source) => !availableSources.includes(source)),
     close: async () => undefined,
   };
 }

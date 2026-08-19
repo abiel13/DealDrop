@@ -5,6 +5,7 @@ import { productEventSchema } from "../analytics/events";
 import {
   DEALDROP_PRODUCT_CATEGORIES,
   MARKETPLACE_IDS,
+  type DealDropProductCategory,
   type MarketplaceSource,
 } from "../marketplaces/shared/types";
 import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
@@ -17,7 +18,12 @@ export const watchlistFiltersSchema = z
     aliases: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     excludedKeywords: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
     category: z
-      .enum(Object.values(DEALDROP_PRODUCT_CATEGORIES) as [string, ...string[]])
+      .enum(
+        Object.values(DEALDROP_PRODUCT_CATEGORIES) as [
+          DealDropProductCategory,
+          ...DealDropProductCategory[],
+        ],
+      )
       .optional(),
     productType: z.string().trim().min(1).max(80).optional(),
     brand: z.string().trim().min(1).max(80).optional(),

@@ -6,6 +6,7 @@ import test from "node:test";
 import { createHttpServer } from "../../src/api/http-server";
 import type { MarketplaceAdapter } from "../../src/marketplaces/shared/adapter";
 import { MARKETPLACE_IDS } from "../../src/marketplaces/shared/types";
+import { buildOperationalHealthSnapshot } from "../../src/operations/health";
 import type { WorkerLogger } from "../../src/types/backend";
 
 const logger: WorkerLogger = {
@@ -60,6 +61,54 @@ test("GET /marketplaces exposes enabled adapters and capabilities", async () => 
         ?.supportsPagination,
       true,
     );
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+
+test("readiness and liveness health routes distinguish process and dependencies", async () => {
+  const health = buildOperationalHealthSnapshot({
+    now: new Date("2026-08-16T12:00:00.000Z"),
+    databaseAvailable: true,
+    workerAvailable: false,
+    worker: null,
+    queueAvailable: true,
+    queue: {
+      pending: 0,
+      processing: 0,
+      failed: 0,
+      exhausted: 0,
+      oldestPendingAt: null,
+      oldestPendingAgeMs: null,
+    },
+    runtime: {
+      configuredSources: [MARKETPLACE_IDS.ebay],
+      availableSources: [MARKETPLACE_IDS.ebay],
+      disabledSources: [],
+    },
+    config: {
+      staleAfterMs: 900_000,
+      sourceFailureAlertThreshold: 3,
+      notificationFailureAlertThreshold: 3,
+    },
+  });
+  const server = createHttpServer(logger, { health: { getHealth: async () => health } });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address() as AddressInfo;
+    const readinessResponse = await fetch(`http://127.0.0.1:${address.port}/health`);
+    const readinessBody = (await readinessResponse.json()) as typeof health;
+    const livenessResponse = await fetch(`http://127.0.0.1:${address.port}/health/live`);
+
+    assert.equal(readinessResponse.status, 503);
+    assert.equal(readinessBody.status, "unhealthy");
+    assert.equal(readinessBody.checks.process.status, "ok");
+    assert.equal(readinessBody.checks.worker.status, "unavailable");
+    assert.equal(livenessResponse.status, 200);
   } finally {
     server.close();
     await once(server, "close");

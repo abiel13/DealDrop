@@ -58,6 +58,8 @@ npm run worker:watchlists
 Set `WATCHLIST_MONITOR_INTERVAL_MS=0` for a single run. The default interval is five minutes. Use `WATCHLIST_MONITOR_ENABLED_SOURCES` with stable marketplace IDs to disable a configured source without changing the watchlist schema.
 For a compiled production process, run `npm run server:build` and then `npm run server:worker:watchlists:prod`.
 
+The production API/worker Compose definition, health checks, alert rules, and recovery procedures are in [docs/runbooks/production-worker.md](docs/runbooks/production-worker.md).
+
 Credentials, API tokens, and `SUPABASE_SERVICE_ROLE_KEY` must stay server-side and must never use an `EXPO_PUBLIC_*` variable.
 
 For Rakuten application setup and server-only variables, see [`docs/rakuten-setup.md`](docs/rakuten-setup.md).

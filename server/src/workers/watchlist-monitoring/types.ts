@@ -5,7 +5,10 @@ import type {
 import type { ListingPersistence } from "../../database/listing-ingestion";
 import type { MarketplaceSearchCoordinator } from "../../marketplaces/search/coordinator";
 import type { MarketplaceListing, MarketplaceSource } from "../../marketplaces/shared/types";
-import type { NotificationDeliverySummary } from "../../notifications/delivery";
+import type {
+  NotificationDeliverySummary,
+  NotificationQueueHealth,
+} from "../../notifications/delivery";
 import type { MarketplaceWatchlist, WorkerLogger } from "../../types/backend";
 
 export interface WatchlistMonitoringRepository extends ListingPersistence {
@@ -22,6 +25,7 @@ export interface WatchlistMonitoringRepository extends ListingPersistence {
   ): Promise<number>;
   markWatchlistChecked(watchlistId: string): Promise<void>;
   processNotificationQueue(): Promise<NotificationDeliverySummary>;
+  getNotificationQueueHealth?(): Promise<NotificationQueueHealth>;
 }
 
 export interface WatchlistMonitoringWorkerConfig {
@@ -39,6 +43,8 @@ export interface WatchlistMonitoringWorkerDependencies {
   config: WatchlistMonitoringWorkerConfig;
   logger: WorkerLogger;
   sleep?: (delayMs: number) => Promise<void>;
+  runId?: string;
+  startedAt?: string;
 }
 
 export interface WatchlistMonitoringFailure {
@@ -49,12 +55,17 @@ export interface WatchlistMonitoringFailure {
 }
 
 export interface WatchlistMonitoringRunSummary {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
   watchlists: number;
   searchGroups: number;
   listings: number;
   matches: number;
   failures: WatchlistMonitoringFailure[];
   notificationDelivery: NotificationDeliverySummary | null;
+  notificationQueue: NotificationQueueHealth | null;
 }
 
 export interface MonitoringSearchGroup {

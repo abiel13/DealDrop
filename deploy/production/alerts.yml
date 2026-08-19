@@ -1,0 +1,24 @@
+version: 1
+name: dealdrop-production
+health_endpoint: http://dealdrop-api:3000/health
+
+# Feed this provider-neutral rule file into the host's monitor, or use the
+# JSON response directly in an uptime check. The API returns HTTP 503 whenever
+# readiness is degraded or unhealthy.
+rules:
+  - id: worker-stale
+    severity: critical
+    when: "alerts contains code worker_stale or worker_unavailable"
+    action: "restart dealdrop-worker after checking the runbook"
+  - id: provider-failure-streak
+    severity: critical
+    when: "alerts contains code provider_failure_streak"
+    action: "disable only the failing source and inspect provider credentials or limits"
+  - id: notification-delivery-failures
+    severity: critical
+    when: "alerts contains code notification_delivery_failures"
+    action: "inspect queue failed/exhausted counts and notification provider responses"
+  - id: database-unavailable
+    severity: critical
+    when: "alerts contains code database_unavailable"
+    action: "restore database connectivity before restarting either process"
