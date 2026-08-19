@@ -18,4 +18,4 @@ The issues are ordered so that launch blockers are handled before additional mar
 12. [Accessibility and poor-network resilience](12-accessibility-and-network-resilience.md) — P1
 13. [Marketplace expansion validation](13-marketplace-expansion-validation.md) — P2
 
-Marketplace expansion is intentionally last. The current code already contains eBay, Etsy, Rakuten, and StockX adapters; the next source should be selected using target-audience demand, permitted access, and measurable usefulness rather than adapter count.
+Marketplace expansion is intentionally last. The current code contains eBay, Etsy, and Rakuten adapters; the next source should be selected using target-audience demand, permitted access, and measurable usefulness rather than adapter count.

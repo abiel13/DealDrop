@@ -67,6 +67,126 @@ test("protected mobile API endpoints require a valid Bearer token", async () => 
   }
 });
 
+test("listing problem reports use the authenticated user, request ID, and safe structured input", async () => {
+  let received:
+    | {
+        userId: string;
+        requestId: string;
+        input: Record<string, unknown>;
+      }
+    | undefined;
+  const repository = createRepository({
+    async createListingProblemReport(userId, requestId, input) {
+      received = { userId, requestId, input };
+      return "66666666-6666-4666-8666-666666666666";
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/listing-reports`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        category: "wrong_price",
+        listingId: LISTING_ID,
+        marketplace: MARKETPLACE_IDS.ebay,
+        matchId: MATCH_ID,
+        watchlistId: WATCHLIST_ID,
+        appVersion: "1.0.0",
+        idempotencyKey: "77777777-7777-4777-8777-777777777777",
+      }),
+    });
+    const body = (await response.json()) as {
+      data: { reportId: string; status: string };
+      meta: { requestId: string };
+    };
+
+    assert.equal(response.status, 201);
+    assert.deepEqual(body.data, {
+      reportId: "66666666-6666-4666-8666-666666666666",
+      status: "received",
+    });
+    assert.equal(received?.userId, USER_ID);
+    assert.equal(received?.requestId, body.meta.requestId);
+    assert.deepEqual(received?.input, {
+      category: "wrong_price",
+      listingId: LISTING_ID,
+      marketplace: MARKETPLACE_IDS.ebay,
+      matchId: MATCH_ID,
+      watchlistId: WATCHLIST_ID,
+      appVersion: "1.0.0",
+      idempotencyKey: "77777777-7777-4777-8777-777777777777",
+    });
+
+    const unsafeResponse = await fetch(`${baseUrl}/api/v1/listing-reports`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        category: "other",
+        listingId: LISTING_ID,
+        marketplace: MARKETPLACE_IDS.ebay,
+        appVersion: "1.0.0",
+        idempotencyKey: "88888888-8888-4888-8888-888888888888",
+        description: "Do not store this private listing description",
+      }),
+    });
+    const unsafeBody = (await unsafeResponse.json()) as { error: { code: string } };
+    assert.equal(unsafeResponse.status, 400);
+    assert.equal(unsafeBody.error.code, "invalid_request");
+  } finally {
+    await close(server);
+  }
+});
+
+test("listing problem reports fail closed when the match or watchlist is not user-owned", async () => {
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository: createRepository({
+      async createListingProblemReport() {
+        return null;
+      },
+    }),
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/listing-reports`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        category: "incorrect_match",
+        listingId: LISTING_ID,
+        marketplace: MARKETPLACE_IDS.ebay,
+        matchId: MATCH_ID,
+        watchlistId: WATCHLIST_ID,
+        appVersion: "1.0.0",
+        idempotencyKey: "99999999-9999-4999-8999-999999999999",
+      }),
+    });
+    const body = (await response.json()) as { error: { code: string; message: string } };
+
+    assert.equal(response.status, 404);
+    assert.equal(body.error.code, "not_found");
+    assert.doesNotMatch(body.error.message, new RegExp(MATCH_ID));
+  } finally {
+    await close(server);
+  }
+});
+
 test("mobile search returns normalized DealDrop listings and partial failures", async () => {
   const ebayListing = listing(MARKETPLACE_IDS.ebay, "ebay-1");
   const repository = createRepository({
@@ -446,6 +566,9 @@ function createRepository(
       return true;
     },
     async recordProductEvent() {},
+    async createListingProblemReport() {
+      return "66666666-6666-4666-8666-666666666666";
+    },
     async getWatchlists() {
       return page([]);
     },

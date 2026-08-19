@@ -9,6 +9,7 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ListingProblemReportInput,
   ApiWeeklySummary,
   RawApiListing,
   RawApiMatch,
@@ -84,6 +85,11 @@ export interface MobileApiRepositoryContract {
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
   recordProductEvent(userId: string, input: ProductEventInput): Promise<void>;
+  createListingProblemReport(
+    userId: string,
+    requestId: string,
+    input: ListingProblemReportInput,
+  ): Promise<string | null>;
   getWatchlists(
     userId: string,
     cursor: string | null,
@@ -299,6 +305,107 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     if (error) {
       throw error;
     }
+  }
+
+  async createListingProblemReport(
+    userId: string,
+    requestId: string,
+    input: ListingProblemReportInput,
+  ): Promise<string | null> {
+    const { data: listing, error: listingError } = await this.client
+      .from("listings")
+      .select("id,marketplace_id")
+      .eq("id", input.listingId)
+      .maybeSingle<{ id: string; marketplace_id: string }>();
+
+    if (listingError) {
+      throw listingError;
+    }
+
+    if (!listing || listing.marketplace_id !== input.marketplace) {
+      return null;
+    }
+
+    let matchId: string | null = null;
+    if (input.matchId) {
+      const { data: match, error: matchError } = await this.client
+        .from("matches")
+        .select("id,watchlist_id,listing_id")
+        .eq("id", input.matchId)
+        .eq("user_id", userId)
+        .maybeSingle<{ id: string; watchlist_id: string; listing_id: string }>();
+
+      if (matchError) {
+        throw matchError;
+      }
+
+      if (!match || match.listing_id !== input.listingId) {
+        return null;
+      }
+
+      matchId = match.id;
+      if (input.watchlistId && input.watchlistId !== match.watchlist_id) {
+        return null;
+      }
+    }
+
+    let watchlistId: string | null = input.watchlistId ?? null;
+    if (watchlistId) {
+      const { data: watchlist, error: watchlistError } = await this.client
+        .from("watchlists")
+        .select("id")
+        .eq("id", watchlistId)
+        .eq("user_id", userId)
+        .maybeSingle<{ id: string }>();
+
+      if (watchlistError) {
+        throw watchlistError;
+      }
+
+      if (!watchlist) {
+        return null;
+      }
+    }
+
+    const { data: report, error: reportError } = await this.client
+      .from("listing_problem_reports")
+      .upsert(
+        {
+          user_id: userId,
+          listing_id: listing.id,
+          marketplace_id: listing.marketplace_id,
+          category: input.category,
+          match_id: matchId,
+          watchlist_id: watchlistId,
+          app_version: input.appVersion,
+          request_id: requestId,
+          idempotency_key: input.idempotencyKey,
+        },
+        { onConflict: "user_id,idempotency_key", ignoreDuplicates: true },
+      )
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (reportError) {
+      throw reportError;
+    }
+
+    if (report) {
+      return report.id;
+    }
+
+    const { data: existingReport, error: existingReportError } = await this.client
+      .from("listing_problem_reports")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle<{ id: string }>();
+
+    if (existingReportError) {
+      throw existingReportError;
+    }
+
+    return existingReport?.id ?? null;
   }
 
   async getWatchlists(userId: string, cursor: string | null, limit: number) {

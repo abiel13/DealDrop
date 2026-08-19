@@ -23,6 +23,8 @@ import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
   ApiMatch,
+  ApiListingProblemReport,
+  ListingProblemReportInput,
   ApiNotification,
   ApiNotificationPreferences,
   ApiSearchResult,
@@ -114,6 +116,23 @@ export class MobileApiService {
 
   async recordProductEvent(userId: string, input: ProductEventInput) {
     await this.dependencies.repository.recordProductEvent(userId, input);
+  }
+
+  async createListingProblemReport(
+    userId: string,
+    requestId: string,
+    input: ListingProblemReportInput,
+  ): Promise<ApiListingProblemReport> {
+    const reportId = await this.dependencies.repository.createListingProblemReport(
+      userId,
+      requestId,
+      input,
+    );
+    if (!reportId) {
+      throw new ApiNotFoundError("The listing or report context was not found.");
+    }
+
+    return { reportId, status: "received" };
   }
 
   getWeeklySummary(userId: string): Promise<ApiWeeklySummary> {
