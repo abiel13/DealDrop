@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/Input";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
-import { authRoutes } from "@/features/auth/routes";
+import { authRoutes, watchlistRoute } from "@/features/auth/routes";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -29,7 +30,10 @@ import {
   getSupportedMarketplaces,
   updateWatchlist,
 } from "../services/watchlist.service";
-import type { WatchlistInput } from "../types/watchlist.types";
+import { clearFirstUseOnboarding } from "@/features/auth/services/first-use-onboarding";
+import { FirstWatchlistSuccess } from "../components/FirstWatchlistSuccess";
+import { WatchlistOnboardingIntro } from "../components/WatchlistOnboardingIntro";
+import type { Watchlist, WatchlistInput } from "../types/watchlist.types";
 import {
   DEFAULT_WATCHLIST_FILTER_VALUES,
   getSelectedMarketplaces,
@@ -190,9 +194,17 @@ export function WatchlistFormScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    onboarding?: string | string[];
+  }>();
   const watchlistId = Array.isArray(params.id) ? params.id[0] : params.id;
   const isEditing = Boolean(watchlistId);
+  const onboardingParam = Array.isArray(params.onboarding)
+    ? params.onboarding[0]
+    : params.onboarding;
+  const isOnboarding = !isEditing && onboardingParam === "true";
+  const [createdWatchlist, setCreatedWatchlist] = useState<Watchlist | null>(null);
 
   const {
     control,
@@ -303,6 +315,18 @@ export function WatchlistFormScreen() {
     setValue("conditions", nextConditions, { shouldValidate: true });
   }
 
+  function applyTemplate(template: {
+    name: string;
+    searchQuery: string;
+    aliases: string;
+    excludedKeywords: string;
+  }) {
+    setValue("name", template.name, { shouldValidate: true });
+    setValue("searchQuery", template.searchQuery, { shouldValidate: true });
+    setValue("aliases", template.aliases, { shouldValidate: true });
+    setValue("excludedKeywords", template.excludedKeywords, { shouldValidate: true });
+  }
+
   function saveWatchlist(values: WatchlistFormValues) {
     const input: WatchlistInput = {
       name: values.name,
@@ -324,14 +348,38 @@ export function WatchlistFormScreen() {
 
       return isEditing ? updateWatchlist(watchlistId!, input) : createWatchlist(input);
     },
-    onSuccess: async () => {
+    onSuccess: async (watchlist) => {
       await queryClient.invalidateQueries({ queryKey: ["watchlists", user?.id] });
+
+      if (isOnboarding) {
+        setCreatedWatchlist(watchlist);
+        trackProductEventNonBlocking(
+          "first_watchlist_created",
+          { watchlistId: watchlist.id },
+          `first-watchlist-created:${watchlist.id}`,
+        );
+        if (user?.id) {
+          await clearFirstUseOnboarding(user.id);
+        }
+        return;
+      }
+
       router.replace(authRoutes.watchlists);
     },
   });
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
+  }
+
+  if (createdWatchlist) {
+    return (
+      <FirstWatchlistSuccess
+        watchlist={createdWatchlist}
+        onOpenWatchlist={() => router.replace(watchlistRoute(createdWatchlist.id))}
+        onBackToWatchlists={() => router.replace(authRoutes.watchlists)}
+      />
+    );
   }
 
   if (isEditing && existingWatchlistQuery.isLoading) {
@@ -371,10 +419,19 @@ export function WatchlistFormScreen() {
             subtitle={
               isEditing
                 ? "Keep your monitor focused on the right search."
-                : "Set up a search and DealDrop will watch for matching listings."
+                : isOnboarding
+                  ? "Set up your first search and DealDrop will watch for matching listings."
+                  : "Set up a search and DealDrop will watch for matching listings."
             }
             onBack={() => router.back()}
           />
+
+          {isOnboarding && marketplacesQuery.isSuccess && (
+            <WatchlistOnboardingIntro
+              marketplaces={marketplacesQuery.data}
+              onSelectTemplate={applyTemplate}
+            />
+          )}
 
           <Card padding="md" className="gap-5">
             <FormSectionHeader
