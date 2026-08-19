@@ -382,6 +382,7 @@ test("validates security configuration and route operation mapping", () => {
   );
   assert.equal(operationForRoute("PATCH", ["matches", MATCH_ID, "status"]), "resource_mutation");
   assert.equal(operationForRoute("PATCH", ["watchlists", WATCHLIST_ID]), "watchlist_mutation");
+  assert.equal(operationForRoute("POST", ["listing-reports"]), "resource_mutation");
 
   const limiter = new FixedWindowRateLimiter();
   assert.equal(limiter.consume(["user:test"], "search", 1, 60_000).allowed, true);
@@ -421,6 +422,9 @@ function createRepository(
       return true;
     },
     async recordProductEvent() {},
+    async createListingProblemReport() {
+      return "66666666-6666-4666-8666-666666666666";
+    },
     async getWatchlists() {
       return page([]);
     },

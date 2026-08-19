@@ -1,5 +1,23 @@
 export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
 
+export type ApiListingProblemReportCategory =
+  "broken_link" | "wrong_price" | "stale_listing" | "incorrect_match" | "missing_image" | "other";
+
+export interface ApiListingProblemReportInput {
+  category: ApiListingProblemReportCategory;
+  listingId: string;
+  marketplace: MarketplaceSource;
+  matchId?: string | null;
+  watchlistId?: string | null;
+  appVersion: string;
+  idempotencyKey: string;
+}
+
+export interface ApiListingProblemReportResponse {
+  reportId: string;
+  status: "received";
+}
+
 export type WatchlistMarketplaceScope = "selected" | "all";
 export type WatchlistAlertMode = "instant" | "digest";
 export type WatchlistLifecycleState = "active" | "paused" | "snoozed" | "completed";

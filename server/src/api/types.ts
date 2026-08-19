@@ -33,6 +33,24 @@ export interface ApiSuccess<T> {
   meta: ApiMeta;
 }
 
+export type ListingProblemReportCategory =
+  "broken_link" | "wrong_price" | "stale_listing" | "incorrect_match" | "missing_image" | "other";
+
+export interface ListingProblemReportInput {
+  category: ListingProblemReportCategory;
+  listingId: string;
+  marketplace: MarketplaceSource;
+  matchId?: string | null;
+  watchlistId?: string | null;
+  appVersion: string;
+  idempotencyKey: string;
+}
+
+export interface ApiListingProblemReport {
+  reportId: string;
+  status: "received";
+}
+
 export interface ApiListing {
   id: string | null;
   source: MarketplaceSource;

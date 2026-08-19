@@ -304,6 +304,7 @@ export function operationForRoute(
   }
 
   if (
+    (resource === "listing-reports" && method === "POST") ||
     (resource === "listings" && action === "favorite") ||
     (resource === "matches" && (action === "status" || action === "feedback"))
   ) {

@@ -40,6 +40,7 @@ include the authenticated user's ID, and the database keeps RLS enabled for dire
 | `listing_price_observations`              | Pricing; historical prices used for trend and drop calculations              | Older than 365 days only when the listing has no match or favorite reference                          | Listing cascade where applicable; this is not a separate user-owned table            |
 | `match_feedback`                          | Product; relevance feedback attached to a user's match                       | 730 days, or earlier when its match/account is deleted                                                | Deleted through match/profile cascade                                                |
 | `product_events`                          | Product; privacy-minimized lifecycle events and weekly summary inputs        | 365 days; properties must remain event-scoped and non-sensitive                                       | Deleted through profile cascade                                                      |
+| `listing_problem_reports`                 | Support operations; structured reports for broken or incorrect listing data  | Open/reviewed reports remain until resolved; resolved/dismissed reports after 730 days                | Deleted through profile cascade; listing/match references are set null or cascade    |
 
 The SQL function `public.cleanup_retained_data()` in migration
 `20260821000000_add_data_governance_and_retention.sql` implements these rules. Run it from the
@@ -47,6 +48,14 @@ server-only maintenance path or schedule it with Supabase `pg_cron` after review
 
 ```sql
 select * from public.cleanup_retained_data();
+```
+
+Listing problem reports have a separate server-only cleanup function because active reports must
+not be removed with general retention. Run it after the general cleanup or schedule it as a second
+daily job:
+
+```sql
+select public.cleanup_listing_problem_reports();
 ```
 
 If `pg_cron` is enabled for the project, an operator may schedule the function once per day. Keep
@@ -159,6 +168,23 @@ lose writes made after the recovery point. Never use `git revert` as a database 
   bundle, source control, logs, or API responses.
 - Before release, run the Supabase security advisor for the production project and review table
   grants, function grants, Auth settings, database password, API keys, and server secret rotation.
+
+## Support and listing problem reports
+
+Profile → Support opens `EXPO_PUBLIC_SUPPORT_URL`, which must be a reviewed HTTPS destination or
+`mailto:` address and is checked by `npm run verify:production-config`. Listing details also show a
+structured “Report a listing problem” action. The mobile client sends only the category, DealDrop
+listing ID, marketplace, optional user-owned match/watchlist IDs, app version, and an idempotency key.
+The server derives the marketplace from the listing and rejects mismatched or cross-user context.
+Tokens, passwords, private descriptions, provider payloads, and unnecessary personal data are not
+stored in a report.
+
+Reports are stored in the backend-only `listing_problem_reports` table and are accessible to the
+Support Operations owner through the server-side `service_role` maintenance path. Support reviews
+new reports, links them to provider/source incidents when needed, and marks them reviewed, resolved,
+or dismissed. Product owns category and matching-policy follow-up; Marketplace Partnerships owns
+provider/license escalation. Keep the request ID with the report for server-log correlation, but do
+not copy authorization headers or raw request bodies into support tooling.
 
 ## Marketplace data-use obligations
 

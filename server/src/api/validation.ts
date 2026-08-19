@@ -164,6 +164,27 @@ export const updateWatchlistSchema = z
 
 export const favoriteSchema = z.object({ isFavorite: z.boolean() }).strict();
 
+export const listingProblemReportSchema = z
+  .object({
+    category: z.enum([
+      "broken_link",
+      "wrong_price",
+      "stale_listing",
+      "incorrect_match",
+      "missing_image",
+      "other",
+    ]),
+    listingId: z.string().uuid(),
+    marketplace: z.enum(
+      Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+    ),
+    matchId: z.string().uuid().nullable().optional(),
+    watchlistId: z.string().uuid().nullable().optional(),
+    appVersion: z.string().trim().min(1).max(32),
+    idempotencyKey: z.string().uuid(),
+  })
+  .strict();
+
 export const matchStatusSchema = z
   .object({ status: z.enum(["unread", "read", "dismissed"]) })
   .strict();

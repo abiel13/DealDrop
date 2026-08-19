@@ -33,7 +33,6 @@ async function main() {
   const server = createHttpServer(logger, {
     adapters: runtime.adapters,
     authenticator: new SupabaseRequestAuthenticator(databaseClient),
-    enableStockXOauthCallback: config.environment !== "production",
     mobileApi,
     repository,
     security: config.apiSecurity,

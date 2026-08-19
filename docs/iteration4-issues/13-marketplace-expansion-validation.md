@@ -5,7 +5,7 @@ Suggested labels: `discovery`, `marketplaces`, `product`, `P2`
 
 ## Problem
 
-DealDrop already contains eBay, Etsy, Rakuten, and StockX adapters, although the usable set depends on provider credentials and approval. Adding more sources can increase coverage, but it can also multiply stale listings, duplicates, API failures, source-specific limitations, and notification noise.
+DealDrop already contains eBay, Etsy, and Rakuten adapters. Adding more sources can increase coverage, but it can also multiply stale listings, duplicates, API failures, source-specific limitations, and notification noise.
 
 ## Goal
 
@@ -33,7 +33,6 @@ Choose one next marketplace only if it materially improves usefulness for the ta
 - The target audience, geography, and priority use cases are written down.
 - At least three candidate marketplaces are compared using documented evidence.
 - No scraping or browser automation is proposed without separate approval and legal review.
-- StockX’s approval and commercial license status is explicitly recorded before treating it as a launch source.
 - Rakuten’s Japan-focused retail and currency limitations are reflected in the decision.
 - The selected, deferred, or rejected outcome has an expected activation/retention impact and measurement plan.
 - Current enabled sources remain stable while the decision is made.

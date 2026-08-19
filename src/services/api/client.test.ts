@@ -127,6 +127,39 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
   });
 });
 
+test("submits only structured listing problem context", async () => {
+  let requestBody: unknown;
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (_input, init) => {
+      requestBody = JSON.parse(init?.body as string) as unknown;
+      return response(201, envelope({ reportId: "report-1", status: "received" }));
+    },
+  });
+
+  const result = await client.createListingProblemReport({
+    category: "broken_link",
+    listingId: "listing-1",
+    marketplace: "ebay",
+    matchId: "match-1",
+    watchlistId: "watchlist-1",
+    appVersion: "1.0.0",
+    idempotencyKey: "77777777-7777-4777-8777-777777777777",
+  });
+
+  assert.deepEqual(result.data, { reportId: "report-1", status: "received" });
+  assert.deepEqual(requestBody, {
+    category: "broken_link",
+    listingId: "listing-1",
+    marketplace: "ebay",
+    matchId: "match-1",
+    watchlistId: "watchlist-1",
+    appVersion: "1.0.0",
+    idempotencyKey: "77777777-7777-4777-8777-777777777777",
+  });
+});
+
 test("persists timezone-aware delivery preferences", async () => {
   let requestBody: unknown;
   const client = new DealDropApiClient({

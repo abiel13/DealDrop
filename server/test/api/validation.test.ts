@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   notificationPreferencesSchema,
+  listingProblemReportSchema,
   parseBody,
   updateWatchlistSchema,
   watchlistFiltersSchema,
@@ -94,6 +95,28 @@ test("requires a future time when snoozing a watchlist", () => {
       parseBody(updateWatchlistSchema, {
         lifecycleState: "snoozed",
         snoozedUntil: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    /request body is invalid/i,
+  );
+});
+
+test("validates structured listing problem reports and rejects free-form payload fields", () => {
+  const report = parseBody(listingProblemReportSchema, {
+    category: "stale_listing",
+    listingId: "22222222-2222-4222-8222-222222222222",
+    marketplace: "ebay",
+    matchId: null,
+    watchlistId: null,
+    appVersion: "1.0.0",
+    idempotencyKey: "77777777-7777-4777-8777-777777777777",
+  });
+
+  assert.equal(report.category, "stale_listing");
+  assert.throws(
+    () =>
+      parseBody(listingProblemReportSchema, {
+        ...report,
+        description: "private listing details",
       }),
     /request body is invalid/i,
   );

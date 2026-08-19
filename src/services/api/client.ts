@@ -4,6 +4,8 @@ import type {
   ApiEnvelope,
   ApiErrorPayload,
   ApiListing,
+  ApiListingProblemReportInput,
+  ApiListingProblemReportResponse,
   ApiListingQuery,
   ApiMatchQuery,
   ApiMarketplace,
@@ -71,6 +73,13 @@ export class DealDropApiClient {
       `/listings/${encodeURIComponent(listingId)}/favorite`,
       { method: "PATCH", body: { isFavorite } },
     );
+  }
+
+  async createListingProblemReport(input: ApiListingProblemReportInput) {
+    return this.request<ApiListingProblemReportResponse>("/listing-reports", {
+      method: "POST",
+      body: input,
+    });
   }
 
   async getSavedListings(options: ApiListingQuery = {}) {

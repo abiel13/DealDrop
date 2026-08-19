@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  Alert,
   Image,
   Linking,
   Pressable,
@@ -21,6 +22,7 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
+import { getAccountLinks } from "@/features/profile/utils/legal-links";
 import { useTheme } from "@/providers/ThemeProvider";
 
 import {
@@ -28,6 +30,7 @@ import {
   getListingErrorMessage,
   setListingFavorite,
 } from "../services/listing.service";
+import { submitListingProblemReport } from "../services/listing-problem-report.service";
 import type { Listing } from "../types/listing.types";
 import {
   formatListingDate,
@@ -35,6 +38,7 @@ import {
   formatListingRecency,
   formatMarketplaceName,
 } from "../utils/listing.utils";
+import { listingProblemReportOptions } from "../utils/listing-problem-reports";
 
 function DetailsSkeleton() {
   return (
@@ -62,12 +66,26 @@ export function ListingDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    matchId?: string | string[];
+    watchlistId?: string | string[];
+  }>();
   const listingId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const matchId = Array.isArray(params.matchId) ? params.matchId[0] : params.matchId;
+  const watchlistId = Array.isArray(params.watchlistId)
+    ? params.watchlistId[0]
+    : params.watchlistId;
   const [currentImage, setCurrentImage] = useState(0);
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [reportFeedback, setReportFeedback] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [reportSubmissionStarted, setReportSubmissionStarted] = useState(false);
   const listingQueryKey = ["listing", user?.id, listingId] as const;
+  const accountLinks = getAccountLinks();
 
   const listingQuery = useQuery({
     queryKey: listingQueryKey,
@@ -96,6 +114,63 @@ export function ListingDetailsScreen() {
       void queryClient.invalidateQueries({ queryKey: ["matched-listings", user?.id] });
     },
   });
+  const reportMutation = useMutation({
+    mutationFn: (category: (typeof listingProblemReportOptions)[number]["category"]) => {
+      if (!listingId || !listingQuery.data) {
+        throw new Error("The listing is unavailable.");
+      }
+
+      return submitListingProblemReport({
+        category,
+        listingId,
+        marketplace: listingQuery.data.marketplace_id,
+        matchId: matchId ?? null,
+        watchlistId: watchlistId ?? null,
+      });
+    },
+    onSuccess: () => {
+      setReportFeedback({ kind: "success", message: "Thanks — your report was sent." });
+      setReportSubmissionStarted(true);
+    },
+    onError: () => {
+      setReportFeedback({
+        kind: "error",
+        message: "We couldn't send that report. Please try again or contact support.",
+      });
+      setReportSubmissionStarted(false);
+    },
+  });
+
+  const openSupport = () => {
+    if (!accountLinks.support) {
+      return;
+    }
+
+    void Linking.openURL(accountLinks.support).catch(() => {
+      setOperationError("Support could not be opened. Please try again later.");
+    });
+  };
+
+  const openReportPicker = () => {
+    if (reportMutation.isPending || reportSubmissionStarted) {
+      return;
+    }
+
+    Alert.alert(
+      "Report a listing problem",
+      "Choose the problem that best describes this listing.",
+      [
+        ...listingProblemReportOptions.map((option) => ({
+          text: option.label,
+          onPress: () => {
+            setReportSubmissionStarted(true);
+            reportMutation.mutate(option.category);
+          },
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  };
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
@@ -121,6 +196,20 @@ export function ListingDetailsScreen() {
           >
             Try again
           </Button>
+          {accountLinks.support && (
+            <Button
+              variant="outline"
+              leftIcon={<AppIcon name="mail" size={18} color={theme.colors.primary} />}
+              onPress={openSupport}
+            >
+              Contact support
+            </Button>
+          )}
+          {operationError && (
+            <AppText variant="error" className="text-center">
+              {operationError}
+            </AppText>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -245,6 +334,39 @@ export function ListingDetailsScreen() {
           <AppText variant="caption" className="text-center">
             Check the original listing for seller contact and purchase details.
           </AppText>
+        </View>
+
+        <View className="gap-2">
+          <Button
+            variant="outline"
+            disabled={reportMutation.isPending || reportSubmissionStarted}
+            loading={reportMutation.isPending}
+            leftIcon={<AppIcon name="warning" size={18} color={theme.colors.primary} />}
+            onPress={openReportPicker}
+          >
+            Report a listing problem
+          </Button>
+          {reportFeedback && (
+            <View className="gap-2">
+              <AppText
+                variant={reportFeedback.kind === "success" ? "bodySmall" : "error"}
+                className={
+                  reportFeedback.kind === "success" ? "text-center text-primary" : "text-center"
+                }
+              >
+                {reportFeedback.message}
+              </AppText>
+              {reportFeedback.kind === "error" && accountLinks.support && (
+                <Button
+                  variant="ghost"
+                  leftIcon={<AppIcon name="mail" size={17} color={theme.colors.primary} />}
+                  onPress={openSupport}
+                >
+                  Contact support
+                </Button>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
