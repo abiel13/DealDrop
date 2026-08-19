@@ -439,6 +439,9 @@ function createRepository(
     async getMatches() {
       return page<StoredMatch>([]);
     },
+    async getFavoriteListings() {
+      return page([]);
+    },
     async setMatchStatus() {
       return true;
     },

@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
-import { authRoutes, listingRoute, watchlistsRoute } from "@/features/auth/routes";
+import { authRoutes, listingRoute, watchlistRoute } from "@/features/auth/routes";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { AppHeader } from "@/features/navigation/components";
 
@@ -109,7 +109,7 @@ export function WeeklySummaryScreen() {
           summary={summary}
           onOpenMatches={() => openRoute(router, targets.newMatches)}
           onOpenListing={(listingId) => openRoute(router, listingRoute(listingId))}
-          onOpenWatchlist={(watchlistId) => openRoute(router, watchlistsRoute(watchlistId))}
+          onOpenWatchlist={(watchlistId) => openRoute(router, watchlistRoute(watchlistId))}
         />
         <AppText variant="caption" className="text-text-secondary">
           Your summary covers the last 7 days and updates as DealDrop checks your watchlists.

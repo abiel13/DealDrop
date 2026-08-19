@@ -195,6 +195,39 @@ test("updates match status and feedback through the shared API client", async ()
   assert.deepEqual(JSON.parse(calls[2]?.init?.body as string), { feedback: null });
 });
 
+test("sends cursor and status filters for match history pages", async () => {
+  const calls: FetchCall[] = [];
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return response(200, envelope([]));
+    },
+  });
+
+  await client.getMatches("watchlist/1", {
+    status: "dismissed",
+    cursor: "next cursor",
+    limit: 20,
+  });
+  await client.getSavedListings({ cursor: "saved cursor", limit: 15 });
+  await client.getNotifications({ cursor: "older cursor", limit: 10 });
+
+  assert.equal(
+    calls[0]?.input,
+    "https://api.example.test/api/v1/watchlists/watchlist%2F1/matches?status=dismissed&cursor=next+cursor&limit=20",
+  );
+  assert.equal(
+    calls[1]?.input,
+    "https://api.example.test/api/v1/favorites?cursor=saved+cursor&limit=15",
+  );
+  assert.equal(
+    calls[2]?.input,
+    "https://api.example.test/api/v1/notifications?cursor=older+cursor&limit=10",
+  );
+});
+
 test("sends product events and loads the weekly summary", async () => {
   const calls: FetchCall[] = [];
   const client = new DealDropApiClient({

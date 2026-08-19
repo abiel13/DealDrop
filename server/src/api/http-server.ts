@@ -6,7 +6,13 @@ import { MarketplaceError } from "../marketplaces/shared/errors";
 import { MarketplaceSearchCoordinatorError } from "../marketplaces/search/errors";
 import type { WorkerLogger } from "../types/backend";
 import type { RequestAuthenticator } from "./auth";
-import { ApiConcurrencyError, ApiError, ApiNotFoundError, ApiRateLimitError } from "./errors";
+import {
+  ApiConcurrencyError,
+  ApiError,
+  ApiNotFoundError,
+  ApiRateLimitError,
+  ApiValidationError,
+} from "./errors";
 import { decodeApiCursor, parseLimit } from "./pagination";
 import { MobileApiService } from "./mobile-api";
 import {
@@ -368,12 +374,14 @@ async function routeProtectedRequest(
   if (resource === "watchlists" && resourceId && action === "matches" && method === "GET") {
     assertResourceId(resourceId);
     const limit = parseLimit(url.searchParams.get("limit"), 50);
+    const matchQuery = parseMatchQuery(url);
     const page = await api.getMatches(
       userId,
       resourceId,
       decodeApiCursor(url.searchParams.get("cursor")),
       limit,
       url.searchParams.get("includeDismissed") === "true",
+      matchQuery,
     );
     sendSuccess(response, requestId, page.items, page.pagination);
     return;
@@ -401,12 +409,25 @@ async function routeProtectedRequest(
 
   if (resource === "matches" && !resourceId && method === "GET") {
     const limit = parseLimit(url.searchParams.get("limit"), 50);
+    const matchQuery = parseMatchQuery(url);
     const page = await api.getMatches(
       userId,
       null,
       decodeApiCursor(url.searchParams.get("cursor")),
       limit,
       url.searchParams.get("includeDismissed") === "true",
+      matchQuery,
+    );
+    sendSuccess(response, requestId, page.items, page.pagination);
+    return;
+  }
+
+  if (resource === "favorites" && !resourceId && method === "GET") {
+    const limit = parseLimit(url.searchParams.get("limit"), 50);
+    const page = await api.getFavoriteListings(
+      userId,
+      decodeApiCursor(url.searchParams.get("cursor")),
+      limit,
     );
     sendSuccess(response, requestId, page.items, page.pagination);
     return;
@@ -510,6 +531,17 @@ function sendSuccess(
     data,
     meta: { requestId, ...(pagination ? { pagination } : {}) },
   });
+}
+
+function parseMatchQuery(url: URL) {
+  const status = url.searchParams.get("status");
+  if (status && status !== "dismissed") {
+    throw new ApiValidationError("status must be dismissed when provided.");
+  }
+
+  return {
+    ...(status ? { status: "dismissed" as const } : {}),
+  };
 }
 
 function sendError(response: ServerResponse, requestId: string, error: ApiError) {

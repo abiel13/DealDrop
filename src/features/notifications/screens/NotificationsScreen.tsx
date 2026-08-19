@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/Button";
@@ -61,9 +61,18 @@ export function NotificationsScreen() {
   const [preferenceSaveError, setPreferenceSaveError] = useState<string | null>(null);
   const schedulingSavePending = useRef(false);
 
-  const notificationsQuery = useQuery({
+  const notificationsQuery = useInfiniteQuery({
     queryKey: ["notifications", user?.id],
-    queryFn: getNotifications,
+    queryFn: ({ pageParam }) => getNotifications({ cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage, _allPages, _lastPageParam, allPageParams) => {
+      const nextCursor = lastPage.pagination.nextCursor;
+      if (!lastPage.pagination.hasMore || !nextCursor) {
+        return undefined;
+      }
+
+      return allPageParams.includes(nextCursor) ? undefined : nextCursor;
+    },
     enabled: Boolean(user),
   });
   const preferencesQuery = useQuery({
@@ -78,7 +87,9 @@ export function NotificationsScreen() {
   const focusedNotificationId =
     notificationId ??
     (matchId
-      ? notificationsQuery.data?.find((notification) => notification.match_id === matchId)?.id
+      ? notificationsQuery.data?.pages
+          .flatMap((page) => page.notifications)
+          .find((notification) => notification.match_id === matchId)?.id
       : undefined);
   const preferencesMutation = useMutation({
     mutationFn: (preferences: NotificationPreferences) =>
@@ -98,7 +109,9 @@ export function NotificationsScreen() {
   });
 
   useEffect(() => {
-    const notification = notificationsQuery.data?.find((item) => item.id === focusedNotificationId);
+    const notification = notificationsQuery.data?.pages
+      .flatMap((page) => page.notifications)
+      .find((item) => item.id === focusedNotificationId);
     if (notification && !notification.read_at && !readMutation.isPending) {
       readMutation.mutate(notification.id);
     }
@@ -146,7 +159,7 @@ export function NotificationsScreen() {
     daily_alert_limit: 20,
     weekly_summary_enabled: true,
   };
-  const notifications = notificationsQuery.data ?? [];
+  const notifications = notificationsQuery.data?.pages.flatMap((page) => page.notifications) ?? [];
   const schedulingDraft = {
     quietHoursStart: editedSchedulingFields.has("quietHoursStart")
       ? quietHoursStart
@@ -440,6 +453,16 @@ export function NotificationsScreen() {
               );
             })}
           </View>
+        )}
+        {notificationsQuery.hasNextPage && (
+          <Button
+            variant="outline"
+            loading={notificationsQuery.isFetchingNextPage}
+            disabled={notificationsQuery.isFetchingNextPage}
+            onPress={() => void notificationsQuery.fetchNextPage()}
+          >
+            Load older alerts
+          </Button>
         )}
       </ScrollView>
     </SafeAreaView>

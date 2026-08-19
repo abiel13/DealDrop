@@ -4,9 +4,12 @@ import type {
   ApiEnvelope,
   ApiErrorPayload,
   ApiListing,
+  ApiListingQuery,
+  ApiMatchQuery,
   ApiMarketplace,
   ApiMatch,
   ApiNotification,
+  ApiNotificationQuery,
   ApiNotificationPreferences,
   ApiProductEventInput,
   ApiPushTokenRegistration,
@@ -70,6 +73,14 @@ export class DealDropApiClient {
     );
   }
 
+  async getSavedListings(options: ApiListingQuery = {}) {
+    const params = new URLSearchParams();
+    if (options.cursor) params.set("cursor", options.cursor);
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    const queryString = params.toString();
+    return this.request<ApiListing[]>(queryString ? `/favorites?${queryString}` : "/favorites");
+  }
+
   async getWatchlists() {
     return this.request<ApiWatchlist[]>("/watchlists");
   }
@@ -106,11 +117,18 @@ export class DealDropApiClient {
     });
   }
 
-  async getMatches(watchlistId?: string, includeDismissed = false) {
+  async getMatches(watchlistId?: string, options: ApiMatchQuery | boolean = {}) {
     const basePath = watchlistId
       ? `/watchlists/${encodeURIComponent(watchlistId)}/matches`
       : "/matches";
-    const path = includeDismissed ? `${basePath}?includeDismissed=true` : basePath;
+    const query = typeof options === "boolean" ? { includeDismissed: options } : options;
+    const params = new URLSearchParams();
+    if (query.includeDismissed) params.set("includeDismissed", "true");
+    if (query.status) params.set("status", query.status);
+    if (query.cursor) params.set("cursor", query.cursor);
+    if (query.limit !== undefined) params.set("limit", String(query.limit));
+    const queryString = params.toString();
+    const path = queryString ? `${basePath}?${queryString}` : basePath;
     return this.request<ApiMatch[]>(path);
   }
 
@@ -128,8 +146,14 @@ export class DealDropApiClient {
     });
   }
 
-  async getNotifications() {
-    return this.request<ApiNotification[]>("/notifications");
+  async getNotifications(options: ApiNotificationQuery = {}) {
+    const params = new URLSearchParams();
+    if (options.cursor) params.set("cursor", options.cursor);
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    const queryString = params.toString();
+    return this.request<ApiNotification[]>(
+      queryString ? `/notifications?${queryString}` : "/notifications",
+    );
   }
 
   async markNotificationRead(notificationId: string) {

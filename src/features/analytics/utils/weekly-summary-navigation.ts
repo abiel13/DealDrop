@@ -4,7 +4,7 @@ import {
   authRoutes,
   listingRoute,
   notificationsMatchRoute,
-  watchlistsRoute,
+  watchlistRoute,
 } from "@/features/auth/routes";
 
 import type { WeeklySummary } from "../types/analytics.types";
@@ -37,7 +37,7 @@ export function getWeeklySummaryLinkTargets(summary: WeeklySummary): WeeklySumma
         ? listingRoute(summary.priceDropListingIds[0])
         : null,
     quietWatchlist: summary.quietWatchlists[0]
-      ? watchlistsRoute(summary.quietWatchlists[0].id)
+      ? watchlistRoute(summary.quietWatchlists[0].id)
       : null,
   };
 }

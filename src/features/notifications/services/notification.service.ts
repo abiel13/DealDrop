@@ -3,12 +3,18 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-import { apiClient, type ApiNotification, type ApiNotificationPreferences } from "@/services/api";
+import {
+  apiClient,
+  type ApiNotification,
+  type ApiNotificationPreferences,
+  type ApiNotificationQuery,
+} from "@/services/api";
 import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 
 import type {
   AppNotification,
   NotificationPreferences,
+  NotificationPage,
   PushTokenRegistration,
 } from "../types/notification.types";
 
@@ -50,9 +56,17 @@ function toPreferences(preferences: ApiNotificationPreferences): NotificationPre
   };
 }
 
-export async function getNotifications() {
-  const response = await apiClient.getNotifications();
-  return response.data.map(toNotification);
+export async function getNotifications(
+  options: ApiNotificationQuery = {},
+): Promise<NotificationPage> {
+  const response = await apiClient.getNotifications(options);
+  return {
+    notifications: response.data.map(toNotification),
+    pagination: {
+      nextCursor: response.meta.pagination?.nextCursor ?? null,
+      hasMore: response.meta.pagination?.hasMore ?? false,
+    },
+  };
 }
 
 export async function markNotificationRead(notificationId: string) {

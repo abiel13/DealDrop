@@ -11,7 +11,6 @@ import { Redirect, useRouter } from "expo-router";
 import {
   useInfiniteQuery,
   useMutation,
-  useQuery,
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
@@ -40,6 +39,7 @@ import {
 import type {
   Listing,
   ListingFilter,
+  ListingPage,
   ListingSearchResult,
   ListingSort,
 } from "../types/listing.types";
@@ -155,9 +155,22 @@ export function ListingFeedScreen() {
   const matchedListingsQueryKey = ["matched-listings", userId, showingDismissed] as const;
   const marketplaceSearchQueryKey = ["marketplace-search-pages", userId, submittedSearch] as const;
 
-  const listingsQuery = useQuery({
+  const listingsQuery = useInfiniteQuery({
     queryKey: matchedListingsQueryKey,
-    queryFn: () => getMatchedListings({ includeDismissed: showingDismissed }),
+    queryFn: ({ pageParam }) =>
+      getMatchedListings({
+        ...(showingDismissed ? { status: "dismissed" as const } : {}),
+        cursor: pageParam,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage, _allPages, _lastPageParam, allPageParams) => {
+      const nextCursor = lastPage.pagination.nextCursor;
+      if (!lastPage.pagination.hasMore || !nextCursor) {
+        return undefined;
+      }
+
+      return allPageParams.includes(nextCursor) ? undefined : nextCursor;
+    },
     enabled: Boolean(userId),
   });
   const marketplaceSearchQuery = useInfiniteQuery({
@@ -185,6 +198,16 @@ export function ListingFeedScreen() {
 
     return [...uniqueListings.values()];
   }, [marketplaceSearchQuery.data]);
+  const matchedListings = useMemo(() => {
+    const uniqueListings = new Map<string, Listing>();
+    for (const page of listingsQuery.data?.pages ?? []) {
+      for (const listing of page.listings) {
+        uniqueListings.set(listing.id, listing);
+      }
+    }
+
+    return [...uniqueListings.values()];
+  }, [listingsQuery.data]);
   const activeQueryIsLoading = isMarketplaceSearch
     ? marketplaceSearchQuery.isLoading
     : listingsQuery.isLoading;
@@ -193,7 +216,7 @@ export function ListingFeedScreen() {
     : listingsQuery.isError;
   const activeQueryIsRefetching = isMarketplaceSearch
     ? marketplaceSearchQuery.isRefetching && !marketplaceSearchQuery.isFetchingNextPage
-    : listingsQuery.isRefetching;
+    : listingsQuery.isRefetching && !listingsQuery.isFetchingNextPage;
   const activeQueryRefetch = isMarketplaceSearch
     ? marketplaceSearchQuery.refetch
     : listingsQuery.refetch;
@@ -240,11 +263,22 @@ export function ListingFeedScreen() {
         return { previousSearch };
       }
 
-      const previousListings = queryClient.getQueryData<Listing[]>(matchedListingsQueryKey);
-      queryClient.setQueryData<Listing[]>(matchedListingsQueryKey, (currentListings) =>
-        currentListings?.map((listing) =>
-          listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
-        ),
+      const previousListings =
+        queryClient.getQueryData<InfiniteData<ListingPage, string | null>>(matchedListingsQueryKey);
+      queryClient.setQueryData<InfiniteData<ListingPage, string | null>>(
+        matchedListingsQueryKey,
+        (currentListings) =>
+          currentListings
+            ? {
+                ...currentListings,
+                pages: currentListings.pages.map((page) => ({
+                  ...page,
+                  listings: page.listings.map((listing) =>
+                    listing.id === listingId ? { ...listing, is_favorite: isFavorite } : listing,
+                  ),
+                })),
+              }
+            : currentListings,
       );
 
       return { previousListings };
@@ -289,9 +323,7 @@ export function ListingFeedScreen() {
   });
 
   const visibleListings = useMemo(() => {
-    const activeListings = isMarketplaceSearch
-      ? marketplaceSearchListings
-      : (listingsQuery.data ?? []);
+    const activeListings = isMarketplaceSearch ? marketplaceSearchListings : matchedListings;
     const filtered = activeListings.filter((listing) => {
       if (!listingMatchesSearch(listing, isMarketplaceSearch ? "" : search)) {
         return false;
@@ -309,7 +341,7 @@ export function ListingFeedScreen() {
     });
 
     return sortListings(filtered, sort);
-  }, [filter, isMarketplaceSearch, listingsQuery.data, marketplaceSearchListings, search, sort]);
+  }, [filter, isMarketplaceSearch, matchedListings, marketplaceSearchListings, search, sort]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
@@ -375,11 +407,25 @@ export function ListingFeedScreen() {
             !marketplaceSearchQuery.isError
           ) {
             void marketplaceSearchQuery.fetchNextPage();
+            return;
+          }
+
+          if (
+            !isMarketplaceSearch &&
+            listingsQuery.hasNextPage &&
+            !listingsQuery.isFetchingNextPage &&
+            !listingsQuery.isError
+          ) {
+            void listingsQuery.fetchNextPage();
           }
         }}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          isMarketplaceSearch && marketplaceSearchQuery.isFetchingNextPage ? (
+          (
+            isMarketplaceSearch
+              ? marketplaceSearchQuery.isFetchingNextPage
+              : listingsQuery.isFetchingNextPage
+          ) ? (
             <View className="items-center py-4">
               <ActivityIndicator color={theme.colors.primary} size="small" />
             </View>
@@ -428,6 +474,25 @@ export function ListingFeedScreen() {
               }}
               onSubmitEditing={() => setSubmittedSearch(search.trim())}
             />
+
+            <View className="flex-row gap-3">
+              <Button
+                className="flex-1"
+                size="sm"
+                variant="outline"
+                onPress={() => router.push(authRoutes.savedListings)}
+              >
+                Saved listings
+              </Button>
+              <Button
+                className="flex-1"
+                size="sm"
+                variant="outline"
+                onPress={() => router.push(authRoutes.history)}
+              >
+                Dismissed history
+              </Button>
+            </View>
 
             {isMarketplaceSearch &&
               searchIntent &&

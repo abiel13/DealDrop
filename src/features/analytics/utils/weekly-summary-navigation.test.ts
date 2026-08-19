@@ -46,7 +46,7 @@ test("maps every summary link to its actionable destination", () => {
     newMatches: "/notifications?matchId=match%2F1",
     savedListing: "/listing/listing%2F1",
     priceDrop: "/listing/listing%2F2",
-    quietWatchlist: "/watchlists?watchlistId=watchlist%2F1",
+    quietWatchlist: "/watchlist/watchlist%2F1",
   });
 });
 
