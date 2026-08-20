@@ -4,10 +4,26 @@ import test from "node:test";
 import {
   notificationPreferencesSchema,
   listingProblemReportSchema,
+  parseSearchQuery,
   parseBody,
+  searchBodySchema,
   updateWatchlistSchema,
   watchlistFiltersSchema,
 } from "../../src/api/validation";
+
+test("accepts identifier-only searches and parses supported URL identifier parameters", () => {
+  const body = parseBody(searchBodySchema, {
+    productIdentifiers: [{ type: "asin", value: "B012345678" }],
+  });
+  assert.equal(body.searchQuery, "");
+  assert.deepEqual(body.productIdentifiers, [{ type: "asin", value: "B012345678" }]);
+
+  const parsedUrl = parseSearchQuery(
+    new URL("https://dealdrop.test/api/v1/search?identifierType=upc&identifier=012345678905"),
+  );
+  assert.equal(parsedUrl.searchQuery, "");
+  assert.deepEqual(parsedUrl.productIdentifiers, [{ type: "upc", value: "012345678905" }]);
+});
 
 test("normalizes filter terms and currency while preserving a complete distance filter", () => {
   const filters = parseBody(watchlistFiltersSchema, {

@@ -82,6 +82,7 @@ export class MarketplaceSearchCoordinator {
         return this.searchSource(source, adapter, {
           searchQuery: request.searchQuery,
           filters: request.filters,
+          ...(request.productIdentifiers ? { productIdentifiers: request.productIdentifiers } : {}),
           pagination: {
             cursor: sourceCursors[source],
             limit: sourceLimit,
@@ -284,7 +285,14 @@ function safePartialFailureMessage(source: MarketplaceSource, category: string) 
 }
 
 function displaySource(source: MarketplaceSource) {
-  return source === "ebay" ? "eBay" : source.charAt(0).toUpperCase() + source.slice(1);
+  if (source === "ebay") {
+    return "eBay";
+  }
+
+  return source
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function sortListings(listings: MarketplaceListing[]) {

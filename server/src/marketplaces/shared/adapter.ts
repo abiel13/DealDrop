@@ -17,6 +17,8 @@ export type {
   MarketplaceListing,
   MarketplacePagination,
   MarketplacePaginationRequest,
+  MarketplaceProductIdentifier,
+  MarketplaceProductIdentifierType,
   MarketplaceSearchRequest,
   MarketplaceSearchResponse,
   MarketplaceSource,
