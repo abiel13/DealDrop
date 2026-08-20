@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f0c1d" />
+    <meta name="description" content="DealDrop privacy policy draft and data-use overview." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DealDrop" />
+    <meta property="og:title" content="Privacy — DealDrop" />
+    <meta
+      property="og:description"
+      content="A factual draft of how DealDrop handles account, watchlist, listing, match, notification, and billing data."
+    />
+    <meta property="og:url" content="https://get-deal-drop.com/privacy" />
+    <link rel="canonical" href="https://get-deal-drop.com/privacy" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Privacy draft — DealDrop</title>
+  </head>
+  <body class="legal-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header" data-site-header>
+      <div class="container nav-wrap">
+        <a class="brand" href="/" aria-label="DealDrop home"
+          ><span class="brand-mark" aria-hidden="true"
+            ><svg viewBox="0 0 40 40">
+              <path d="M11 10.5h11.8c6.2 0 10.7 3.6 10.7 9.4s-4.5 9.6-10.7 9.6H11z" />
+              <path d="M11 16.2h8.8c2.7 0 4.5 1.3 4.5 3.7s-1.8 3.8-4.5 3.8H11z" class="mark-cut" />
+              <path d="M7 17.2h8.8M7 22.6h8.8M9.5 27.8h4.3" class="mark-speed" />
+              <path d="m15.5 31.5 4.6-4.6 4.6 4.6-4.6 4.6z" class="mark-tag" />
+              <circle cx="20.1" cy="31.5" r=".9" class="mark-hole" /></svg></span
+          ><span>Deal<span class="brand-accent">Drop</span></span></a
+        ><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+          <span class="sr-only">Toggle navigation</span><span></span><span></span>
+        </button>
+        <nav class="site-nav" id="site-nav" aria-label="Primary navigation">
+          <a href="/">Home</a><a href="/support">Support</a
+          ><a class="nav-cta" href="/#app-coming-soon">Start your 7-day free trial</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main-content">
+      <section class="legal-hero section-dark">
+        <div class="container legal-hero-inner">
+          <p class="eyebrow">Privacy</p>
+          <h1>How DealDrop handles information.</h1>
+          <p>
+            A factual product-data draft based on the current repository inventory. It is not
+            approved legal text yet.
+          </p>
+        </div>
+      </section>
+      <div class="container legal-layout">
+        <aside class="review-banner">
+          <span class="review-icon">!</span>
+          <div>
+            <strong>Draft — owner/legal review required</strong>
+            <p>
+              Before production publication, confirm the legal owner, contact destination, effective
+              date, and any jurisdiction-specific language. Do not treat this page as the final
+              privacy policy until reviewed.
+            </p>
+          </div>
+        </aside>
+        <article class="legal-content">
+          <p class="legal-meta">
+            Version: <mark>[OWNER TO CONFIRM]</mark> · Effective date:
+            <mark>[OWNER TO CONFIRM]</mark>
+          </p>
+          <h2>1. Scope</h2>
+          <p>
+            This draft describes the information used by the DealDrop mobile application and its
+            supporting services. The public website is a static information site; it does not
+            provide account creation, marketplace search, or payment checkout.
+          </p>
+
+          <h2>2. Information used by DealDrop</h2>
+          <p>
+            The current product and database inventory includes the following categories. The
+            purpose and lifecycle below reflect the repository’s production data-governance runbook.
+          </p>
+          <div class="data-table" role="table" aria-label="DealDrop data inventory">
+            <div class="data-row data-head" role="row">
+              <span role="columnheader">Category</span><span role="columnheader">Purpose</span
+              ><span role="columnheader">Lifecycle in the current runbook</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Profiles</strong
+              ><span>Account identity, email, display identity, and support context.</span
+              ><span>Account lifetime; deleted through the account cascade.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Watchlists</strong
+              ><span
+                >Saved queries, filters, lifecycle state, and selected marketplace sources.</span
+              ><span>Until watchlist or account deletion.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Listings</strong
+              ><span>Normalized marketplace data used to match and display results.</span
+              ><span
+                >Inactive, unreferenced provider data after 180 days; referenced or active listings
+                are protected.</span
+              >
+            </div>
+            <div class="data-row" role="row">
+              <strong>Matches</strong
+              ><span>User-specific match history and notification source.</span
+              ><span>Until watchlist or account deletion.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Notifications</strong><span>In-app alert history and delivery state.</span
+              ><span
+                >Read records after 90 days; unread records after 365 days, subject to the runbook
+                safeguards.</span
+              >
+            </div>
+            <div class="data-row" role="row">
+              <strong>Push tokens</strong
+              ><span>Device delivery token for opted-in notifications.</span
+              ><span>Active while seen; inactive tokens after 180 days.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Price observations</strong
+              ><span>Historical prices used for trend and price-drop calculations.</span
+              ><span
+                >Older than 365 days only when the listing has no match or favorite reference.</span
+              >
+            </div>
+            <div class="data-row" role="row">
+              <strong>Match feedback</strong
+              ><span>Relevance feedback attached to a user’s match.</span
+              ><span>730 days, or earlier when the match/account is deleted.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Product events</strong
+              ><span>Privacy-minimized lifecycle events and weekly-summary inputs.</span
+              ><span>365 days; properties must remain event-scoped and non-sensitive.</span>
+            </div>
+            <div class="data-row" role="row">
+              <strong>Listing problem reports</strong
+              ><span>Structured support reports for broken or incorrect listing data.</span
+              ><span
+                >Open/reviewed reports remain until resolved; resolved/dismissed reports after 730
+                days.</span
+              >
+            </div>
+          </div>
+
+          <h2>3. Marketplace data</h2>
+          <p>
+            DealDrop’s current adapter catalog includes eBay, Etsy, and Rakuten Ichiba. The app may
+            only use sources that are enabled and configured for the relevant environment.
+            Marketplace availability, permitted display fields, currency, condition, location,
+            freshness, filters, and deep-link behavior can vary by source and region. Marketplace
+            provider terms and data-use requirements continue to apply.
+          </p>
+
+          <h2>4. Supabase</h2>
+          <p>
+            DealDrop uses Supabase for authentication and database services. The server uses a
+            service-role credential only in the server process; it is not part of the mobile bundle
+            or public website. User-facing access is scoped to the authenticated account and
+            database access controls.
+          </p>
+
+          <h2>5. Notifications</h2>
+          <p>
+            If a user enables push notifications, DealDrop stores a push token and notification
+            preferences so it can deliver relevant alerts. Quiet hours pause push delivery without
+            removing alerts from in-app history. A user can change notification settings in the app.
+          </p>
+
+          <h2>6. Premium access and RevenueCat</h2>
+          <p>
+            Premium access is checked through RevenueCat and the relevant Apple or Google store.
+            DealDrop’s approved access model is a 7-day free trial followed by paid-only access;
+            there is no free tier. Store products determine the available price, renewal period, and
+            localized billing details. Billing is managed through the relevant store, and the app
+            includes restore and subscription-management flows.
+          </p>
+
+          <h2>7. Account deletion</h2>
+          <p>
+            A signed-in user can use Profile → Delete account in the app. The current deletion
+            function removes the profile and relies on the database cascade for user-owned records
+            including watchlists, matches, notifications, push tokens, favorites, feedback, product
+            events, and related reports. Marketplace listings are not user-owned; they are removed
+            only when they have no match or favorite reference. Live-project deletion does not
+            immediately erase historical backup images held within a provider’s backup window.
+          </p>
+
+          <h2>8. Support and reports</h2>
+          <p>
+            Listing problem reports use structured categories such as broken link, wrong price,
+            stale listing, incorrect match, missing image, or other. The current report path stores
+            the authenticated user ID, DealDrop listing ID, server-derived marketplace, optional
+            validated match/watchlist IDs, app version, request ID, category, status, and
+            timestamps. Reports do not need passwords, tokens, payment details, seller contact data,
+            raw provider payloads, or authorization headers.
+          </p>
+
+          <h2>9. Contact and review items</h2>
+          <p>
+            The repository does not contain a confirmed public support address or legal entity
+            details. Before this policy is published, the owner must supply the reviewed support
+            destination, legal owner identity, effective date, and any required rights or
+            jurisdiction disclosures.
+          </p>
+          <div class="placeholder-box">
+            <strong>Publication blocker:</strong> the items marked for owner confirmation must be
+            completed and reviewed before this draft is connected to a production mobile build or
+            presented as DealDrop’s final privacy policy.
+          </div>
+        </article>
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-top">
+        <div class="footer-brand">
+          <a class="brand" href="/"
+            ><span class="brand-mark" aria-hidden="true"
+              ><svg viewBox="0 0 40 40">
+                <path d="M11 10.5h11.8c6.2 0 10.7 3.6 10.7 9.4s-4.5 9.6-10.7 9.6H11z" />
+                <path
+                  d="M11 16.2h8.8c2.7 0 4.5 1.3 4.5 3.7s-1.8 3.8-4.5 3.8H11z"
+                  class="mark-cut"
+                />
+                <path d="M7 17.2h8.8M7 22.6h8.8M9.5 27.8h4.3" class="mark-speed" />
+                <path d="m15.5 31.5 4.6-4.6 4.6 4.6-4.6 4.6z" class="mark-tag" />
+                <circle cx="20.1" cy="31.5" r=".9" class="mark-hole" /></svg></span
+            ><span>Deal<span class="brand-accent">Drop</span></span></a
+          >
+          <p>Never miss the perfect deal.</p>
+        </div>
+        <div class="footer-links">
+          <span class="footer-label">Trust</span><a href="/privacy">Privacy</a
+          ><a href="/terms">Terms</a><a href="/support">Support</a>
+        </div>
+      </div>
+      <div class="container footer-bottom">
+        <span>© <span data-current-year></span> DealDrop</span
+        ><span>Draft content — review before publication.</span>
+      </div>
+    </footer>
+    <script src="/site-config.js"></script>
+    <script src="/site.js"></script>
+  </body>
+</html>
