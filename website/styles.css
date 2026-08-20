@@ -164,7 +164,6 @@ svg {
 }
 
 .brand-mark svg path:first-child {
-  fill: url(#brand-fill);
   fill: var(--magenta);
 }
 
@@ -526,12 +525,10 @@ h2 em {
   width: 220px;
   height: 220px;
   border-radius: 100% 0 0;
-  background: conic-gradient(
-    from 265deg,
-    transparent 0deg,
-    rgba(196, 181, 253, 0.2) 26deg,
-    transparent 62deg
-  );
+  border: 1px solid rgba(196, 181, 253, 0.18);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  background: rgba(196, 181, 253, 0.035);
   transform-origin: 0 0;
   animation: sweep 8s linear infinite;
 }
@@ -557,7 +554,7 @@ h2 em {
   width: 18px;
   height: 18px;
   border-radius: 50% 50% 50% 0;
-  background: linear-gradient(145deg, var(--magenta), var(--purple));
+  background: var(--purple);
   box-shadow: 0 0 20px rgba(215, 138, 255, 0.5);
   transform: rotate(-45deg);
 }
@@ -1123,7 +1120,7 @@ h2 {
   place-items: center;
   overflow: hidden;
   border-radius: 10px;
-  background: linear-gradient(145deg, #7960bd, #2d2351);
+  background: #4d3a7a;
 }
 
 .match-image::after {
@@ -1177,7 +1174,7 @@ h2 {
 }
 
 .image-two {
-  background: linear-gradient(145deg, #a6849b, #3e324d);
+  background: #67515f;
 }
 
 .camera-two {
