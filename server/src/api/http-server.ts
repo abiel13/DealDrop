@@ -32,6 +32,7 @@ import {
   parseBody,
   parseSearchQuery,
   createWatchlistSchema,
+  createWorkspaceSchema,
   updateWatchlistSchema,
   favoriteSchema,
   matchStatusSchema,
@@ -266,6 +267,25 @@ async function routeProtectedRequest(
       hasMore: result.pagination.hasMore,
       limit: input.pagination?.limit ?? 24,
     });
+    return;
+  }
+
+  if (resource === "workspaces" && !resourceId) {
+    if (method === "GET") {
+      sendSuccess(response, requestId, await api.getWorkspaces(userId));
+      return;
+    }
+
+    if (method === "POST") {
+      const input = parseBody(createWorkspaceSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(response, requestId, await api.createWorkspace(userId, input), undefined, 201);
+      return;
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && !action && method === "GET") {
+    assertResourceId(resourceId);
+    sendSuccess(response, requestId, await api.getWorkspace(userId, resourceId));
     return;
   }
 

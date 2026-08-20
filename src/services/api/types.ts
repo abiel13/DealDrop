@@ -248,6 +248,28 @@ export interface ApiWatchlistInput {
   snoozedUntil?: string | null;
 }
 
+export type ApiWorkspaceRole = "owner" | "buyer" | "viewer";
+
+export interface ApiWorkspace {
+  id: string;
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+  role: ApiWorkspaceRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiWorkspaceInput {
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+}
+
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";

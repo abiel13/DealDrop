@@ -1,0 +1,381 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Redirect, useRouter } from "expo-router";
+import { useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
+
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { AppIcon } from "@/components/ui/Icon";
+import { Input } from "@/components/ui/Input";
+import { Loading } from "@/components/ui/Loading";
+import { AppText } from "@/components/ui/Text";
+import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { authRoutes } from "@/features/auth/routes";
+import { AppHeader } from "@/features/navigation/components";
+import { useTheme } from "@/providers/ThemeProvider";
+
+import {
+  createWorkspace,
+  getWorkspaceErrorMessage,
+  getWorkspaces,
+} from "../services/workspace.service";
+import { useWorkspaceStore } from "../store/workspace.store";
+import type { Workspace, WorkspaceInput } from "../types/workspace.types";
+
+const workspaceFormSchema = z.object({
+  name: z.string().trim().min(2, "Enter a business name."),
+  businessType: z.string().trim().min(2, "Tell us what kind of business this is."),
+  primarySourcingCategories: z.string().trim().min(2, "Add at least one sourcing category."),
+  defaultCurrency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Use a 3-letter currency code."),
+  countryRegion: z.string().trim().min(2, "Enter a country or region."),
+});
+
+type WorkspaceFormValues = z.infer<typeof workspaceFormSchema>;
+
+export function WorkspaceScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const workspaceQueryKey = ["workspaces", userId] as const;
+  const workspacesQuery = useQuery({
+    queryKey: workspaceQueryKey,
+    queryFn: getWorkspaces,
+    enabled: Boolean(userId),
+  });
+
+  if (!user) {
+    return <Redirect href={authRoutes.login} />;
+  }
+
+  if (workspacesQuery.isLoading) {
+    return <Loading />;
+  }
+
+  if (workspacesQuery.isError) {
+    return (
+      <SafeAreaView className="flex-1 bg-background px-5">
+        <View className="flex-1 gap-5 pt-6">
+          <AppHeader
+            title="Pro workspace"
+            subtitle="A secure home for your business sourcing work."
+            onBack={() => router.back()}
+          />
+          <ErrorState
+            title="Couldn't load your workspaces"
+            description="Please check your connection and try again."
+          />
+          <Button variant="outline" onPress={() => void workspacesQuery.refetch()}>
+            Try again
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const workspaces = workspacesQuery.data ?? [];
+  return workspaces.length > 0 ? (
+    <WorkspaceOverview
+      workspaces={workspaces}
+      onBack={() => router.back()}
+      onSwitchToPersonal={() => {
+        useWorkspaceStore.getState().setActiveWorkspaceId(null);
+        router.replace(authRoutes.home);
+      }}
+    />
+  ) : (
+    <WorkspaceOnboarding workspaceQueryKey={workspaceQueryKey} onBack={() => router.back()} />
+  );
+}
+
+function WorkspaceOnboarding({
+  workspaceQueryKey,
+  onBack,
+}: {
+  workspaceQueryKey: readonly [string, string];
+  onBack: () => void;
+}) {
+  const theme = useTheme();
+  const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId);
+  const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<WorkspaceFormValues>({
+    resolver: zodResolver(workspaceFormSchema),
+    defaultValues: {
+      name: "",
+      businessType: "",
+      primarySourcingCategories: "",
+      defaultCurrency: "",
+      countryRegion: "",
+    },
+    mode: "onBlur",
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (input: WorkspaceInput) => createWorkspace(input),
+    onSuccess: (workspace) => {
+      setActiveWorkspaceId(workspace.id);
+      queryClient.setQueryData<Workspace[]>(workspaceQueryKey, [workspace]);
+    },
+  });
+
+  function submit(values: WorkspaceFormValues) {
+    const input: WorkspaceInput = {
+      name: values.name,
+      businessType: values.businessType,
+      primarySourcingCategories: [
+        ...new Set(
+          values.primarySourcingCategories
+            .split(",")
+            .map((category) => category.trim())
+            .filter(Boolean),
+        ),
+      ],
+      defaultCurrency: values.defaultCurrency.toUpperCase(),
+      countryRegion: values.countryRegion,
+    };
+    createMutation.mutate(input);
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-background">
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+          keyboardShouldPersistTaps="handled"
+        >
+          <AppHeader
+            title="Set up your Pro workspace"
+            subtitle="Tell us only what we need to get your business sourcing space ready."
+            onBack={onBack}
+          />
+
+          <Card padding="md" className="gap-5 bg-primary-soft">
+            <View className="flex-row items-start gap-3">
+              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
+                <AppIcon name="storefront" size={21} color={theme.colors.primary} weight="bold" />
+              </View>
+              <View className="flex-1 gap-1">
+                <AppText variant="title">A workspace for business sourcing</AppText>
+                <AppText variant="bodySmall">
+                  Your sourcing lists, supplier notes, comparisons, and activity will belong to this
+                  workspace—not your personal DealDrop account.
+                </AppText>
+              </View>
+            </View>
+          </Card>
+
+          <Card padding="md" className="gap-5">
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  label="Business name"
+                  placeholder="e.g. Apex Electronics"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.name?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="businessType"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  label="Business type"
+                  placeholder="e.g. Reseller, retailer, or D2C brand"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.businessType?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="primarySourcingCategories"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  label="Primary sourcing categories"
+                  placeholder="e.g. Electronics, footwear"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.primarySourcingCategories?.message}
+                />
+              )}
+            />
+
+            <View className="flex-row gap-3">
+              <Controller
+                control={control}
+                name="defaultCurrency"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    className="flex-1"
+                    label="Default currency"
+                    placeholder="USD"
+                    autoCapitalize="characters"
+                    maxLength={3}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.defaultCurrency?.message}
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                name="countryRegion"
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    className="flex-1"
+                    label="Country or region"
+                    placeholder="e.g. Nigeria"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.countryRegion?.message}
+                  />
+                )}
+              />
+            </View>
+          </Card>
+
+          {createMutation.isError && (
+            <AppText variant="error">{getWorkspaceErrorMessage(createMutation.error)}</AppText>
+          )}
+
+          <Button loading={createMutation.isPending} onPress={handleSubmit(submit)}>
+            Create workspace
+          </Button>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function WorkspaceOverview({
+  workspaces,
+  onBack,
+  onSwitchToPersonal,
+}: {
+  workspaces: Workspace[];
+  onBack: () => void;
+  onSwitchToPersonal: () => void;
+}) {
+  const theme = useTheme();
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId);
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
+
+  useEffect(() => {
+    if (!activeWorkspaceId && activeWorkspace) {
+      setActiveWorkspaceId(activeWorkspace.id);
+    }
+  }, [activeWorkspace, activeWorkspaceId, setActiveWorkspaceId]);
+
+  return (
+    <SafeAreaView className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+        showsVerticalScrollIndicator={false}
+      >
+        <AppHeader
+          title={activeWorkspace.name}
+          subtitle="Your Pro sourcing workspace"
+          onBack={onBack}
+        />
+
+        <Card padding="md" className="gap-4">
+          <View className="flex-row items-start gap-3">
+            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-primary-soft">
+              <AppIcon name="storefront" size={21} color={theme.colors.primary} weight="bold" />
+            </View>
+            <View className="flex-1 gap-1">
+              <AppText variant="title">{activeWorkspace.name}</AppText>
+              <AppText variant="bodySmall">{activeWorkspace.businessType}</AppText>
+            </View>
+          </View>
+
+          <WorkspaceDetail
+            label="Sourcing categories"
+            value={activeWorkspace.primarySourcingCategories.join(", ")}
+          />
+          <WorkspaceDetail label="Default currency" value={activeWorkspace.defaultCurrency} />
+          <WorkspaceDetail label="Country or region" value={activeWorkspace.countryRegion} />
+        </Card>
+
+        {workspaces.length > 1 && (
+          <Card padding="md" className="gap-2">
+            <AppText variant="label">Your workspaces</AppText>
+            {workspaces.map((workspace) => (
+              <Pressable
+                key={workspace.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: workspace.id === activeWorkspace.id }}
+                className="flex-row items-center gap-3 rounded-2xl py-3"
+                onPress={() => setActiveWorkspaceId(workspace.id)}
+              >
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary-soft">
+                  <AppIcon
+                    name={workspace.id === activeWorkspace.id ? "check" : "storefront"}
+                    size={17}
+                    color={theme.colors.primary}
+                  />
+                </View>
+                <View className="flex-1">
+                  <AppText className="font-semibold">{workspace.name}</AppText>
+                  <AppText variant="caption">{workspace.role}</AppText>
+                </View>
+              </Pressable>
+            ))}
+          </Card>
+        )}
+
+        <Card padding="md" className="gap-2 bg-primary-soft">
+          <AppText variant="title">Business sourcing starts here</AppText>
+          <AppText variant="bodySmall">
+            Future Pro tools will keep sourcing lists, comparisons, suppliers, notes, and activity
+            inside this workspace.
+          </AppText>
+        </Card>
+
+        <Button variant="outline" onPress={onSwitchToPersonal}>
+          Switch to Personal DealDrop
+        </Button>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function WorkspaceDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="gap-1 border-t border-border pt-3">
+      <AppText variant="caption">{label}</AppText>
+      <AppText className="font-semibold">{value}</AppText>
+    </View>
+  );
+}

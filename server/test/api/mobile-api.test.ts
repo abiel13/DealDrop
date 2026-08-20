@@ -16,6 +16,7 @@ import type {
   RawApiListing,
   RawApiNotification,
   RawApiWatchlist,
+  RawApiWorkspace,
   StoredListingReference,
 } from "../../src/api/types";
 import type { MarketplaceAdapter } from "../../src/marketplaces/shared/adapter";
@@ -538,6 +539,101 @@ test("records product events and serves the weekly summary through protected rou
   }
 });
 
+test("workspace routes use the authenticated user and reject client ownership fields", async () => {
+  let requestedUserId: string | undefined;
+  let createdInput: unknown;
+  const repository = createRepository({
+    async getWorkspaces(userId) {
+      requestedUserId = userId;
+      return [workspace()];
+    },
+    async getWorkspace(userId, workspaceId) {
+      assert.equal(userId, USER_ID);
+      assert.equal(workspaceId, workspace().id);
+      return workspace();
+    },
+    async createWorkspace(userId, input) {
+      requestedUserId = userId;
+      createdInput = input;
+      return workspace();
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const listResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const listBody = (await listResponse.json()) as {
+      data: Array<{ id: string; role: string; businessType: string }>;
+    };
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(requestedUserId, USER_ID);
+    assert.equal(listBody.data[0]?.id, workspace().id);
+    assert.equal(listBody.data[0]?.role, "owner");
+    assert.equal(listBody.data[0]?.businessType, "Reseller");
+
+    const invalidResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ownerId: "attacker",
+        name: "Apex Electronics",
+        businessType: "Reseller",
+        primarySourcingCategories: ["Electronics"],
+        defaultCurrency: "USD",
+        countryRegion: "Nigeria",
+      }),
+    });
+    const invalidBody = (await invalidResponse.json()) as { error: { code: string } };
+    assert.equal(invalidResponse.status, 400);
+    assert.equal(invalidBody.error.code, "invalid_request");
+
+    const createResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Apex Electronics",
+        businessType: "Reseller",
+        primarySourcingCategories: [" Electronics ", "Accessories"],
+        defaultCurrency: "ngn",
+        countryRegion: "Nigeria",
+      }),
+    });
+    const createBody = (await createResponse.json()) as {
+      data: { id: string; defaultCurrency: string; primarySourcingCategories: string[] };
+    };
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(createBody.data.id, workspace().id);
+    assert.deepEqual(createdInput, {
+      name: "Apex Electronics",
+      businessType: "Reseller",
+      primarySourcingCategories: ["Electronics", "Accessories"],
+      defaultCurrency: "NGN",
+      countryRegion: "Nigeria",
+    });
+
+    const detailResponse = await fetch(`${baseUrl}/api/v1/workspaces/${workspace().id}`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    assert.equal(detailResponse.status, 200);
+  } finally {
+    await close(server);
+  }
+});
+
 const validAuthenticator: RequestAuthenticator = {
   async authenticate(request) {
     if (request.headers.authorization !== "Bearer valid-token") {
@@ -552,6 +648,15 @@ function createRepository(
   overrides: Partial<MobileApiRepositoryContract> = {},
 ): MobileApiRepositoryContract {
   return {
+    async getWorkspaces() {
+      return [];
+    },
+    async getWorkspace() {
+      return null;
+    },
+    async createWorkspace() {
+      return workspace();
+    },
     async persistListings(listings) {
       return listings.map((item, index) => ({
         id: index === 0 ? LISTING_ID : `${LISTING_ID}-${index}`,
@@ -732,6 +837,21 @@ function watchlist(): RawApiWatchlist {
     created_at: "2026-08-09T00:00:00.000Z",
     updated_at: "2026-08-09T00:00:00.000Z",
     watchlist_marketplaces: [{ marketplace_id: MARKETPLACE_IDS.ebay }],
+  };
+}
+
+function workspace(): RawApiWorkspace {
+  return {
+    id: "88888888-8888-4888-8888-888888888888",
+    owner_id: USER_ID,
+    name: "Example workspace",
+    business_type: "Reseller",
+    primary_sourcing_categories: ["Electronics"],
+    default_currency: "USD",
+    country_region: "Nigeria",
+    role: "owner",
+    created_at: "2026-08-09T00:00:00.000Z",
+    updated_at: "2026-08-09T00:00:00.000Z",
   };
 }
 
