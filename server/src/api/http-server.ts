@@ -33,6 +33,10 @@ import {
   parseSearchQuery,
   createWatchlistSchema,
   createWorkspaceSchema,
+  createSourcingListSchema,
+  duplicateSourcingListSchema,
+  updateSourcingListProductSchema,
+  updateSourcingListSchema,
   updateWatchlistSchema,
   favoriteSchema,
   matchStatusSchema,
@@ -280,6 +284,119 @@ async function routeProtectedRequest(
       const input = parseBody(createWorkspaceSchema, await readJsonBody(request, maxBodyBytes));
       sendSuccess(response, requestId, await api.createWorkspace(userId, input), undefined, 201);
       return;
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && action === "sourcing-lists") {
+    assertResourceId(resourceId);
+    const workspaceId = resourceId;
+    const sourcingListId = segments[3];
+
+    if (!sourcingListId && method === "GET") {
+      const limit = parseLimit(url.searchParams.get("limit"), 50);
+      const page = await api.getSourcingLists(
+        userId,
+        workspaceId,
+        decodeApiCursor(url.searchParams.get("cursor")),
+        limit,
+      );
+      sendSuccess(response, requestId, page.items, page.pagination);
+      return;
+    }
+
+    if (!sourcingListId && method === "POST") {
+      const input = parseBody(createSourcingListSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.createSourcingList(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (sourcingListId === undefined) {
+      throw new ApiNotFoundError("The sourcing list endpoint was not found.");
+    }
+    assertResourceId(sourcingListId);
+
+    if (segments.length === 4 && method === "GET") {
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSourcingList(userId, workspaceId, sourcingListId),
+      );
+      return;
+    }
+
+    if (segments.length === 4 && method === "PATCH") {
+      const input = parseBody(updateSourcingListSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.updateSourcingList(userId, workspaceId, sourcingListId, input),
+      );
+      return;
+    }
+
+    if (segments.length === 5 && segments[4] === "duplicate" && method === "POST") {
+      const input = parseBody(
+        duplicateSourcingListSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.duplicateSourcingList(userId, workspaceId, sourcingListId, input.name),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (segments.length === 5 && segments[4] === "products" && method === "POST") {
+      const input = parseBody(
+        createSourcingListSchema.shape.products.element,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.addSourcingListProduct(userId, workspaceId, sourcingListId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    const productId = segments[5];
+    if (segments.length === 6 && segments[4] === "products" && productId) {
+      assertResourceId(productId);
+      if (method === "PATCH") {
+        const input = parseBody(
+          updateSourcingListProductSchema,
+          await readJsonBody(request, maxBodyBytes),
+        );
+        sendSuccess(
+          response,
+          requestId,
+          await api.updateSourcingListProduct(
+            userId,
+            workspaceId,
+            sourcingListId,
+            productId,
+            input,
+          ),
+        );
+        return;
+      }
+
+      if (method === "DELETE") {
+        await api.deleteSourcingListProduct(userId, workspaceId, sourcingListId, productId);
+        sendSuccess(response, requestId, { deleted: true });
+        return;
+      }
     }
   }
 

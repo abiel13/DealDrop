@@ -165,6 +165,79 @@ export interface ApiWorkspaceInput {
   countryRegion: string;
 }
 
+export type ApiSourcingListStatus = "active" | "paused" | "completed";
+
+export interface ApiSourcingListProduct {
+  id: string;
+  category: string;
+  productName: string;
+  sku: string | null;
+  upc: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  keywords: string[];
+  targetQuantity: number;
+  sourcedQuantity: number;
+  maxUnitCost: number | null;
+  maxUnitCostCurrency: string | null;
+  preferredCondition: string | null;
+  marketplaceIds: MarketplaceSource[];
+  notes: string | null;
+  requiredBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSourcingListProgress {
+  totalProducts: number;
+  completedProducts: number;
+  targetQuantity: number;
+  sourcedQuantity: number;
+  percentComplete: number;
+}
+
+export interface ApiSourcingList {
+  id: string;
+  workspaceId: string;
+  name: string;
+  status: ApiSourcingListStatus;
+  products: ApiSourcingListProduct[];
+  progress: ApiSourcingListProgress;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSourcingListProductInput {
+  category: string;
+  productName: string;
+  sku?: string | null;
+  upc?: string | null;
+  gtin?: string | null;
+  mpn?: string | null;
+  keywords?: string[];
+  targetQuantity: number;
+  sourcedQuantity?: number;
+  maxUnitCost?: number | null;
+  maxUnitCostCurrency?: string | null;
+  preferredCondition?: string | null;
+  marketplaceIds: MarketplaceSource[];
+  notes?: string | null;
+  requiredBy?: string | null;
+}
+
+export interface ApiSourcingListInput {
+  name: string;
+  status?: ApiSourcingListStatus;
+  products: ApiSourcingListProductInput[];
+}
+
+export interface ApiSourcingListUpdateInput {
+  name?: string;
+  status?: ApiSourcingListStatus;
+}
+
+export interface ApiSourcingListProductUpdateInput extends Partial<ApiSourcingListProductInput> {}
+
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";
@@ -284,6 +357,40 @@ export interface RawApiWorkspace {
   role: ApiWorkspaceRole;
   created_at: string;
   updated_at: string;
+}
+
+export interface RawApiSourcingListProduct {
+  id: string;
+  sourcing_list_id: string;
+  category: string;
+  product_name: string;
+  sku: string | null;
+  upc: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  keywords: string[];
+  target_quantity: number;
+  sourced_quantity: number;
+  max_unit_cost: number | string | null;
+  max_unit_cost_currency: string | null;
+  preferred_condition: string | null;
+  notes: string | null;
+  required_by: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  sourcing_list_product_marketplaces?: Array<{ marketplace_id: MarketplaceSource }>;
+}
+
+export interface RawApiSourcingList {
+  id: string;
+  workspace_id: string;
+  created_by: string;
+  name: string;
+  status: ApiSourcingListStatus;
+  created_at: string;
+  updated_at: string;
+  products: RawApiSourcingListProduct[];
 }
 
 export interface RawApiMatch {

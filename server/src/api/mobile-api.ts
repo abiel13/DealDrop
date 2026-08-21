@@ -12,7 +12,7 @@ import {
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
-import { ApiNotFoundError, ApiValidationError } from "./errors";
+import { ApiError, ApiNotFoundError, ApiValidationError } from "./errors";
 import { encodeApiCursor } from "./pagination";
 import type {
   MatchQueryOptions,
@@ -29,10 +29,16 @@ import type {
   ApiNotification,
   ApiNotificationPreferences,
   ApiSearchResult,
+  ApiSourcingList,
+  ApiSourcingListInput,
+  ApiSourcingListProductInput,
+  ApiSourcingListProductUpdateInput,
+  ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWeeklySummary,
   ApiWorkspace,
   ApiWorkspaceInput,
+  RawApiSourcingList,
   RawApiWatchlist,
 } from "./types";
 
@@ -159,6 +165,150 @@ export class MobileApiService {
   async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<ApiWorkspace> {
     const workspace = await this.dependencies.repository.createWorkspace(userId, input);
     return toWorkspace(workspace);
+  }
+
+  async getSourcingLists(
+    userId: string,
+    workspaceId: string,
+    cursor: string | null,
+    limit: number,
+  ) {
+    const page = await this.sourcingListRepository().getSourcingLists(
+      userId,
+      workspaceId,
+      cursor,
+      limit,
+    );
+    return {
+      items: page.items.map(toSourcingList),
+      pagination: {
+        nextCursor: page.nextCursor ? encodeApiCursor(page.nextCursor) : null,
+        hasMore: page.hasMore,
+        limit,
+      },
+    };
+  }
+
+  async getSourcingList(userId: string, workspaceId: string, sourcingListId: string) {
+    const list = await this.sourcingListRepository().getSourcingList(
+      userId,
+      workspaceId,
+      sourcingListId,
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The sourcing list was not found.");
+    }
+    return toSourcingList(list);
+  }
+
+  async createSourcingList(userId: string, workspaceId: string, input: ApiSourcingListInput) {
+    const normalized = {
+      ...input,
+      products: input.products.map((product) => this.normalizeSourcingProduct(product)),
+    };
+    const list = await this.sourcingListRepository().createSourcingList(
+      userId,
+      workspaceId,
+      normalized,
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The workspace was not found or cannot be edited.");
+    }
+    return toSourcingList(list);
+  }
+
+  async updateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ) {
+    const list = await this.sourcingListRepository().updateSourcingList(
+      userId,
+      workspaceId,
+      sourcingListId,
+      input,
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The sourcing list was not found or cannot be edited.");
+    }
+    return toSourcingList(list);
+  }
+
+  async duplicateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    name?: string,
+  ) {
+    const list = await this.sourcingListRepository().duplicateSourcingList(
+      userId,
+      workspaceId,
+      sourcingListId,
+      name,
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The sourcing list was not found or cannot be duplicated.");
+    }
+    return toSourcingList(list);
+  }
+
+  async addSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ) {
+    const list = await this.sourcingListRepository().addSourcingListProduct(
+      userId,
+      workspaceId,
+      sourcingListId,
+      this.normalizeSourcingProduct(input),
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The sourcing list was not found or cannot be edited.");
+    }
+    return toSourcingList(list);
+  }
+
+  async updateSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: ApiSourcingListProductUpdateInput,
+  ) {
+    const normalized = input.marketplaceIds
+      ? { ...input, marketplaceIds: this.validateSourcingMarketplaces(input.marketplaceIds) }
+      : input;
+    const list = await this.sourcingListRepository().updateSourcingListProduct(
+      userId,
+      workspaceId,
+      sourcingListId,
+      productId,
+      normalized,
+    );
+    if (!list) {
+      throw new ApiNotFoundError("The sourcing list product was not found or cannot be edited.");
+    }
+    return toSourcingList(list);
+  }
+
+  async deleteSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ) {
+    const deleted = await this.sourcingListRepository().deleteSourcingListProduct(
+      userId,
+      workspaceId,
+      sourcingListId,
+      productId,
+    );
+    if (!deleted) {
+      throw new ApiNotFoundError("The sourcing list product was not found or cannot be deleted.");
+    }
   }
 
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
@@ -371,6 +521,48 @@ export class MobileApiService {
     return getEnabledMarketplaceSources(this.dependencies.adapters);
   }
 
+  private sourcingListRepository() {
+    const repository = this.dependencies.repository;
+    if (
+      !repository.getSourcingLists ||
+      !repository.getSourcingList ||
+      !repository.createSourcingList ||
+      !repository.updateSourcingList ||
+      !repository.duplicateSourcingList ||
+      !repository.addSourcingListProduct ||
+      !repository.updateSourcingListProduct ||
+      !repository.deleteSourcingListProduct
+    ) {
+      throw new ApiError(503, "api_unavailable", "Sourcing list support is not configured.");
+    }
+
+    return {
+      getSourcingLists: repository.getSourcingLists.bind(repository),
+      getSourcingList: repository.getSourcingList.bind(repository),
+      createSourcingList: repository.createSourcingList.bind(repository),
+      updateSourcingList: repository.updateSourcingList.bind(repository),
+      duplicateSourcingList: repository.duplicateSourcingList.bind(repository),
+      addSourcingListProduct: repository.addSourcingListProduct.bind(repository),
+      updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
+      deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),
+    };
+  }
+
+  private normalizeSourcingProduct(input: ApiSourcingListProductInput) {
+    return { ...input, marketplaceIds: this.validateSourcingMarketplaces(input.marketplaceIds) };
+  }
+
+  private validateSourcingMarketplaces(marketplaceIds: string[]): MarketplaceSource[] {
+    try {
+      return validateWatchlistMarketplaceSelection(marketplaceIds, this.getEnabledSources())
+        .marketplaceIds;
+    } catch (error) {
+      throw new ApiValidationError(
+        error instanceof Error ? error.message : "Marketplace selection is invalid.",
+      );
+    }
+  }
+
   private validateSelection(
     scope: "selected" | "all" | undefined,
     marketplaceIds: string[] | undefined,
@@ -428,6 +620,55 @@ function toWorkspace(workspace: StoredWorkspace): ApiWorkspace {
     role: workspace.role,
     createdAt: workspace.created_at,
     updatedAt: workspace.updated_at,
+  };
+}
+
+function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
+  const products = list.products.map((product) => ({
+    id: product.id,
+    category: product.category,
+    productName: product.product_name,
+    sku: product.sku,
+    upc: product.upc,
+    gtin: product.gtin,
+    mpn: product.mpn,
+    keywords: product.keywords,
+    targetQuantity: product.target_quantity,
+    sourcedQuantity: product.sourced_quantity,
+    maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
+    maxUnitCostCurrency: product.max_unit_cost_currency,
+    preferredCondition: product.preferred_condition,
+    marketplaceIds:
+      product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
+    notes: product.notes,
+    requiredBy: product.required_by,
+    createdAt: product.created_at,
+    updatedAt: product.updated_at,
+  }));
+  const targetQuantity = products.reduce((total, product) => total + product.targetQuantity, 0);
+  const sourcedQuantity = products.reduce((total, product) => total + product.sourcedQuantity, 0);
+  const completedProducts = products.filter(
+    (product) => product.sourcedQuantity >= product.targetQuantity,
+  ).length;
+
+  return {
+    id: list.id,
+    workspaceId: list.workspace_id,
+    name: list.name,
+    status: list.status,
+    products,
+    progress: {
+      totalProducts: products.length,
+      completedProducts,
+      targetQuantity,
+      sourcedQuantity,
+      percentComplete:
+        targetQuantity === 0
+          ? 0
+          : Math.min(100, Math.round((sourcedQuantity / targetQuantity) * 100)),
+    },
+    createdAt: list.created_at,
+    updatedAt: list.updated_at,
   };
 }
 
