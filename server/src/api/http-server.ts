@@ -388,6 +388,22 @@ async function routeProtectedRequest(
     }
 
     const productId = segments[5];
+    if (
+      segments.length === 7 &&
+      segments[4] === "products" &&
+      productId &&
+      segments[6] === "history" &&
+      method === "GET"
+    ) {
+      assertResourceId(productId);
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSourcingProductPriceHistory(userId, workspaceId, sourcingListId, productId),
+      );
+      return;
+    }
+
     if (segments.length === 6 && segments[4] === "products" && productId) {
       assertResourceId(productId);
       if (method === "PATCH") {

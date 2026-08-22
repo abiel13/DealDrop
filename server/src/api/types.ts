@@ -200,6 +200,13 @@ export interface ApiSourcingListProduct {
   maxLandedUnitCost: number | null;
   maxLandedUnitCostCurrency: string | null;
   alertCostBasis: ApiSourcingAlertCostBasis;
+  alertEnabled: boolean;
+  alertTargetPriceReached: boolean;
+  alertNewCheaperSource: boolean;
+  alertPriceDropped: boolean;
+  alertQuantityAvailable: boolean;
+  alertBackInStock: boolean;
+  alertCooldownMinutes: number;
   preferredCondition: string | null;
   marketplaceIds: MarketplaceSource[];
   notes: string | null;
@@ -253,6 +260,13 @@ export interface ApiSourcingListProductInput {
   maxLandedUnitCost?: number | null;
   maxLandedUnitCostCurrency?: string | null;
   alertCostBasis?: ApiSourcingAlertCostBasis;
+  alertEnabled?: boolean;
+  alertTargetPriceReached?: boolean;
+  alertNewCheaperSource?: boolean;
+  alertPriceDropped?: boolean;
+  alertQuantityAvailable?: boolean;
+  alertBackInStock?: boolean;
+  alertCooldownMinutes?: number;
   preferredCondition?: string | null;
   marketplaceIds: MarketplaceSource[];
   notes?: string | null;
@@ -319,6 +333,55 @@ export interface ApiSourcingListImportResult {
   list: ApiSourcingList;
   importedCount: number;
   duplicateImport: boolean;
+}
+
+export type ApiSourcingPriceMovement = "up" | "down" | "stable" | "unknown";
+
+export interface ApiSourcingPriceObservation {
+  id: string;
+  source: MarketplaceSource;
+  externalId: string;
+  listingId: string | null;
+  title: string;
+  sellerName: string | null;
+  url: string;
+  observedPrice: number | null;
+  currency: string | null;
+  availableQuantity: number | null;
+  shippingCost: number | null;
+  shippingCurrency: string | null;
+  landedUnitCost: number | null;
+  landedUnitCostCurrency: string | null;
+  availability: string | null;
+  observedAt: string;
+}
+
+export interface ApiSourcingPriceSourceSummary {
+  source: MarketplaceSource;
+  currentObservedPrice: number | null;
+  currentObservedCurrency: string | null;
+  currentObservedAt: string | null;
+  recentLow: number | null;
+  recentHigh: number | null;
+  averageObservedPrice: number | null;
+  currency: string | null;
+  observationCount: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  movement: ApiSourcingPriceMovement;
+  targetReached: boolean | null;
+}
+
+export interface ApiSourcingPriceHistory {
+  sourcingListProductId: string;
+  targetPrice: number | null;
+  targetPriceCurrency: string | null;
+  targetCostBasis: ApiSourcingAlertCostBasis;
+  totalObservationCount: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  sources: ApiSourcingPriceSourceSummary[];
+  observations: ApiSourcingPriceObservation[];
 }
 
 export interface ApiMatch {
@@ -470,6 +533,13 @@ export interface RawApiSourcingListProduct {
   max_landed_unit_cost: number | string | null;
   max_landed_unit_cost_currency: string | null;
   alert_cost_basis: ApiSourcingAlertCostBasis;
+  alert_enabled: boolean;
+  alert_target_price_reached: boolean;
+  alert_new_cheaper_source: boolean;
+  alert_price_dropped: boolean;
+  alert_quantity_available: boolean;
+  alert_back_in_stock: boolean;
+  alert_cooldown_minutes: number;
   preferred_condition: string | null;
   notes: string | null;
   required_by: string | null;
@@ -477,6 +547,44 @@ export interface RawApiSourcingListProduct {
   created_at: string;
   updated_at: string;
   sourcing_list_product_marketplaces?: Array<{ marketplace_id: MarketplaceSource }>;
+}
+
+export interface RawApiSourcingPriceObservation {
+  id: string;
+  workspace_id: string;
+  sourcing_list_product_id: string;
+  listing_id: string | null;
+  marketplace_id: MarketplaceSource;
+  external_id: string;
+  title: string;
+  seller_name: string | null;
+  url: string;
+  observed_at: string;
+  observed_price: number | string | null;
+  currency: string | null;
+  available_quantity: number | null;
+  shipping_cost: number | string | null;
+  shipping_currency: string | null;
+  landed_unit_cost: number | string | null;
+  landed_unit_cost_currency: string | null;
+  availability: string | null;
+}
+
+export interface RawApiSourcingAlertState {
+  workspace_id: string;
+  sourcing_list_product_id: string;
+  marketplace_id: MarketplaceSource;
+  external_id: string;
+  price: number | string | null;
+  currency: string | null;
+  landed_unit_cost: number | string | null;
+  landed_unit_cost_currency: string | null;
+  available_quantity: number | null;
+  availability: string | null;
+  observed_at: string;
+  target_reached: boolean | null;
+  last_notified_at: string | null;
+  last_notified_type: string | null;
 }
 
 export interface RawApiSourcingList {

@@ -5,6 +5,7 @@ import type { ProductEventInput } from "../analytics/events";
 import { ListingRepository } from "../database/listing-repository";
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
+import { summarizeSourcingPriceHistory } from "../sourcing/price-history";
 import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiComparisonManualGroupInput,
@@ -16,6 +17,7 @@ import type {
   ApiSourcingListProductInput,
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
+  ApiSourcingPriceHistory,
   ApiWorkspaceInput,
   ListingProblemReportInput,
   ApiWeeklySummary,
@@ -24,6 +26,7 @@ import type {
   RawApiMatch,
   RawApiNotification,
   RawApiSourcingList,
+  RawApiSourcingPriceObservation,
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
   RawApiWatchlist,
@@ -40,7 +43,7 @@ const WORKSPACE_COLUMNS =
   "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
 const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
 const SOURCING_LIST_PRODUCT_COLUMNS =
-  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
+  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,alert_enabled,alert_target_price_reached,alert_new_cheaper_source,alert_price_dropped,alert_quantity_available,alert_back_in_stock,alert_cooldown_minutes,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
 const COMPARISON_SHORTLIST_COLUMNS =
   "id,workspace_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,created_by,created_at";
 const COMPARISON_GROUP_COLUMNS =
@@ -291,6 +294,12 @@ export interface MobileApiRepositoryContract {
     workspaceId: string,
     groupId: string,
   ): Promise<boolean>;
+  getSourcingProductPriceHistory?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ): Promise<ApiSourcingPriceHistory | null>;
 }
 
 export class MobileApiRepository implements MobileApiRepositoryContract {
@@ -552,6 +561,13 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         maxLandedUnitCost: toNullableNumber(product.max_landed_unit_cost),
         maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
         alertCostBasis: product.alert_cost_basis,
+        alertEnabled: product.alert_enabled,
+        alertTargetPriceReached: product.alert_target_price_reached,
+        alertNewCheaperSource: product.alert_new_cheaper_source,
+        alertPriceDropped: product.alert_price_dropped,
+        alertQuantityAvailable: product.alert_quantity_available,
+        alertBackInStock: product.alert_back_in_stock,
+        alertCooldownMinutes: product.alert_cooldown_minutes,
         preferredCondition: product.preferred_condition,
         marketplaceIds:
           product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
@@ -687,6 +703,35 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       throw error;
     }
     return (count ?? 0) > 0;
+  }
+
+  async getSourcingProductPriceHistory(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ): Promise<ApiSourcingPriceHistory | null> {
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    const product = list?.products.find((item) => item.id === sourcingListProductId);
+    if (!list || !product) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("sourcing_product_price_observations")
+      .select(
+        "id,workspace_id,sourcing_list_product_id,listing_id,marketplace_id,external_id,title,seller_name,url,observed_at,observed_price,currency,available_quantity,shipping_cost,shipping_currency,landed_unit_cost,landed_unit_cost_currency,availability",
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("sourcing_list_product_id", sourcingListProductId)
+      .order("observed_at", { ascending: false })
+      .limit(100)
+      .returns<RawApiSourcingPriceObservation[]>();
+    if (error) {
+      throw error;
+    }
+
+    return summarizeSourcingPriceHistory(product, data ?? []);
   }
 
   async getComparisonState(userId: string, workspaceId: string, sourcingListProductId: string) {
@@ -1797,6 +1842,21 @@ function toSourcingProductRow(
     row.max_landed_unit_cost_currency = input.maxLandedUnitCost === null ? null : defaultCurrency;
   }
   if (input.alertCostBasis !== undefined) row.alert_cost_basis = input.alertCostBasis;
+  if (input.alertEnabled !== undefined) row.alert_enabled = input.alertEnabled;
+  if (input.alertTargetPriceReached !== undefined) {
+    row.alert_target_price_reached = input.alertTargetPriceReached;
+  }
+  if (input.alertNewCheaperSource !== undefined) {
+    row.alert_new_cheaper_source = input.alertNewCheaperSource;
+  }
+  if (input.alertPriceDropped !== undefined) row.alert_price_dropped = input.alertPriceDropped;
+  if (input.alertQuantityAvailable !== undefined) {
+    row.alert_quantity_available = input.alertQuantityAvailable;
+  }
+  if (input.alertBackInStock !== undefined) row.alert_back_in_stock = input.alertBackInStock;
+  if (input.alertCooldownMinutes !== undefined) {
+    row.alert_cooldown_minutes = input.alertCooldownMinutes;
+  }
   if (input.preferredCondition !== undefined) row.preferred_condition = input.preferredCondition;
   if (input.notes !== undefined) row.notes = input.notes;
   if (input.requiredBy !== undefined) row.required_by = input.requiredBy;

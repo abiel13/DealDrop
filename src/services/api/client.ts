@@ -27,6 +27,7 @@ import type {
   ApiSourcingListImportResult,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
+  ApiSourcingPriceHistory,
   ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
@@ -245,6 +246,16 @@ export class DealDropApiClient {
     return this.request<{ deleted: boolean }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async getSourcingProductPriceHistory(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ) {
+    return this.request<ApiSourcingPriceHistory>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/history`,
     );
   }
 

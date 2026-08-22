@@ -43,6 +43,13 @@ export function sourcingListProductComparisonRoute(
   return `/sourcing-list/${encodeURIComponent(sourcingListId)}/product/${encodeURIComponent(sourcingListProductId)}/compare` as Href;
 }
 
+export function sourcingListProductHistoryRoute(
+  sourcingListId: string,
+  sourcingListProductId: string,
+) {
+  return `/sourcing-list/${encodeURIComponent(sourcingListId)}/product/${encodeURIComponent(sourcingListProductId)}/history` as Href;
+}
+
 export function listingRoute(
   id: string,
   context?: { matchId?: string | null; watchlistId?: string | null },
