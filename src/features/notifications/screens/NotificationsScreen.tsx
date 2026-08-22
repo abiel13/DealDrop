@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
+import { Pressable, RefreshControl, Switch, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
@@ -257,9 +258,11 @@ export function NotificationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={notificationsQuery.isRefetching}
@@ -464,7 +467,7 @@ export function NotificationsScreen() {
             Load older alerts
           </Button>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

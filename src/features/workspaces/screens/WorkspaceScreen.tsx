@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { AppIcon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
@@ -150,128 +151,125 @@ function WorkspaceOnboarding({
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
-          keyboardShouldPersistTaps="handled"
-        >
-          <AppHeader
-            title="Set up your Pro workspace"
-            subtitle="Tell us only what we need to get your business sourcing space ready."
-            onBack={onBack}
+        <AppHeader
+          title="Set up your Pro workspace"
+          subtitle="Tell us only what we need to get your business sourcing space ready."
+          onBack={onBack}
+        />
+
+        <Card padding="md" className="gap-5 bg-primary-soft">
+          <View className="flex-row items-start gap-3">
+            <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
+              <AppIcon name="storefront" size={21} color={theme.colors.primary} weight="bold" />
+            </View>
+            <View className="flex-1 gap-1">
+              <AppText variant="title">A workspace for business sourcing</AppText>
+              <AppText variant="bodySmall">
+                Your sourcing lists, supplier notes, comparisons, and activity will belong to this
+                workspace—not your personal DealDrop account.
+              </AppText>
+            </View>
+          </View>
+        </Card>
+
+        <Card padding="md" className="gap-5">
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onBlur, onChange, value } }) => (
+              <Input
+                label="Business name"
+                placeholder="e.g. Apex Electronics"
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                error={errors.name?.message}
+              />
+            )}
           />
 
-          <Card padding="md" className="gap-5 bg-primary-soft">
-            <View className="flex-row items-start gap-3">
-              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-surface">
-                <AppIcon name="storefront" size={21} color={theme.colors.primary} weight="bold" />
-              </View>
-              <View className="flex-1 gap-1">
-                <AppText variant="title">A workspace for business sourcing</AppText>
-                <AppText variant="bodySmall">
-                  Your sourcing lists, supplier notes, comparisons, and activity will belong to this
-                  workspace—not your personal DealDrop account.
-                </AppText>
-              </View>
-            </View>
-          </Card>
-
-          <Card padding="md" className="gap-5">
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { onBlur, onChange, value } }) => (
-                <Input
-                  label="Business name"
-                  placeholder="e.g. Apex Electronics"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  error={errors.name?.message}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="businessType"
-              render={({ field: { onBlur, onChange, value } }) => (
-                <Input
-                  label="Business type"
-                  placeholder="e.g. Reseller, retailer, or D2C brand"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  error={errors.businessType?.message}
-                />
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="primarySourcingCategories"
-              render={({ field: { onBlur, onChange, value } }) => (
-                <Input
-                  label="Primary sourcing categories"
-                  placeholder="e.g. Electronics, footwear"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  error={errors.primarySourcingCategories?.message}
-                />
-              )}
-            />
-
-            <View className="flex-row gap-3">
-              <Controller
-                control={control}
-                name="defaultCurrency"
-                render={({ field: { onBlur, onChange, value } }) => (
-                  <Input
-                    className="flex-1"
-                    label="Default currency"
-                    placeholder="USD"
-                    autoCapitalize="characters"
-                    maxLength={3}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    error={errors.defaultCurrency?.message}
-                  />
-                )}
+          <Controller
+            control={control}
+            name="businessType"
+            render={({ field: { onBlur, onChange, value } }) => (
+              <Input
+                label="Business type"
+                placeholder="e.g. Reseller, retailer, or D2C brand"
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                error={errors.businessType?.message}
               />
+            )}
+          />
 
-              <Controller
-                control={control}
-                name="countryRegion"
-                render={({ field: { onBlur, onChange, value } }) => (
-                  <Input
-                    className="flex-1"
-                    label="Country or region"
-                    placeholder="e.g. Nigeria"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    error={errors.countryRegion?.message}
-                  />
-                )}
+          <Controller
+            control={control}
+            name="primarySourcingCategories"
+            render={({ field: { onBlur, onChange, value } }) => (
+              <Input
+                label="Primary sourcing categories"
+                placeholder="e.g. Electronics, footwear"
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                error={errors.primarySourcingCategories?.message}
               />
-            </View>
-          </Card>
+            )}
+          />
 
-          {createMutation.isError && (
-            <AppText variant="error">{getWorkspaceErrorMessage(createMutation.error)}</AppText>
-          )}
+          <View className="flex-row gap-3">
+            <Controller
+              control={control}
+              name="defaultCurrency"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  className="flex-1"
+                  label="Default currency"
+                  placeholder="USD"
+                  autoCapitalize="characters"
+                  maxLength={3}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.defaultCurrency?.message}
+                />
+              )}
+            />
 
-          <Button loading={createMutation.isPending} onPress={handleSubmit(submit)}>
-            Create workspace
-          </Button>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            <Controller
+              control={control}
+              name="countryRegion"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  className="flex-1"
+                  label="Country or region"
+                  placeholder="e.g. Nigeria"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.countryRegion?.message}
+                />
+              )}
+            />
+          </View>
+        </Card>
+
+        {createMutation.isError && (
+          <AppText variant="error">{getWorkspaceErrorMessage(createMutation.error)}</AppText>
+        )}
+
+        <Button loading={createMutation.isPending} onPress={handleSubmit(submit)}>
+          Create workspace
+        </Button>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

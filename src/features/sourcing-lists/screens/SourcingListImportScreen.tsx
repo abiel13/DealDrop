@@ -1,8 +1,8 @@
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { FlatList, View } from "react-native";
+import { useRef, useState } from "react";
+import { findNodeHandle, FlatList, KeyboardAvoidingView, Platform, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Input } from "@/components/ui/Input";
+import {
+  KeyboardAwareFocusContext,
+  KeyboardAwareScrollView,
+  useKeyboardAwareFocus,
+} from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
@@ -48,6 +53,11 @@ export function SourcingListImportScreen() {
   const [isSharingTemplate, setIsSharingTemplate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const listRef = useRef<FlatList<SourcingCsvRow>>(null);
+  const focusHandlers = useKeyboardAwareFocus(
+    () => findNodeHandle(listRef.current),
+    (offset) => listRef.current?.scrollToOffset({ offset, animated: true }),
+  );
   const listQuery = useQuery({
     queryKey: ["sourcing-list", workspaceId, sourcingListId],
     queryFn: () => getSourcingList(workspaceId ?? "", sourcingListId),
@@ -185,7 +195,12 @@ export function SourcingListImportScreen() {
   if (!report) {
     return (
       <SafeAreaView className="flex-1 bg-background">
-        <View className="flex-1 gap-5 px-5 pb-8 pt-6">
+        <KeyboardAwareScrollView
+          className="flex-1"
+          contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
           <AppHeader
             title="Import products"
             subtitle="Review a CSV before adding products to this sourcing list."
@@ -213,78 +228,89 @@ export function SourcingListImportScreen() {
             Download CSV template
           </Button>
           {error && <AppText variant="error">{error}</AppText>}
-        </View>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-1 gap-4 pt-6">
-        <View className="px-5">
-          <AppHeader
-            title="Review CSV import"
-            subtitle={fileName ?? "Selected CSV file"}
-            onBack={() => router.back()}
-          />
-        </View>
-        <Card padding="md" className="mx-5 gap-3">
-          <View className="flex-row justify-between gap-2">
-            <AppText variant="bodySmall">Valid: {validCount}</AppText>
-            <AppText variant="bodySmall">Invalid: {invalidCount}</AppText>
-            <AppText variant="bodySmall">Duplicates: {duplicateCount}</AppText>
-          </View>
-          <AppText variant="caption">
-            {selectedCount} row{selectedCount === 1 ? "" : "s"} selected for import. Edit a row and
-            leave the field to revalidate it, or exclude it from this import.
-          </AppText>
-          {report.headerErrors.map((headerError) => (
-            <AppText key={headerError} variant="error">
-              {headerError}
-            </AppText>
-          ))}
-          <View className="flex-row gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 px-2"
-              onPress={() => void selectCsv()}
-            >
-              Choose another
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 px-2"
-              loading={importMutation.isPending}
-              disabled={selectedCount === 0 || report.headerErrors.length > 0}
-              onPress={importSelectedRows}
-            >
-              Import {selectedCount}
-            </Button>
-          </View>
-          {message && <AppText variant="bodySmall">{message}</AppText>}
-          {(error || importMutation.isError) && (
-            <AppText variant="error">
-              {error ?? getSourcingListErrorMessage(importMutation.error)}
-            </AppText>
-          )}
-        </Card>
-        <FlatList
+      <KeyboardAwareFocusContext.Provider value={focusHandlers}>
+        <KeyboardAvoidingView
           className="flex-1"
-          contentContainerClassName="gap-4 px-5 pb-8"
-          data={report.rows}
-          extraData={report}
-          keyExtractor={(row) => `${report.fileFingerprint}-${row.rowNumber}`}
-          renderItem={({ item }) => (
-            <ImportRowCard row={item} onChange={updateRow} onToggle={toggleRow} />
-          )}
-          ListEmptyComponent={
-            <Card padding="md">
-              <AppText variant="bodySmall">No product rows were found in this CSV.</AppText>
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View className="flex-1 gap-4 pt-6">
+            <View className="px-5">
+              <AppHeader
+                title="Review CSV import"
+                subtitle={fileName ?? "Selected CSV file"}
+                onBack={() => router.back()}
+              />
+            </View>
+            <Card padding="md" className="mx-5 gap-3">
+              <View className="flex-row justify-between gap-2">
+                <AppText variant="bodySmall">Valid: {validCount}</AppText>
+                <AppText variant="bodySmall">Invalid: {invalidCount}</AppText>
+                <AppText variant="bodySmall">Duplicates: {duplicateCount}</AppText>
+              </View>
+              <AppText variant="caption">
+                {selectedCount} row{selectedCount === 1 ? "" : "s"} selected for import. Edit a row
+                and leave the field to revalidate it, or exclude it from this import.
+              </AppText>
+              {report.headerErrors.map((headerError) => (
+                <AppText key={headerError} variant="error">
+                  {headerError}
+                </AppText>
+              ))}
+              <View className="flex-row gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 px-2"
+                  onPress={() => void selectCsv()}
+                >
+                  Choose another
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 px-2"
+                  loading={importMutation.isPending}
+                  disabled={selectedCount === 0 || report.headerErrors.length > 0}
+                  onPress={importSelectedRows}
+                >
+                  Import {selectedCount}
+                </Button>
+              </View>
+              {message && <AppText variant="bodySmall">{message}</AppText>}
+              {(error || importMutation.isError) && (
+                <AppText variant="error">
+                  {error ?? getSourcingListErrorMessage(importMutation.error)}
+                </AppText>
+              )}
             </Card>
-          }
-        />
-      </View>
+            <FlatList
+              ref={listRef}
+              className="flex-1"
+              contentContainerClassName="gap-4 px-5 pb-8"
+              data={report.rows}
+              extraData={report}
+              keyExtractor={(row) => `${report.fileFingerprint}-${row.rowNumber}`}
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              keyboardShouldPersistTaps="handled"
+              onLayout={focusHandlers.onLayout}
+              renderItem={({ item }) => (
+                <ImportRowCard row={item} onChange={updateRow} onToggle={toggleRow} />
+              )}
+              ListEmptyComponent={
+                <Card padding="md">
+                  <AppText variant="bodySmall">No product rows were found in this CSV.</AppText>
+                </Card>
+              }
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </KeyboardAwareFocusContext.Provider>
     </SafeAreaView>
   );
 }
