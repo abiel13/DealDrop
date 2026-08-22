@@ -153,6 +153,14 @@ function createOffer(
     "delivery",
     "estimatedDelivery",
   ]);
+  const sellerId = readText(metadata, [
+    "sellerId",
+    "seller_id",
+    "merchantId",
+    "merchant_id",
+    "shopId",
+    "shop_id",
+  ]);
   const landed = calculateLandedUnitCost(listing, shipping, criteria);
   const qualification = qualifyOffer(listing, availableQuantity, availability, landed, criteria);
   const reference = toReference(listing);
@@ -163,6 +171,7 @@ function createOffer(
     listingId: options.listingIds?.get(listingKey(listing)) ?? null,
     title: listing.title,
     sellerName: listing.sellerName,
+    sellerId,
     price: listing.price,
     currency: normalizedCurrency(listing.currency),
     imageUrl: listing.imageUrls[0] ?? null,
@@ -178,6 +187,7 @@ function createOffer(
     qualification: qualification.status,
     qualificationReasons: qualification.reasons,
     isShortlisted: options.shortlistedKeys?.has(listingKey(listing)) ?? false,
+    savedSupplier: null,
   };
 }
 

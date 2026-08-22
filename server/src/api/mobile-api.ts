@@ -36,6 +36,11 @@ import type {
   ApiComparisonManualGroupInput,
   ApiComparisonResult,
   ApiComparisonShortlistInput,
+  ApiSupplier,
+  ApiSupplierFilters,
+  ApiSupplierInput,
+  ApiSupplierShortlistHistory,
+  ApiSupplierUpdateInput,
   ApiMatch,
   ApiListingProblemReport,
   ListingProblemReportInput,
@@ -54,7 +59,16 @@ import type {
   ApiWeeklySummary,
   ApiWorkspace,
   ApiWorkspaceInput,
+  ApiWorkspaceMember,
+  ApiWorkspaceMemberInput,
+  ApiSourcingActivity,
+  ApiSourcingNote,
   RawApiSourcingList,
+  RawApiSupplier,
+  RawApiSupplierShortlistHistory,
+  RawApiWorkspaceMember,
+  RawApiSourcingActivity,
+  RawApiSourcingNote,
   RawApiWatchlist,
 } from "./types";
 
@@ -181,6 +195,30 @@ export class MobileApiService {
   async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<ApiWorkspace> {
     const workspace = await this.dependencies.repository.createWorkspace(userId, input);
     return toWorkspace(workspace);
+  }
+
+  async getWorkspaceMembers(userId: string, workspaceId: string): Promise<ApiWorkspaceMember[]> {
+    return (await this.dependencies.repository.getWorkspaceMembers(userId, workspaceId)).map(
+      toWorkspaceMember,
+    );
+  }
+
+  async inviteWorkspaceMember(
+    userId: string,
+    workspaceId: string,
+    input: ApiWorkspaceMemberInput,
+  ): Promise<ApiWorkspaceMember> {
+    const member = await this.dependencies.repository.inviteWorkspaceMember(
+      userId,
+      workspaceId,
+      input,
+    );
+    if (!member) {
+      throw new ApiNotFoundError(
+        "The workspace was not found, you are not the owner, or the user has not created a DealDrop account.",
+      );
+    }
+    return toWorkspaceMember(member);
   }
 
   async getSourcingLists(
@@ -354,6 +392,53 @@ export class MobileApiService {
     }
   }
 
+  async getSourcingNotes(
+    userId: string,
+    workspaceId: string,
+    productId: string,
+    shortlistId?: string,
+  ): Promise<ApiSourcingNote[]> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingNotes) {
+      throw new ApiError(503, "api_unavailable", "Sourcing notes are not configured.");
+    }
+    const notes = await repository.getSourcingNotes(userId, workspaceId, productId, shortlistId);
+    if (!notes) throw new ApiNotFoundError("The sourcing product was not found.");
+    return notes.map(toSourcingNote);
+  }
+
+  async createSourcingNote(
+    userId: string,
+    workspaceId: string,
+    input: {
+      sourcingListProductId?: string | null;
+      comparisonShortlistId?: string | null;
+      body: string;
+    },
+  ): Promise<ApiSourcingNote> {
+    const repository = this.dependencies.repository;
+    if (!repository.createSourcingNote) {
+      throw new ApiError(503, "api_unavailable", "Sourcing notes are not configured.");
+    }
+    const note = await repository.createSourcingNote(userId, workspaceId, input);
+    if (!note) throw new ApiNotFoundError("The workspace was not found or cannot be edited.");
+    return toSourcingNote(note);
+  }
+
+  async getSourcingActivity(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingActivity[]> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingActivity) {
+      throw new ApiError(503, "api_unavailable", "Sourcing activity is not configured.");
+    }
+    const activity = await repository.getSourcingActivity(userId, workspaceId, sourcingListId);
+    if (!activity) throw new ApiNotFoundError("The sourcing list was not found.");
+    return activity.map(toSourcingActivity);
+  }
+
   async getSourcingProductPriceHistory(
     userId: string,
     workspaceId: string,
@@ -425,6 +510,9 @@ export class MobileApiService {
     if (!comparisonState) {
       throw new ApiNotFoundError("The comparison workspace was not found.");
     }
+    const suppliers = this.dependencies.repository.getSuppliers
+      ? await this.dependencies.repository.getSuppliers(userId, workspaceId)
+      : [];
 
     const comparison = buildMarketplaceComparison(
       response.listings,
@@ -446,12 +534,69 @@ export class MobileApiService {
         (item) => item.id === sourcingListProductId,
       )!,
       searchQuery,
-      comparisons: comparison.comparisons,
+      comparisons: comparison.comparisons.map((group) => ({
+        ...group,
+        offers: group.offers.map((offer) => ({
+          ...offer,
+          savedSupplier: findSavedSupplier(offer, suppliers),
+        })),
+      })),
       sources,
       partialFailures: response.partialFailures,
       shortlisted: comparisonState.shortlists.map(toApiComparisonShortlist),
       manualGroups: comparisonState.manualGroups.map(toApiComparisonManualGroup),
     };
+  }
+
+  async getSuppliers(userId: string, workspaceId: string, filters: ApiSupplierFilters = {}) {
+    const repository = this.supplierRepository();
+    const suppliers = await repository.getSuppliers(userId, workspaceId, filters);
+    return suppliers.map(toApiSupplier);
+  }
+
+  async createSupplier(userId: string, workspaceId: string, input: ApiSupplierInput) {
+    const supplier = await this.supplierRepository().createSupplier(userId, workspaceId, input);
+    if (!supplier) {
+      throw new ApiNotFoundError("The workspace was not found or cannot be edited.");
+    }
+    return toApiSupplier(supplier);
+  }
+
+  async updateSupplier(
+    userId: string,
+    workspaceId: string,
+    supplierId: string,
+    input: ApiSupplierUpdateInput,
+  ) {
+    const supplier = await this.supplierRepository().updateSupplier(
+      userId,
+      workspaceId,
+      supplierId,
+      input,
+    );
+    if (!supplier) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+    return toApiSupplier(supplier);
+  }
+
+  async deleteSupplier(userId: string, workspaceId: string, supplierId: string) {
+    const deleted = await this.supplierRepository().deleteSupplier(userId, workspaceId, supplierId);
+    if (!deleted) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+  }
+
+  async getSupplierShortlistHistory(userId: string, workspaceId: string, supplierId: string) {
+    const history = await this.supplierRepository().getSupplierShortlistHistory(
+      userId,
+      workspaceId,
+      supplierId,
+    );
+    if (!history) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+    return history.map(toApiSupplierShortlistHistory);
   }
 
   async shortlistComparisonOffer(
@@ -769,6 +914,27 @@ export class MobileApiService {
     };
   }
 
+  private supplierRepository() {
+    const repository = this.dependencies.repository;
+    if (
+      !repository.getSuppliers ||
+      !repository.createSupplier ||
+      !repository.updateSupplier ||
+      !repository.deleteSupplier ||
+      !repository.getSupplierShortlistHistory
+    ) {
+      throw new ApiError(503, "api_unavailable", "Supplier support is not configured.");
+    }
+
+    return {
+      getSuppliers: repository.getSuppliers.bind(repository),
+      createSupplier: repository.createSupplier.bind(repository),
+      updateSupplier: repository.updateSupplier.bind(repository),
+      deleteSupplier: repository.deleteSupplier.bind(repository),
+      getSupplierShortlistHistory: repository.getSupplierShortlistHistory.bind(repository),
+    };
+  }
+
   private normalizeSourcingProduct(input: ApiSourcingListProductInput) {
     return { ...input, marketplaceIds: this.validateSourcingMarketplaces(input.marketplaceIds) };
   }
@@ -844,6 +1010,42 @@ function toWorkspace(workspace: StoredWorkspace): ApiWorkspace {
   };
 }
 
+function toWorkspaceMember(member: RawApiWorkspaceMember): ApiWorkspaceMember {
+  return {
+    userId: member.user_id,
+    email: member.email,
+    fullName: member.full_name,
+    role: member.role,
+    createdAt: member.created_at,
+  };
+}
+
+function toSourcingNote(note: RawApiSourcingNote): ApiSourcingNote {
+  return {
+    id: note.id,
+    sourcingListProductId: note.sourcing_list_product_id,
+    comparisonShortlistId: note.comparison_shortlist_id,
+    authorId: note.author_id,
+    authorName: note.author?.full_name ?? note.author?.email ?? null,
+    body: note.body,
+    createdAt: note.created_at,
+    updatedAt: note.updated_at,
+  };
+}
+
+function toSourcingActivity(activity: RawApiSourcingActivity): ApiSourcingActivity {
+  return {
+    id: activity.id,
+    actorId: activity.actor_id,
+    actorName: activity.actor?.full_name ?? activity.actor?.email ?? null,
+    sourcingListId: activity.sourcing_list_id,
+    sourcingListProductId: activity.sourcing_list_product_id,
+    eventType: activity.event_type,
+    metadata: activity.metadata,
+    createdAt: activity.created_at,
+  };
+}
+
 function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
   const products = list.products.map((product) => ({
     id: product.id,
@@ -892,6 +1094,8 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
       product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
     notes: product.notes,
     requiredBy: product.required_by,
+    assignedTo: product.assigned_to,
+    workflowStatus: product.workflow_status,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
   }));
@@ -976,9 +1180,66 @@ function toApiComparisonShortlist(
   return {
     id: item.id,
     sourcingListProductId: item.sourcing_list_product_id,
+    supplierId: item.supplier_id,
     offer: item.offer_snapshot as unknown as MarketplaceComparisonOffer,
     createdAt: item.created_at,
   };
+}
+
+function toApiSupplier(item: RawApiSupplier): ApiSupplier {
+  return {
+    id: item.id,
+    workspaceId: item.workspace_id,
+    name: item.name,
+    marketplace: item.marketplace_id,
+    marketplaceSellerId: item.marketplace_seller_id,
+    supplierUrl: item.supplier_url,
+    notes: item.notes,
+    tags: item.tags,
+    status: item.status,
+    internalContactInfo: item.internal_contact_info,
+    typicalLeadTimeDays: item.typical_lead_time_days,
+    minimumOrderQuantity: item.minimum_order_quantity,
+    shortlistedCount: item.shortlisted_count,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  };
+}
+
+function toApiSupplierShortlistHistory(
+  item: RawApiSupplierShortlistHistory,
+): ApiSupplierShortlistHistory {
+  return {
+    id: item.id,
+    supplierId: item.supplier_id,
+    sourcingListProductId: item.sourcing_list_product_id,
+    marketplace: item.marketplace_id,
+    externalId: item.external_id,
+    listingId: item.listing_id,
+    offer: item.offer_snapshot as unknown as import("./types").ApiComparisonOffer,
+    firstShortlistedAt: item.first_shortlisted_at,
+    lastShortlistedAt: item.last_shortlisted_at,
+  };
+}
+
+function findSavedSupplier(
+  offer: MarketplaceComparisonOffer,
+  suppliers: RawApiSupplier[],
+): { id: string; name: string; status: RawApiSupplier["status"] } | null {
+  const sellerName = normalizeSupplierName(offer.sellerName);
+  const match = suppliers.find(
+    (supplier) =>
+      (offer.sellerId && supplier.marketplace_seller_id === offer.sellerId) ||
+      (sellerName !== null &&
+        supplier.marketplace_seller_id === null &&
+        normalizeSupplierName(supplier.name) === sellerName),
+  );
+  return match ? { id: match.id, name: match.name, status: match.status } : null;
+}
+
+function normalizeSupplierName(name: string | null | undefined) {
+  const normalized = name?.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  return normalized || null;
 }
 
 function toApiComparisonManualGroup(

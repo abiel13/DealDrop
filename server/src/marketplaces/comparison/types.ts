@@ -27,12 +27,20 @@ export interface ComparisonCriteria {
 
 export type ComparisonMatchMethod = "identifier" | "model_title" | "manual";
 export type ComparisonQualification = "qualifies" | "does_not_qualify" | "unknown";
+export type MarketplaceSupplierStatus = "preferred" | "avoid" | "unreviewed";
+
+export interface MarketplaceSavedSupplierContext {
+  id: string;
+  name: string;
+  status: MarketplaceSupplierStatus;
+}
 
 export interface MarketplaceComparisonOffer extends MarketplaceListingReference {
   offerId: string;
   listingId: string | null;
   title: string;
   sellerName: string | null;
+  sellerId?: string | null;
   price: number | null;
   currency: string | null;
   imageUrl: string | null;
@@ -48,6 +56,7 @@ export interface MarketplaceComparisonOffer extends MarketplaceListingReference 
   qualification: ComparisonQualification;
   qualificationReasons: string[];
   isShortlisted: boolean;
+  savedSupplier?: MarketplaceSavedSupplierContext | null;
 }
 
 export interface MarketplaceProductComparison {

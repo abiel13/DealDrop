@@ -112,6 +112,8 @@ test("exports a sourcing list and a reusable CSV template", () => {
         marketplaceIds: ["ebay"],
         notes: "Include a case",
         requiredBy: null,
+        assignedTo: null,
+        workflowStatus: "searching",
         createdAt: "2026-08-01T00:00:00.000Z",
         updatedAt: "2026-08-01T00:00:00.000Z",
       },

@@ -10,6 +10,7 @@ export const authRoutes = {
   profile: "/profile" as Href,
   workspace: "/workspace" as Href,
   sourcingLists: "/sourcing-lists" as Href,
+  suppliers: "/suppliers" as Href,
   sourcingListForm: "/sourcing-list-form" as Href,
   sourcingList: "/sourcing-list" as Href,
   weeklySummary: "/weekly-summary" as Href,

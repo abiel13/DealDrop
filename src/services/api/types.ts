@@ -283,6 +283,17 @@ export interface ApiWorkspaceInput {
   countryRegion: string;
 }
 
+export interface ApiWorkspaceMember {
+  userId: string;
+  email: string | null;
+  fullName: string | null;
+  role: ApiWorkspaceRole;
+  createdAt: string;
+}
+
+export type ApiSourcingWorkflowStatus =
+  "searching" | "shortlisted" | "ready_to_buy" | "ordered" | "skipped" | "completed";
+
 export type ApiSourcingListStatus = "active" | "paused" | "completed";
 export type ApiSourcingAlertCostBasis = "marketplace_price" | "landed_unit_cost";
 
@@ -324,6 +335,8 @@ export interface ApiSourcingListProduct {
   marketplaceIds: MarketplaceSource[];
   notes: string | null;
   requiredBy: string | null;
+  assignedTo: string | null;
+  workflowStatus: ApiSourcingWorkflowStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -384,6 +397,36 @@ export interface ApiSourcingListProductInput {
   marketplaceIds: MarketplaceSource[];
   notes?: string | null;
   requiredBy?: string | null;
+  assignedTo?: string | null;
+  workflowStatus?: ApiSourcingWorkflowStatus;
+}
+
+export interface ApiSourcingNote {
+  id: string;
+  sourcingListProductId: string | null;
+  comparisonShortlistId: string | null;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSourcingActivity {
+  id: string;
+  actorId: string;
+  actorName: string | null;
+  sourcingListId: string | null;
+  sourcingListProductId: string | null;
+  eventType:
+    | "sourcing_item_created"
+    | "assignment_changed"
+    | "offer_shortlisted"
+    | "status_changed"
+    | "item_completed"
+    | "note_added";
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export type ApiComparisonMatchMethod = "identifier" | "model_title" | "manual";
@@ -396,6 +439,7 @@ export interface ApiComparisonOffer {
   listingId: string | null;
   title: string;
   sellerName: string | null;
+  sellerId?: string | null;
   price: number | null;
   currency: string | null;
   imageUrl: string | null;
@@ -411,6 +455,11 @@ export interface ApiComparisonOffer {
   qualification: ApiComparisonQualification;
   qualificationReasons: string[];
   isShortlisted: boolean;
+  savedSupplier?: {
+    id: string;
+    name: string;
+    status: ApiSupplierStatus;
+  } | null;
 }
 
 export interface ApiProductComparison {
@@ -433,6 +482,7 @@ export interface ApiProductComparison {
 export interface ApiComparisonShortlist {
   id: string;
   sourcingListProductId: string;
+  supplierId: string | null;
   offer: ApiComparisonOffer;
   createdAt: string;
 }
@@ -458,6 +508,60 @@ export interface ApiComparisonResult {
 export interface ApiComparisonShortlistInput {
   sourcingListProductId: string;
   offer: ApiComparisonOffer;
+  supplierId?: string | null;
+}
+
+export type ApiSupplierStatus = "preferred" | "avoid" | "unreviewed";
+
+export interface ApiSupplier {
+  id: string;
+  workspaceId: string;
+  name: string;
+  marketplace: MarketplaceSource;
+  marketplaceSellerId: string | null;
+  supplierUrl: string | null;
+  notes: string | null;
+  tags: string[];
+  status: ApiSupplierStatus;
+  internalContactInfo: string | null;
+  typicalLeadTimeDays: number | null;
+  minimumOrderQuantity: number | null;
+  shortlistedCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSupplierInput {
+  name: string;
+  marketplace: MarketplaceSource;
+  marketplaceSellerId?: string | null;
+  supplierUrl?: string | null;
+  notes?: string | null;
+  tags?: string[];
+  status?: ApiSupplierStatus;
+  internalContactInfo?: string | null;
+  typicalLeadTimeDays?: number | null;
+  minimumOrderQuantity?: number | null;
+}
+
+export type ApiSupplierUpdateInput = Partial<ApiSupplierInput>;
+
+export interface ApiSupplierFilters {
+  query?: string;
+  marketplace?: MarketplaceSource;
+  status?: ApiSupplierStatus;
+}
+
+export interface ApiSupplierShortlistHistory {
+  id: string;
+  supplierId: string;
+  sourcingListProductId: string;
+  marketplace: MarketplaceSource;
+  externalId: string;
+  listingId: string | null;
+  offer: ApiComparisonOffer;
+  firstShortlistedAt: string;
+  lastShortlistedAt: string;
 }
 
 export interface ApiComparisonManualGroupInput {

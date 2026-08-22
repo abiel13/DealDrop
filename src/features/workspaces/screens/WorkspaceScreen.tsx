@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -22,11 +22,14 @@ import { useTheme } from "@/providers/ThemeProvider";
 
 import {
   createWorkspace,
+  getWorkspaceMembers,
   getWorkspaceErrorMessage,
   getWorkspaces,
+  inviteWorkspaceMember,
 } from "../services/workspace.service";
 import { useWorkspaceStore } from "../store/workspace.store";
 import type { Workspace, WorkspaceInput } from "../types/workspace.types";
+import type { ApiWorkspaceMember, ApiWorkspaceRole } from "@/services/api";
 
 const workspaceFormSchema = z.object({
   name: z.string().trim().min(2, "Enter a business name."),
@@ -87,6 +90,7 @@ export function WorkspaceScreen() {
       workspaces={workspaces}
       onBack={() => router.back()}
       onOpenSourcingLists={() => router.push(authRoutes.sourcingLists)}
+      onOpenSuppliers={() => router.push(authRoutes.suppliers)}
       onSwitchToPersonal={() => {
         useWorkspaceStore.getState().setActiveWorkspaceId(null);
         router.replace(authRoutes.home);
@@ -278,11 +282,13 @@ function WorkspaceOverview({
   workspaces,
   onBack,
   onOpenSourcingLists,
+  onOpenSuppliers,
   onSwitchToPersonal,
 }: {
   workspaces: Workspace[];
   onBack: () => void;
   onOpenSourcingLists: () => void;
+  onOpenSuppliers: () => void;
   onSwitchToPersonal: () => void;
 }) {
   const theme = useTheme();
@@ -299,9 +305,10 @@ function WorkspaceOverview({
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
@@ -356,6 +363,8 @@ function WorkspaceOverview({
           </Card>
         )}
 
+        <WorkspaceTeamCard workspaceId={activeWorkspace.id} role={activeWorkspace.role} />
+
         <Card padding="md" className="gap-2 bg-primary-soft">
           <AppText variant="title">Business sourcing starts here</AppText>
           <AppText variant="bodySmall">
@@ -365,13 +374,100 @@ function WorkspaceOverview({
           <Button size="sm" onPress={onOpenSourcingLists}>
             Open sourcing lists
           </Button>
+          <Button size="sm" variant="outline" onPress={onOpenSuppliers}>
+            Manage suppliers
+          </Button>
         </Card>
 
         <Button variant="outline" onPress={onSwitchToPersonal}>
           Switch to Personal DealDrop
         </Button>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+function WorkspaceTeamCard({ workspaceId, role }: { workspaceId: string; role: ApiWorkspaceRole }) {
+  const [email, setEmail] = useState("");
+  const [memberRole, setMemberRole] = useState<Exclude<ApiWorkspaceRole, "owner">>("buyer");
+  const membersQuery = useQuery({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => getWorkspaceMembers(workspaceId),
+  });
+  const queryClient = useQueryClient();
+  const inviteMutation = useMutation({
+    mutationFn: () => inviteWorkspaceMember(workspaceId, email.trim(), memberRole),
+    onSuccess: () => {
+      setEmail("");
+      void queryClient.invalidateQueries({ queryKey: ["workspace-members", workspaceId] });
+    },
+  });
+  const members = membersQuery.data ?? [];
+
+  return (
+    <Card padding="md" className="gap-3">
+      <View className="gap-1">
+        <AppText variant="label">Team sourcing</AppText>
+        <AppText variant="bodySmall">
+          Invite an existing DealDrop account as a buyer or viewer. Owners and buyers can update
+          sourcing work; viewers can follow progress.
+        </AppText>
+      </View>
+
+      {members.map((member: ApiWorkspaceMember) => (
+        <View
+          key={member.userId}
+          className="flex-row items-center justify-between border-t border-border pt-3"
+        >
+          <View className="flex-1 gap-1">
+            <AppText className="font-semibold">
+              {member.fullName ?? member.email ?? "Team member"}
+            </AppText>
+            {member.fullName && member.email && <AppText variant="caption">{member.email}</AppText>}
+          </View>
+          <AppText variant="caption">{member.role}</AppText>
+        </View>
+      ))}
+
+      {role === "owner" && (
+        <View className="gap-3 border-t border-border pt-3">
+          <Input
+            label="DealDrop account email"
+            placeholder="buyer@example.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <View className="flex-row gap-2">
+            {(["buyer", "viewer"] as const).map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant={memberRole === option ? "primary" : "outline"}
+                className="flex-1"
+                onPress={() => setMemberRole(option)}
+              >
+                {option}
+              </Button>
+            ))}
+          </View>
+          <Button
+            size="sm"
+            loading={inviteMutation.isPending}
+            disabled={!email.trim()}
+            onPress={() => inviteMutation.mutate()}
+          >
+            Add team member
+          </Button>
+          {inviteMutation.isError && (
+            <AppText variant="error">
+              That email must belong to an existing DealDrop account.
+            </AppText>
+          )}
+        </View>
+      )}
+    </Card>
   );
 }
 
