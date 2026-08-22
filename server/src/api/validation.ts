@@ -176,11 +176,13 @@ const sourcingListProductShape = {
     .optional(),
 };
 
+export const sourcingListProductSchema = z.object(sourcingListProductShape).strict();
+
 export const createSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
     status: z.enum(["active", "paused", "completed"]).default("active"),
-    products: z.array(z.object(sourcingListProductShape).strict()).min(1).max(100),
+    products: z.array(sourcingListProductSchema).min(1).max(100),
   })
   .strict();
 
@@ -207,6 +209,13 @@ export const updateSourcingListProductSchema = z
     (value) => Object.keys(value).length > 0,
     "At least one sourcing list product field is required.",
   );
+
+export const importSourcingListProductsSchema = z
+  .object({
+    fileFingerprint: z.string().trim().min(8).max(128),
+    products: z.array(sourcingListProductSchema).min(1).max(1_000),
+  })
+  .strict();
 
 const watchlistPayloadShape = {
   name: z.string().trim().min(1).max(120),

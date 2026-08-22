@@ -29,6 +29,8 @@ import type {
   ApiNotification,
   ApiNotificationPreferences,
   ApiSearchResult,
+  ApiSourcingListImportInput,
+  ApiSourcingListImportResult,
   ApiSourcingList,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
@@ -251,6 +253,33 @@ export class MobileApiService {
       throw new ApiNotFoundError("The sourcing list was not found or cannot be duplicated.");
     }
     return toSourcingList(list);
+  }
+
+  async importSourcingListProducts(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ): Promise<ApiSourcingListImportResult> {
+    const normalized = {
+      ...input,
+      products: input.products.map((product) => this.normalizeSourcingProduct(product)),
+    };
+    const result = await this.sourcingListRepository().importSourcingListProducts(
+      userId,
+      workspaceId,
+      sourcingListId,
+      normalized,
+    );
+    if (!result) {
+      throw new ApiNotFoundError("The sourcing list was not found or cannot be edited.");
+    }
+
+    return {
+      list: toSourcingList(result.list),
+      importedCount: result.imported_count,
+      duplicateImport: result.duplicate_import,
+    };
   }
 
   async addSourcingListProduct(
@@ -529,6 +558,7 @@ export class MobileApiService {
       !repository.createSourcingList ||
       !repository.updateSourcingList ||
       !repository.duplicateSourcingList ||
+      !repository.importSourcingListProducts ||
       !repository.addSourcingListProduct ||
       !repository.updateSourcingListProduct ||
       !repository.deleteSourcingListProduct
@@ -542,6 +572,7 @@ export class MobileApiService {
       createSourcingList: repository.createSourcingList.bind(repository),
       updateSourcingList: repository.updateSourcingList.bind(repository),
       duplicateSourcingList: repository.duplicateSourcingList.bind(repository),
+      importSourcingListProducts: repository.importSourcingListProducts.bind(repository),
       addSourcingListProduct: repository.addSourcingListProduct.bind(repository),
       updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
       deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),

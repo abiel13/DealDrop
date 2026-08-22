@@ -2,6 +2,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,7 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
-import { authRoutes, sourcingListRoute } from "@/features/auth/routes";
+import { authRoutes, sourcingListImportRoute, sourcingListRoute } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 
@@ -19,6 +20,8 @@ import {
   getSourcingListErrorMessage,
   updateSourcingList,
 } from "../services/sourcing-list.service";
+import { shareCsvFile } from "../services/csv-file.service";
+import { createSourcingListCsv } from "../services/sourcing-list-csv";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
 const statuses: SourcingListStatus[] = ["active", "paused", "completed"];
@@ -30,6 +33,8 @@ export function SourcingListDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const sourcingListId = typeof params.id === "string" ? params.id : "";
   const queryClient = useQueryClient();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["sourcing-list", workspaceId, sourcingListId],
     queryFn: () => getSourcingList(workspaceId ?? "", sourcingListId),
@@ -73,6 +78,19 @@ export function SourcingListDetailScreen() {
   }
 
   const list = query.data;
+
+  async function exportList() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await shareCsvFile(`${safeFilename(list.name)}.csv`, createSourcingListCsv(list));
+    } catch {
+      setExportError("We couldn't export this sourcing list. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -115,6 +133,30 @@ export function SourcingListDetailScreen() {
           <AppText variant="bodySmall">
             {list.progress.completedProducts} of {list.progress.totalProducts} products complete
           </AppText>
+        </Card>
+
+        <Card padding="md" className="gap-3">
+          <AppText variant="label">Spreadsheet tools</AppText>
+          <View className="flex-row gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 px-2"
+              onPress={() => router.push(sourcingListImportRoute(list.id))}
+            >
+              Import CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1 px-2"
+              loading={exporting}
+              onPress={() => void exportList()}
+            >
+              Export CSV
+            </Button>
+          </View>
+          {exportError && <AppText variant="error">{exportError}</AppText>}
         </Card>
 
         <Card padding="md" className="gap-3">
@@ -190,4 +232,13 @@ function formatMarketplaceName(source: string) {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function safeFilename(name: string) {
+  return (
+    name
+      .trim()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "") || "sourcing-list"
+  );
 }

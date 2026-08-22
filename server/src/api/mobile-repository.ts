@@ -9,6 +9,7 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiSourcingListImportInput,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
   ApiSourcingListProductUpdateInput,
@@ -75,6 +76,20 @@ interface StoredPriceObservation {
   price: number;
   currency: string;
   observed_at: string;
+}
+
+interface SourcingListImportRpcRow {
+  imported_count: number;
+  duplicate_import: boolean;
+}
+
+function isSourcingListImportRpcRow(value: unknown): value is SourcingListImportRpcRow {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const row = value as Record<string, unknown>;
+  return typeof row.imported_count === "number" && typeof row.duplicate_import === "boolean";
 }
 
 interface WeeklyMatchRow {
@@ -211,6 +226,16 @@ export interface MobileApiRepositoryContract {
     sourcingListId: string,
     name?: string,
   ): Promise<RawApiSourcingList | null>;
+  importSourcingListProducts?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ): Promise<{
+    list: RawApiSourcingList;
+    imported_count: number;
+    duplicate_import: boolean;
+  } | null>;
   addSourcingListProduct?(
     userId: string,
     workspaceId: string,
@@ -486,6 +511,52 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     );
 
     return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async importSourcingListProducts(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .rpc("import_sourcing_list_products", {
+        target_user_id: userId,
+        target_sourcing_list_id: sourcingListId,
+        target_file_fingerprint: input.fileFingerprint,
+        target_products: input.products,
+      })
+      .returns<
+        Array<{
+          imported_count: number;
+          duplicate_import: boolean;
+        }>
+      >();
+    if (error) {
+      throw error;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const refreshedList = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!isSourcingListImportRpcRow(result) || !refreshedList) {
+      return null;
+    }
+
+    return {
+      list: refreshedList,
+      imported_count: Number(result.imported_count),
+      duplicate_import: result.duplicate_import,
+    };
   }
 
   async addSourcingListProduct(

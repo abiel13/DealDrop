@@ -238,6 +238,17 @@ export interface ApiSourcingListUpdateInput {
 
 export interface ApiSourcingListProductUpdateInput extends Partial<ApiSourcingListProductInput> {}
 
+export interface ApiSourcingListImportInput {
+  fileFingerprint: string;
+  products: ApiSourcingListProductInput[];
+}
+
+export interface ApiSourcingListImportResult {
+  list: ApiSourcingList;
+  importedCount: number;
+  duplicateImport: boolean;
+}
+
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";
