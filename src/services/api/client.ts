@@ -33,6 +33,7 @@ import type {
   ApiSourcingListInput,
   ApiSourcingListProductInput,
   ApiSourcingPriceHistory,
+  ApiSourcingSummary,
   ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
@@ -163,6 +164,12 @@ export class DealDropApiClient {
   async getSourcingList(workspaceId: string, sourcingListId: string) {
     return this.request<ApiSourcingList>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async getSourcingSummary(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingSummary>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/summary`,
     );
   }
 

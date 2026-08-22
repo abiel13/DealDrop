@@ -103,6 +103,14 @@ const productSchema = z
 
 const formSchema = z.object({
   name: z.string().trim().min(2, "Enter a name for this sourcing list."),
+  targetBudget: optionalAmount,
+  budgetCurrency: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === "" || /^[A-Za-z]{3}$/.test(value),
+      "Use a 3-letter currency code.",
+    ),
   products: z.array(productSchema).min(1, "Add at least one product."),
 });
 
@@ -162,7 +170,7 @@ export function SourcingListFormScreen() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: "", products: [emptyProduct] },
+    defaultValues: { name: "", targetBudget: "", budgetCurrency: "", products: [emptyProduct] },
     mode: "onBlur",
   });
   const { fields, append, remove } = useFieldArray({ control, name: "products" });
@@ -200,6 +208,10 @@ export function SourcingListFormScreen() {
     const input: SourcingListInput = {
       name: values.name.trim(),
       status: "active",
+      targetBudget: values.targetBudget.trim() ? Number(values.targetBudget) : null,
+      targetBudgetCurrency: values.targetBudget.trim()
+        ? values.budgetCurrency.trim().toUpperCase() || workspace?.defaultCurrency || "USD"
+        : null,
       products: values.products.map((product) => {
         const currency =
           product.economicsCurrency.trim().toUpperCase() || workspace?.defaultCurrency || "USD";
@@ -286,6 +298,47 @@ export function SourcingListFormScreen() {
             />
           )}
         />
+
+        <Card padding="md" className="gap-3 bg-primary-soft">
+          <AppText variant="label">Target budget (optional)</AppText>
+          <AppText variant="caption">
+            Used as a comparison baseline in the sourcing summary. Leave it blank when no budget has
+            been configured.
+          </AppText>
+          <View className="flex-row gap-3">
+            <Controller
+              control={control}
+              name="targetBudget"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  className="flex-1"
+                  label="Budget"
+                  keyboardType="decimal-pad"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.targetBudget?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="budgetCurrency"
+              render={({ field: { onBlur, onChange, value } }) => (
+                <Input
+                  className="w-28"
+                  label="Currency"
+                  placeholder={workspace?.defaultCurrency ?? "USD"}
+                  autoCapitalize="characters"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  error={errors.budgetCurrency?.message}
+                />
+              )}
+            />
+          </View>
+        </Card>
 
         {fields.map((field, index) => (
           <Card key={field.id} padding="md" className="gap-4">

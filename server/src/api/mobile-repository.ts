@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { aggregateWeeklySummary, type WeeklySummaryMatch } from "../analytics/weekly-summary";
 import type { ProductEventInput } from "../analytics/events";
 import { ListingRepository } from "../database/listing-repository";
+import type { MarketplaceComparisonOffer } from "../marketplaces/comparison/types";
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
 import { summarizeSourcingPriceHistory } from "../sourcing/price-history";
@@ -20,7 +21,9 @@ import type {
   ApiSourcingListProductInput,
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
+  ApiSourcingExportRow,
   ApiSourcingPriceHistory,
+  ApiSourcingSummary,
   ApiWorkspaceInput,
   ApiWorkspaceMemberInput,
   ListingProblemReportInput,
@@ -50,7 +53,8 @@ const MATCH_LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const WORKSPACE_COLUMNS =
   "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
-const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
+const SOURCING_LIST_COLUMNS =
+  "id,workspace_id,created_by,name,status,target_budget,target_budget_currency,created_at,updated_at";
 const SOURCING_LIST_PRODUCT_COLUMNS =
   "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,alert_enabled,alert_target_price_reached,alert_new_cheaper_source,alert_price_dropped,alert_quantity_available,alert_back_in_stock,alert_cooldown_minutes,preferred_condition,notes,required_by,assigned_to,workflow_status,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
 const COMPARISON_SHORTLIST_COLUMNS =
@@ -239,6 +243,11 @@ export interface MobileApiRepositoryContract {
     workspaceId: string,
     sourcingListId: string,
   ): Promise<RawApiSourcingList | null>;
+  getSourcingSummary?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingSummary | null>;
   createSourcingList?(
     userId: string,
     workspaceId: string,
@@ -579,6 +588,50 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return data ? this.getSourcingListForWorkspace(workspaceId, sourcingListId, data) : null;
   }
 
+  async getSourcingSummary(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingSummary | null> {
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) return null;
+
+    const productIds = list.products.map((product) => product.id);
+    if (productIds.length === 0) {
+      return buildSourcingSummary(list, [], new Map());
+    }
+
+    const { data: shortlists, error: shortlistError } = await this.client
+      .from("workspace_comparison_shortlists")
+      .select(COMPARISON_SHORTLIST_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .in("sourcing_list_product_id", productIds)
+      .order("created_at", { ascending: false })
+      .returns<RawApiComparisonShortlist[]>();
+    if (shortlistError) throw shortlistError;
+
+    const supplierIds = [
+      ...new Set(
+        (shortlists ?? [])
+          .map((shortlist) => shortlist.supplier_id)
+          .filter((supplierId): supplierId is string => Boolean(supplierId)),
+      ),
+    ];
+    const supplierNames = new Map<string, string>();
+    if (supplierIds.length > 0) {
+      const { data: suppliers, error: supplierError } = await this.client
+        .from("workspace_suppliers")
+        .select("id,name")
+        .eq("workspace_id", workspaceId)
+        .in("id", supplierIds)
+        .returns<Array<{ id: string; name: string }>>();
+      if (supplierError) throw supplierError;
+      for (const supplier of suppliers ?? []) supplierNames.set(supplier.id, supplier.name);
+    }
+
+    return buildSourcingSummary(list, shortlists ?? [], supplierNames);
+  }
+
   async createSourcingList(
     userId: string,
     workspaceId: string,
@@ -596,6 +649,11 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         created_by: userId,
         name: input.name,
         status: input.status ?? "active",
+        target_budget: input.targetBudget ?? null,
+        target_budget_currency:
+          input.targetBudget === null || input.targetBudget === undefined
+            ? null
+            : (input.targetBudgetCurrency ?? workspace.default_currency),
       })
       .select(SOURCING_LIST_COLUMNS)
       .single<Omit<RawApiSourcingList, "products">>();
@@ -618,9 +676,10 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       return null;
     }
 
+    const update = toSourcingListRow(workspace.default_currency, input);
     const { data: list, error } = await this.client
       .from("sourcing_lists")
-      .update(input)
+      .update(update)
       .eq("workspace_id", workspaceId)
       .eq("id", sourcingListId)
       .select(SOURCING_LIST_COLUMNS)
@@ -655,6 +714,8 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         created_by: userId,
         name: name ?? `${source.name} copy`,
         status: "active",
+        target_budget: source.target_budget,
+        target_budget_currency: source.target_budget_currency,
       })
       .select(SOURCING_LIST_COLUMNS)
       .single<Omit<RawApiSourcingList, "products">>();
@@ -2264,6 +2325,181 @@ function isWorkspaceEditor(role: RawApiWorkspace["role"]) {
   return role === "owner" || role === "buyer";
 }
 
+export function buildSourcingSummary(
+  list: RawApiSourcingList,
+  shortlists: RawApiComparisonShortlist[],
+  supplierNames: ReadonlyMap<string, string>,
+): ApiSourcingSummary {
+  const shortlistsByProduct = new Map<string, RawApiComparisonShortlist[]>();
+  for (const shortlist of shortlists) {
+    const productShortlists = shortlistsByProduct.get(shortlist.sourcing_list_product_id) ?? [];
+    productShortlists.push(shortlist);
+    shortlistsByProduct.set(shortlist.sourcing_list_product_id, productShortlists);
+  }
+
+  const exportRows = list.products.map((product) => {
+    const productShortlists = shortlistsByProduct.get(product.id) ?? [];
+    const selected = selectSummaryShortlist(productShortlists);
+    return toSourcingExportRow(product, selected, supplierNames);
+  });
+  const costs = exportRows.filter(
+    (row): row is ApiSourcingExportRow & { totalCost: number; totalCostCurrency: string } =>
+      row.totalCost !== null && row.totalCostCurrency !== null,
+  );
+  const budgetCurrency = normalizeSummaryCurrency(list.target_budget_currency);
+  const costCurrencies = new Set(costs.map((row) => row.totalCostCurrency));
+  const estimatedCurrency =
+    budgetCurrency ?? (costCurrencies.size === 1 ? [...costCurrencies][0] : null);
+  const currencyMismatch =
+    costCurrencies.size > 1 ||
+    Boolean(budgetCurrency && [...costCurrencies].some((currency) => currency !== budgetCurrency));
+  const comparableCosts = currencyMismatch
+    ? costs.filter((row) => row.totalCostCurrency === estimatedCurrency)
+    : costs;
+  const currentEstimatedSourcingCost =
+    comparableCosts.length > 0
+      ? comparableCosts.reduce((total, row) => total + row.totalCost, 0)
+      : null;
+  const targetBudget = summaryNumber(list.target_budget);
+  const budgetVariance =
+    targetBudget !== null &&
+    currentEstimatedSourcingCost !== null &&
+    estimatedCurrency !== null &&
+    budgetCurrency === estimatedCurrency
+      ? targetBudget - currentEstimatedSourcingCost
+      : null;
+  const unknownCostProducts = exportRows.filter((row) => row.totalCost === null).length;
+  const costDataComplete =
+    list.products.length > 0 && unknownCostProducts === 0 && !currencyMismatch;
+
+  return {
+    totalProductsRequested: list.products.length,
+    productsWithQualifyingResults: list.products.filter((product) =>
+      (shortlistsByProduct.get(product.id) ?? []).some(
+        (shortlist) => summaryOffer(shortlist).qualification === "qualifies",
+      ),
+    ).length,
+    productsStillBeingSearched: list.products.filter(
+      (product) => product.workflow_status === "searching",
+    ).length,
+    productsShortlisted: list.products.filter(
+      (product) =>
+        (shortlistsByProduct.get(product.id)?.length ?? 0) > 0 ||
+        product.workflow_status === "shortlisted",
+    ).length,
+    productsCompleted: list.products.filter(
+      (product) =>
+        product.workflow_status === "completed" ||
+        product.sourced_quantity >= product.target_quantity,
+    ).length,
+    totalRequestedQuantity: list.products.reduce(
+      (total, product) => total + product.target_quantity,
+      0,
+    ),
+    currentEstimatedSourcingCost,
+    currentEstimatedSourcingCostCurrency: estimatedCurrency,
+    targetBudget,
+    targetBudgetCurrency: budgetCurrency,
+    budgetVariance,
+    potentialSavings:
+      costDataComplete && budgetVariance !== null ? Math.max(0, budgetVariance) : null,
+    costDataComplete,
+    unknownCostProducts,
+    currencyMismatch,
+    exportRows,
+  };
+}
+
+function toSourcingExportRow(
+  product: RawApiSourcingList["products"][number],
+  shortlist: RawApiComparisonShortlist | null,
+  supplierNames: ReadonlyMap<string, string>,
+): ApiSourcingExportRow {
+  const offer = shortlist ? summaryOffer(shortlist) : null;
+  const unitCost = offer ? summaryNumber(offer.price) : null;
+  const unitCostCurrency = offer ? normalizeSummaryCurrency(offer.currency) : null;
+  const estimatedLandedCost = offer ? summaryNumber(offer.landedUnitCost) : null;
+  const estimatedLandedCostCurrency = offer
+    ? normalizeSummaryCurrency(offer.landedUnitCostCurrency)
+    : null;
+  const costBasis =
+    estimatedLandedCost !== null ? "landed_unit_cost" : unitCost !== null ? "unit_price" : null;
+  const costCurrency =
+    costBasis === "landed_unit_cost" ? estimatedLandedCostCurrency : unitCostCurrency;
+  const costAmount = costBasis === "landed_unit_cost" ? estimatedLandedCost : unitCost;
+
+  return {
+    sourcingListProductId: product.id,
+    sku: product.sku,
+    product: product.product_name,
+    quantity: product.target_quantity,
+    selectedSupplier: shortlist
+      ? (supplierNames.get(shortlist.supplier_id ?? "") ?? offer?.sellerName ?? null)
+      : null,
+    marketplace: shortlist?.marketplace_id ?? null,
+    unitCost,
+    unitCostCurrency,
+    estimatedLandedCost,
+    estimatedLandedCostCurrency,
+    totalCost:
+      costAmount !== null && costCurrency !== null ? costAmount * product.target_quantity : null,
+    totalCostCurrency: costCurrency,
+    url: offer?.url ?? null,
+    status: product.workflow_status,
+    notes: product.notes,
+    costBasis,
+    isEstimate: costAmount !== null,
+  };
+}
+
+function selectSummaryShortlist(shortlists: RawApiComparisonShortlist[]) {
+  if (shortlists.length === 0) return null;
+  const qualifying = shortlists.filter(
+    (shortlist) => summaryOffer(shortlist).qualification === "qualifies",
+  );
+  const candidates = qualifying.length > 0 ? qualifying : shortlists;
+  const first = candidates[0]!;
+  const firstOffer = summaryOffer(first);
+  const firstAmount = summaryAmount(firstOffer);
+  const firstCurrency = summaryCurrency(firstOffer);
+  if (firstAmount === null || firstCurrency === null) return first;
+
+  return candidates.reduce((best, candidate) => {
+    const offer = summaryOffer(candidate);
+    const amount = summaryAmount(offer);
+    const currency = summaryCurrency(offer);
+    if (amount === null || currency !== firstCurrency) return best;
+    const bestOffer = summaryOffer(best);
+    const bestAmount = summaryAmount(bestOffer);
+    return bestAmount === null || amount < bestAmount ? candidate : best;
+  }, first);
+}
+
+function summaryOffer(shortlist: RawApiComparisonShortlist) {
+  return shortlist.offer_snapshot as Partial<MarketplaceComparisonOffer>;
+}
+
+function summaryAmount(offer: Partial<MarketplaceComparisonOffer>) {
+  return summaryNumber(offer.landedUnitCost) ?? summaryNumber(offer.price);
+}
+
+function summaryCurrency(offer: Partial<MarketplaceComparisonOffer>) {
+  return normalizeSummaryCurrency(
+    summaryNumber(offer.landedUnitCost) !== null ? offer.landedUnitCostCurrency : offer.currency,
+  );
+}
+
+function summaryNumber(value: unknown) {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeSummaryCurrency(value: unknown) {
+  if (typeof value !== "string" || !/^[A-Za-z]{3}$/.test(value.trim())) return null;
+  return value.trim().toUpperCase();
+}
+
 function toSupplierRow(input: ApiSupplierInput | ApiSupplierUpdateInput) {
   const row: Record<string, unknown> = {};
   if (input.name !== undefined) row.name = input.name;
@@ -2283,6 +2519,25 @@ function toSupplierRow(input: ApiSupplierInput | ApiSupplierUpdateInput) {
   }
   if (input.minimumOrderQuantity !== undefined) {
     row.minimum_order_quantity = input.minimumOrderQuantity;
+  }
+  return row;
+}
+
+function toSourcingListRow(
+  defaultCurrency: string,
+  input: ApiSourcingListUpdateInput,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (input.name !== undefined) row.name = input.name;
+  if (input.status !== undefined) row.status = input.status;
+  if (input.targetBudget !== undefined) {
+    row.target_budget = input.targetBudget;
+    row.target_budget_currency =
+      input.targetBudget === null
+        ? null
+        : (input.targetBudgetCurrency ?? defaultCurrency.toUpperCase());
+  } else if (input.targetBudgetCurrency !== undefined) {
+    row.target_budget_currency = input.targetBudgetCurrency;
   }
   return row;
 }

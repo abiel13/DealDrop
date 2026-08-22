@@ -354,6 +354,8 @@ export interface ApiSourcingList {
   workspaceId: string;
   name: string;
   status: ApiSourcingListStatus;
+  targetBudget: number | null;
+  targetBudgetCurrency: string | null;
   products: ApiSourcingListProduct[];
   progress: ApiSourcingListProgress;
   createdAt: string;
@@ -572,12 +574,55 @@ export interface ApiComparisonManualGroupInput {
 export interface ApiSourcingListInput {
   name: string;
   status?: ApiSourcingListStatus;
+  targetBudget?: number | null;
+  targetBudgetCurrency?: string | null;
   products: ApiSourcingListProductInput[];
 }
 
 export interface ApiSourcingListUpdateInput {
   name?: string;
   status?: ApiSourcingListStatus;
+  targetBudget?: number | null;
+  targetBudgetCurrency?: string | null;
+}
+
+export interface ApiSourcingExportRow {
+  sourcingListProductId: string;
+  sku: string | null;
+  product: string;
+  quantity: number;
+  selectedSupplier: string | null;
+  marketplace: MarketplaceSource | null;
+  unitCost: number | null;
+  unitCostCurrency: string | null;
+  estimatedLandedCost: number | null;
+  estimatedLandedCostCurrency: string | null;
+  totalCost: number | null;
+  totalCostCurrency: string | null;
+  url: string | null;
+  status: ApiSourcingWorkflowStatus;
+  notes: string | null;
+  costBasis: "landed_unit_cost" | "unit_price" | null;
+  isEstimate: boolean;
+}
+
+export interface ApiSourcingSummary {
+  totalProductsRequested: number;
+  productsWithQualifyingResults: number;
+  productsStillBeingSearched: number;
+  productsShortlisted: number;
+  productsCompleted: number;
+  totalRequestedQuantity: number;
+  currentEstimatedSourcingCost: number | null;
+  currentEstimatedSourcingCostCurrency: string | null;
+  targetBudget: number | null;
+  targetBudgetCurrency: string | null;
+  budgetVariance: number | null;
+  potentialSavings: number | null;
+  costDataComplete: boolean;
+  unknownCostProducts: number;
+  currencyMismatch: boolean;
+  exportRows: ApiSourcingExportRow[];
 }
 
 export interface ApiSourcingListImportInput {

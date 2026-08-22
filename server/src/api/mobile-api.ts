@@ -55,6 +55,7 @@ import type {
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
   ApiSourcingPriceHistory,
+  ApiSourcingSummary,
   ApiWatchlist,
   ApiWeeklySummary,
   ApiWorkspace,
@@ -253,6 +254,20 @@ export class MobileApiService {
       throw new ApiNotFoundError("The sourcing list was not found.");
     }
     return toSourcingList(list);
+  }
+
+  async getSourcingSummary(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingSummary> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingSummary) {
+      throw new ApiError(503, "api_unavailable", "Sourcing summaries are not configured.");
+    }
+    const summary = await repository.getSourcingSummary(userId, workspaceId, sourcingListId);
+    if (!summary) throw new ApiNotFoundError("The sourcing list was not found.");
+    return summary;
   }
 
   async createSourcingList(userId: string, workspaceId: string, input: ApiSourcingListInput) {
@@ -890,6 +905,7 @@ export class MobileApiService {
       updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
       deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),
       getSourcingProductPriceHistory: repository.getSourcingProductPriceHistory?.bind(repository),
+      getSourcingSummary: repository.getSourcingSummary?.bind(repository),
     };
   }
 
@@ -1110,6 +1126,8 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
     workspaceId: list.workspace_id,
     name: list.name,
     status: list.status,
+    targetBudget: list.target_budget === null ? null : Number(list.target_budget),
+    targetBudgetCurrency: list.target_budget_currency,
     products,
     progress: {
       totalProducts: products.length,

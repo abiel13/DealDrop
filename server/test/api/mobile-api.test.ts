@@ -980,6 +980,8 @@ function sourcingList(): RawApiSourcingList {
     created_by: USER_ID,
     name: "Q4 Phone Inventory",
     status: "active",
+    target_budget: "7200.00",
+    target_budget_currency: "USD",
     created_at: "2026-08-09T00:00:00.000Z",
     updated_at: "2026-08-09T00:00:00.000Z",
     products: [

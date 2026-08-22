@@ -246,6 +246,8 @@ export interface ApiSourcingList {
   workspaceId: string;
   name: string;
   status: ApiSourcingListStatus;
+  targetBudget: number | null;
+  targetBudgetCurrency: string | null;
   products: ApiSourcingListProduct[];
   progress: ApiSourcingListProgress;
   createdAt: string;
@@ -376,15 +378,58 @@ export interface ApiComparisonResult {
 export interface ApiSourcingListInput {
   name: string;
   status?: ApiSourcingListStatus;
+  targetBudget?: number | null;
+  targetBudgetCurrency?: string | null;
   products: ApiSourcingListProductInput[];
 }
 
 export interface ApiSourcingListUpdateInput {
   name?: string;
   status?: ApiSourcingListStatus;
+  targetBudget?: number | null;
+  targetBudgetCurrency?: string | null;
 }
 
 export interface ApiSourcingListProductUpdateInput extends Partial<ApiSourcingListProductInput> {}
+
+export interface ApiSourcingExportRow {
+  sourcingListProductId: string;
+  sku: string | null;
+  product: string;
+  quantity: number;
+  selectedSupplier: string | null;
+  marketplace: MarketplaceSource | null;
+  unitCost: number | null;
+  unitCostCurrency: string | null;
+  estimatedLandedCost: number | null;
+  estimatedLandedCostCurrency: string | null;
+  totalCost: number | null;
+  totalCostCurrency: string | null;
+  url: string | null;
+  status: ApiSourcingWorkflowStatus;
+  notes: string | null;
+  costBasis: "landed_unit_cost" | "unit_price" | null;
+  isEstimate: boolean;
+}
+
+export interface ApiSourcingSummary {
+  totalProductsRequested: number;
+  productsWithQualifyingResults: number;
+  productsStillBeingSearched: number;
+  productsShortlisted: number;
+  productsCompleted: number;
+  totalRequestedQuantity: number;
+  currentEstimatedSourcingCost: number | null;
+  currentEstimatedSourcingCostCurrency: string | null;
+  targetBudget: number | null;
+  targetBudgetCurrency: string | null;
+  budgetVariance: number | null;
+  potentialSavings: number | null;
+  costDataComplete: boolean;
+  unknownCostProducts: number;
+  currencyMismatch: boolean;
+  exportRows: ApiSourcingExportRow[];
+}
 
 export type ApiSupplierStatus = "preferred" | "avoid" | "unreviewed";
 
@@ -730,6 +775,8 @@ export interface RawApiSourcingList {
   created_by: string;
   name: string;
   status: ApiSourcingListStatus;
+  target_budget: number | string | null;
+  target_budget_currency: string | null;
   created_at: string;
   updated_at: string;
   products: RawApiSourcingListProduct[];
