@@ -6,6 +6,11 @@ import type {
   MarketplaceProductMetadata,
   MarketplaceSource,
 } from "../marketplaces/shared/types";
+import type {
+  MarketplaceComparisonOffer,
+  MarketplaceProductComparison,
+  MarketplaceListingReference,
+} from "../marketplaces/comparison";
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
 import type { DealDropSearchIntent } from "../listings/relevance";
@@ -254,6 +259,44 @@ export interface ApiSourcingListProductInput {
   requiredBy?: string | null;
 }
 
+export type ApiComparisonOffer = MarketplaceComparisonOffer;
+export type ApiProductComparison = MarketplaceProductComparison;
+
+export interface ApiComparisonShortlist {
+  id: string;
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+  createdAt: string;
+}
+
+export interface ApiComparisonShortlistInput {
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+}
+
+export interface ApiComparisonManualGroup {
+  id: string;
+  sourcingListProductId: string;
+  members: MarketplaceListingReference[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiComparisonManualGroupInput {
+  sourcingListProductId: string;
+  members: MarketplaceListingReference[];
+}
+
+export interface ApiComparisonResult {
+  sourcingListProduct: ApiSourcingListProduct;
+  searchQuery: string;
+  comparisons: ApiProductComparison[];
+  sources: MarketplaceSource[];
+  partialFailures: ApiSearchPartialFailure[];
+  shortlisted: ApiComparisonShortlist[];
+  manualGroups: ApiComparisonManualGroup[];
+}
+
 export interface ApiSourcingListInput {
   name: string;
   status?: ApiSourcingListStatus;
@@ -445,6 +488,28 @@ export interface RawApiSourcingList {
   created_at: string;
   updated_at: string;
   products: RawApiSourcingListProduct[];
+}
+
+export interface RawApiComparisonShortlist {
+  id: string;
+  workspace_id: string;
+  sourcing_list_product_id: string;
+  marketplace_id: MarketplaceSource;
+  external_id: string;
+  listing_id: string | null;
+  offer_snapshot: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
+}
+
+export interface RawApiComparisonManualGroup {
+  id: string;
+  workspace_id: string;
+  sourcing_list_product_id: string;
+  member_refs: MarketplaceListingReference[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RawApiMatch {

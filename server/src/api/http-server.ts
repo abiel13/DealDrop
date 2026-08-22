@@ -47,6 +47,9 @@ import {
   notificationPreferencesSchema,
   pushTokenSchema,
   searchBodySchema,
+  comparisonSearchSchema,
+  comparisonShortlistSchema,
+  comparisonManualGroupSchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
@@ -411,6 +414,68 @@ async function routeProtectedRequest(
         sendSuccess(response, requestId, { deleted: true });
         return;
       }
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && action === "comparisons") {
+    assertResourceId(resourceId);
+    const workspaceId = resourceId;
+    const comparisonResource = segments[3];
+
+    if (comparisonResource === "search" && segments.length === 4 && method === "POST") {
+      const input = parseBody(comparisonSearchSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.compareSourcingListProduct(
+          userId,
+          workspaceId,
+          input.sourcingListId,
+          input.sourcingListProductId,
+        ),
+      );
+      return;
+    }
+
+    if (comparisonResource === "shortlists" && segments.length === 4 && method === "POST") {
+      const input = parseBody(comparisonShortlistSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.shortlistComparisonOffer(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (comparisonResource === "shortlists" && segments.length === 5 && method === "DELETE") {
+      assertResourceId(segments[4]!);
+      await api.deleteComparisonShortlist(userId, workspaceId, segments[4]!);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
+    }
+
+    if (comparisonResource === "groups" && segments.length === 4 && method === "POST") {
+      const input = parseBody(
+        comparisonManualGroupSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.createComparisonManualGroup(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (comparisonResource === "groups" && segments.length === 5 && method === "DELETE") {
+      assertResourceId(segments[4]!);
+      await api.deleteComparisonManualGroup(userId, workspaceId, segments[4]!);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
     }
   }
 

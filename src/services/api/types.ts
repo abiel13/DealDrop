@@ -372,6 +372,85 @@ export interface ApiSourcingListProductInput {
   requiredBy?: string | null;
 }
 
+export type ApiComparisonMatchMethod = "identifier" | "model_title" | "manual";
+export type ApiComparisonQualification = "qualifies" | "does_not_qualify" | "unknown";
+
+export interface ApiComparisonOffer {
+  source: MarketplaceSource;
+  externalId: string;
+  offerId: string;
+  listingId: string | null;
+  title: string;
+  sellerName: string | null;
+  price: number | null;
+  currency: string | null;
+  imageUrl: string | null;
+  url: string;
+  availableQuantity: number | null;
+  shippingCost: number | null;
+  shippingCurrency: string | null;
+  landedUnitCost: number | null;
+  landedUnitCostCurrency: string | null;
+  condition: string | null;
+  deliveryInformation: string | null;
+  availability: string | null;
+  qualification: ApiComparisonQualification;
+  qualificationReasons: string[];
+  isShortlisted: boolean;
+}
+
+export interface ApiProductComparison {
+  id: string;
+  title: string;
+  matchMethod: ApiComparisonMatchMethod;
+  confidence: "medium" | "high";
+  sources: MarketplaceSource[];
+  offers: ApiComparisonOffer[];
+  cheapestRawOfferId: string | null;
+  cheapestLandedOfferId: string | null;
+  cheapestQualifyingOfferId: string | null;
+  cheapestQualifyingLandedOfferId: string | null;
+  cheapestRawCurrency: string | null;
+  cheapestLandedCurrency: string | null;
+  currenciesCompared: string[];
+  rawAndLandedWinnersDiffer: boolean;
+}
+
+export interface ApiComparisonShortlist {
+  id: string;
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+  createdAt: string;
+}
+
+export interface ApiComparisonManualGroup {
+  id: string;
+  sourcingListProductId: string;
+  members: { source: MarketplaceSource; externalId: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiComparisonResult {
+  sourcingListProduct: ApiSourcingListProduct;
+  searchQuery: string;
+  comparisons: ApiProductComparison[];
+  sources: MarketplaceSource[];
+  partialFailures: ApiSearchPartialFailure[];
+  shortlisted: ApiComparisonShortlist[];
+  manualGroups: ApiComparisonManualGroup[];
+}
+
+export interface ApiComparisonShortlistInput {
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+}
+
+export interface ApiComparisonManualGroupInput {
+  sourcingListProductId: string;
+  members: { source: MarketplaceSource; externalId: string }[];
+}
+
 export interface ApiSourcingListInput {
   name: string;
   status?: ApiSourcingListStatus;

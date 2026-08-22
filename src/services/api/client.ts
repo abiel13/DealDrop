@@ -6,6 +6,11 @@ import type {
   ApiListing,
   ApiListingProblemReportInput,
   ApiListingProblemReportResponse,
+  ApiComparisonManualGroupInput,
+  ApiComparisonManualGroup,
+  ApiComparisonResult,
+  ApiComparisonShortlistInput,
+  ApiComparisonShortlist,
   ApiListingQuery,
   ApiMatchQuery,
   ApiMarketplace,
@@ -132,6 +137,48 @@ export class DealDropApiClient {
   async getSourcingList(workspaceId: string, sourcingListId: string) {
     return this.request<ApiSourcingList>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async compareSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ) {
+    return this.request<ApiComparisonResult>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/search`,
+      {
+        method: "POST",
+        body: { sourcingListId, sourcingListProductId },
+      },
+    );
+  }
+
+  async shortlistComparisonOffer(workspaceId: string, input: ApiComparisonShortlistInput) {
+    return this.request<ApiComparisonShortlist>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async removeComparisonShortlist(workspaceId: string, shortlistId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists/${encodeURIComponent(shortlistId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async createComparisonManualGroup(workspaceId: string, input: ApiComparisonManualGroupInput) {
+    return this.request<ApiComparisonManualGroup>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async deleteComparisonManualGroup(workspaceId: string, groupId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups/${encodeURIComponent(groupId)}`,
+      { method: "DELETE" },
     );
   }
 

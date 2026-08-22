@@ -10,7 +10,12 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
-import { authRoutes, sourcingListImportRoute, sourcingListRoute } from "@/features/auth/routes";
+import {
+  authRoutes,
+  sourcingListImportRoute,
+  sourcingListProductComparisonRoute,
+  sourcingListRoute,
+} from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import type { ApiSourcingListProduct } from "@/services/api";
@@ -223,6 +228,13 @@ export function SourcingListDetailScreen() {
               <AppText variant="bodySmall">Keywords: {product.keywords.join(", ")}</AppText>
             )}
             {product.notes && <AppText variant="bodySmall">{product.notes}</AppText>}
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={() => router.push(sourcingListProductComparisonRoute(list.id, product.id))}
+            >
+              Compare sources
+            </Button>
           </Card>
         ))}
       </ScrollView>

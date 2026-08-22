@@ -5,7 +5,17 @@ import {
 } from "../marketplaces/catalog";
 import { MarketplaceSearchCoordinator } from "../marketplaces/search/coordinator";
 import type { MarketplaceSearchCoordinatorRequest } from "../marketplaces/search/types";
-import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
+import {
+  buildMarketplaceComparison,
+  type ComparisonCriteria,
+  type ComparisonManualGroup,
+  type MarketplaceComparisonOffer,
+} from "../marketplaces/comparison";
+import {
+  MARKETPLACE_IDS,
+  type MarketplaceProductIdentifier,
+  type MarketplaceSource,
+} from "../marketplaces/shared/types";
 import type { WatchlistFilters } from "../types/backend";
 import {
   validateWatchlistMarketplaceSelection,
@@ -23,6 +33,9 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiComparisonManualGroupInput,
+  ApiComparisonResult,
+  ApiComparisonShortlistInput,
   ApiMatch,
   ApiListingProblemReport,
   ListingProblemReportInput,
@@ -340,6 +353,138 @@ export class MobileApiService {
     }
   }
 
+  async compareSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ): Promise<ApiComparisonResult> {
+    const list = await this.sourcingListRepository().getSourcingList(
+      userId,
+      workspaceId,
+      sourcingListId,
+    );
+    const product = list?.products.find((item) => item.id === sourcingListProductId);
+    if (!list || !product) {
+      throw new ApiNotFoundError("The sourcing product was not found in this workspace.");
+    }
+
+    const sources = this.validateSourcingMarketplaces(
+      product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
+    );
+    const searchQuery = [product.product_name, ...product.keywords]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 200);
+    const productIdentifiers = buildComparisonIdentifiers(product);
+    const response = await this.coordinator.search(
+      {
+        searchQuery,
+        sources,
+        filters: {},
+        ...(productIdentifiers.length > 0 ? { productIdentifiers } : {}),
+        pagination: { limit: 100 },
+      },
+      { preserveAlternatives: true },
+    );
+    const storedListings = await this.dependencies.repository.persistListings(response.listings);
+    const listingIds = new Map(
+      storedListings.map((listing) => [
+        `${listing.marketplace_id}:${listing.external_id}`,
+        listing.id,
+      ]),
+    );
+    const comparisonState = await this.comparisonRepository().getComparisonState(
+      userId,
+      workspaceId,
+      sourcingListProductId,
+    );
+    if (!comparisonState) {
+      throw new ApiNotFoundError("The comparison workspace was not found.");
+    }
+
+    const comparison = buildMarketplaceComparison(
+      response.listings,
+      toComparisonCriteria(product),
+      {
+        listingIds,
+        shortlistedKeys: new Set(
+          comparisonState.shortlists.map((item) => `${item.marketplace_id}:${item.external_id}`),
+        ),
+        manualGroups: comparisonState.manualGroups.map<ComparisonManualGroup>((group) => ({
+          id: group.id,
+          members: group.member_refs,
+        })),
+      },
+    );
+
+    return {
+      sourcingListProduct: toSourcingList(list).products.find(
+        (item) => item.id === sourcingListProductId,
+      )!,
+      searchQuery,
+      comparisons: comparison.comparisons,
+      sources,
+      partialFailures: response.partialFailures,
+      shortlisted: comparisonState.shortlists.map(toApiComparisonShortlist),
+      manualGroups: comparisonState.manualGroups.map(toApiComparisonManualGroup),
+    };
+  }
+
+  async shortlistComparisonOffer(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonShortlistInput,
+  ) {
+    const shortlist = await this.comparisonRepository().upsertComparisonShortlist(
+      userId,
+      workspaceId,
+      input,
+    );
+    if (!shortlist) {
+      throw new ApiNotFoundError("The comparison offer was not found in this workspace.");
+    }
+    return toApiComparisonShortlist(shortlist);
+  }
+
+  async deleteComparisonShortlist(userId: string, workspaceId: string, shortlistId: string) {
+    const deleted = await this.comparisonRepository().deleteComparisonShortlist(
+      userId,
+      workspaceId,
+      shortlistId,
+    );
+    if (!deleted) {
+      throw new ApiNotFoundError("The comparison shortlist was not found.");
+    }
+  }
+
+  async createComparisonManualGroup(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonManualGroupInput,
+  ) {
+    const group = await this.comparisonRepository().createComparisonManualGroup(
+      userId,
+      workspaceId,
+      input,
+    );
+    if (!group) {
+      throw new ApiNotFoundError("The sourcing product was not found in this workspace.");
+    }
+    return toApiComparisonManualGroup(group);
+  }
+
+  async deleteComparisonManualGroup(userId: string, workspaceId: string, groupId: string) {
+    const deleted = await this.comparisonRepository().deleteComparisonManualGroup(
+      userId,
+      workspaceId,
+      groupId,
+    );
+    if (!deleted) {
+      throw new ApiNotFoundError("The manual comparison group was not found.");
+    }
+  }
+
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
     const page = await this.dependencies.repository.getWatchlists(userId, cursor, limit);
     return {
@@ -579,6 +724,27 @@ export class MobileApiService {
     };
   }
 
+  private comparisonRepository() {
+    const repository = this.dependencies.repository;
+    if (
+      !repository.getComparisonState ||
+      !repository.upsertComparisonShortlist ||
+      !repository.deleteComparisonShortlist ||
+      !repository.createComparisonManualGroup ||
+      !repository.deleteComparisonManualGroup
+    ) {
+      throw new ApiError(503, "api_unavailable", "Comparison support is not configured.");
+    }
+
+    return {
+      getComparisonState: repository.getComparisonState.bind(repository),
+      upsertComparisonShortlist: repository.upsertComparisonShortlist.bind(repository),
+      deleteComparisonShortlist: repository.deleteComparisonShortlist.bind(repository),
+      createComparisonManualGroup: repository.createComparisonManualGroup.bind(repository),
+      deleteComparisonManualGroup: repository.deleteComparisonManualGroup.bind(repository),
+    };
+  }
+
   private normalizeSourcingProduct(input: ApiSourcingListProductInput) {
     return { ...input, marketplaceIds: this.validateSourcingMarketplaces(input.marketplaceIds) };
   }
@@ -722,6 +888,77 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
     },
     createdAt: list.created_at,
     updatedAt: list.updated_at,
+  };
+}
+
+function buildComparisonIdentifiers(product: {
+  upc: string | null;
+  gtin: string | null;
+  mpn: string | null;
+}): MarketplaceProductIdentifier[] {
+  const identifiers: MarketplaceProductIdentifier[] = [];
+  if (product.upc) identifiers.push({ type: "upc", value: product.upc });
+  if (product.gtin) identifiers.push({ type: "ean", value: product.gtin });
+  if (product.mpn) identifiers.push({ type: "part_number", value: product.mpn });
+  return identifiers.slice(0, 1);
+}
+
+function toComparisonCriteria(product: {
+  target_quantity: number;
+  max_unit_cost: number | string | null;
+  max_unit_cost_currency: string | null;
+  estimated_shipping_cost: number | string | null;
+  estimated_shipping_currency: string | null;
+  estimated_duties_taxes: number | string | null;
+  estimated_duties_taxes_currency: string | null;
+  other_sourcing_cost: number | string | null;
+  other_sourcing_cost_currency: string | null;
+  max_landed_unit_cost: number | string | null;
+  max_landed_unit_cost_currency: string | null;
+  preferred_condition: string | null;
+}): ComparisonCriteria {
+  return {
+    targetQuantity: product.target_quantity,
+    maxUnitCost: numericOrNull(product.max_unit_cost),
+    maxUnitCostCurrency: product.max_unit_cost_currency,
+    estimatedShippingCost: numericOrNull(product.estimated_shipping_cost),
+    estimatedShippingCurrency: product.estimated_shipping_currency,
+    estimatedDutiesTaxes: numericOrNull(product.estimated_duties_taxes),
+    estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+    otherSourcingCost: numericOrNull(product.other_sourcing_cost),
+    otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+    maxLandedUnitCost: numericOrNull(product.max_landed_unit_cost),
+    maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+    preferredCondition: product.preferred_condition,
+  };
+}
+
+function numericOrNull(value: number | string | null) {
+  if (value === null) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toApiComparisonShortlist(
+  item: import("./types").RawApiComparisonShortlist,
+): import("./types").ApiComparisonShortlist {
+  return {
+    id: item.id,
+    sourcingListProductId: item.sourcing_list_product_id,
+    offer: item.offer_snapshot as unknown as MarketplaceComparisonOffer,
+    createdAt: item.created_at,
+  };
+}
+
+function toApiComparisonManualGroup(
+  item: import("./types").RawApiComparisonManualGroup,
+): import("./types").ApiComparisonManualGroup {
+  return {
+    id: item.id,
+    sourcingListProductId: item.sourcing_list_product_id,
+    members: item.member_refs,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
   };
 }
 

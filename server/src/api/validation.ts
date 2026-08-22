@@ -421,6 +421,83 @@ export const searchBodySchema = z
     "searchQuery or productIdentifiers is required",
   );
 
+const comparisonOfferSchema = z
+  .object({
+    source: z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]),
+    externalId: z.string().trim().min(1).max(300),
+    offerId: z.string().trim().min(1).max(400),
+    listingId: z.string().uuid().nullable(),
+    title: z.string().trim().min(1).max(300),
+    sellerName: z.string().trim().max(200).nullable(),
+    price: finiteNumber.nonnegative().nullable(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    imageUrl: z.string().url().nullable(),
+    url: z.string().url(),
+    availableQuantity: z.number().int().nonnegative().nullable(),
+    shippingCost: finiteNumber.nonnegative().nullable(),
+    shippingCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    landedUnitCost: finiteNumber.nonnegative().nullable(),
+    landedUnitCostCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    condition: z.string().trim().max(100).nullable(),
+    deliveryInformation: z.string().trim().max(500).nullable(),
+    availability: z.string().trim().max(200).nullable(),
+    qualification: z.enum(["qualifies", "does_not_qualify", "unknown"]),
+    qualificationReasons: z.array(z.string().trim().min(1).max(200)).max(10),
+    isShortlisted: z.boolean(),
+  })
+  .strict();
+
+export const comparisonSearchSchema = z
+  .object({
+    sourcingListId: z.string().uuid(),
+    sourcingListProductId: z.string().uuid(),
+  })
+  .strict();
+
+export const comparisonShortlistSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    offer: comparisonOfferSchema,
+  })
+  .strict();
+
+export const comparisonManualGroupSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    members: z
+      .array(
+        z
+          .object({
+            source: z.enum(
+              Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+            ),
+            externalId: z.string().trim().min(1).max(300),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(20),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      new Set(input.members.map((member) => `${member.source}:${member.externalId}`)).size ===
+      input.members.length,
+    "Comparison group members must be unique.",
+  );
+
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (result.success) {

@@ -7,6 +7,8 @@ import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shar
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
 import type { WatchlistFilters } from "../types/backend";
 import type {
+  ApiComparisonManualGroupInput,
+  ApiComparisonShortlistInput,
   ApiPriceTarget,
   ApiNotificationPreferences,
   ApiSourcingListImportInput,
@@ -22,6 +24,8 @@ import type {
   RawApiMatch,
   RawApiNotification,
   RawApiSourcingList,
+  RawApiComparisonManualGroup,
+  RawApiComparisonShortlist,
   RawApiWatchlist,
   StoredListingReference,
 } from "./types";
@@ -37,6 +41,10 @@ const WORKSPACE_COLUMNS =
 const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
 const SOURCING_LIST_PRODUCT_COLUMNS =
   "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
+const COMPARISON_SHORTLIST_COLUMNS =
+  "id,workspace_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,created_by,created_at";
+const COMPARISON_GROUP_COLUMNS =
+  "id,workspace_id,sourcing_list_product_id,member_refs,created_by,created_at,updated_at";
 
 export interface Page<T> {
   items: T[];
@@ -254,6 +262,34 @@ export interface MobileApiRepositoryContract {
     workspaceId: string,
     sourcingListId: string,
     productId: string,
+  ): Promise<boolean>;
+  getComparisonState?(
+    userId: string,
+    workspaceId: string,
+    sourcingListProductId: string,
+  ): Promise<{
+    shortlists: RawApiComparisonShortlist[];
+    manualGroups: RawApiComparisonManualGroup[];
+  } | null>;
+  upsertComparisonShortlist?(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonShortlistInput,
+  ): Promise<RawApiComparisonShortlist | null>;
+  deleteComparisonShortlist?(
+    userId: string,
+    workspaceId: string,
+    shortlistId: string,
+  ): Promise<boolean>;
+  createComparisonManualGroup?(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonManualGroupInput,
+  ): Promise<RawApiComparisonManualGroup | null>;
+  deleteComparisonManualGroup?(
+    userId: string,
+    workspaceId: string,
+    groupId: string,
   ): Promise<boolean>;
 }
 
@@ -651,6 +687,141 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       throw error;
     }
     return (count ?? 0) > 0;
+  }
+
+  async getComparisonState(userId: string, workspaceId: string, sourcingListProductId: string) {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return null;
+    }
+
+    const product = await this.getSourcingListProductWorkspace(workspaceId, sourcingListProductId);
+    if (!product) {
+      return null;
+    }
+
+    const [shortlistsResult, groupsResult] = await Promise.all([
+      this.client
+        .from("workspace_comparison_shortlists")
+        .select(COMPARISON_SHORTLIST_COLUMNS)
+        .eq("workspace_id", workspaceId)
+        .eq("sourcing_list_product_id", sourcingListProductId)
+        .order("created_at", { ascending: false })
+        .returns<RawApiComparisonShortlist[]>(),
+      this.client
+        .from("workspace_comparison_manual_groups")
+        .select(COMPARISON_GROUP_COLUMNS)
+        .eq("workspace_id", workspaceId)
+        .eq("sourcing_list_product_id", sourcingListProductId)
+        .order("updated_at", { ascending: false })
+        .returns<RawApiComparisonManualGroup[]>(),
+    ]);
+
+    if (shortlistsResult.error) throw shortlistsResult.error;
+    if (groupsResult.error) throw groupsResult.error;
+
+    return {
+      shortlists: shortlistsResult.data ?? [],
+      manualGroups: groupsResult.data ?? [],
+    };
+  }
+
+  async upsertComparisonShortlist(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonShortlistInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return null;
+
+    if (!(await this.getSourcingListProductWorkspace(workspaceId, input.sourcingListProductId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_shortlists")
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          sourcing_list_product_id: input.sourcingListProductId,
+          marketplace_id: input.offer.source,
+          external_id: input.offer.externalId,
+          listing_id: input.offer.listingId,
+          offer_snapshot: input.offer,
+          created_by: userId,
+        },
+        { onConflict: "workspace_id,sourcing_list_product_id,marketplace_id,external_id" },
+      )
+      .select(COMPARISON_SHORTLIST_COLUMNS)
+      .single<RawApiComparisonShortlist>();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteComparisonShortlist(userId: string, workspaceId: string, shortlistId: string) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return false;
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_shortlists")
+      .delete()
+      .eq("id", shortlistId)
+      .eq("workspace_id", workspaceId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  async createComparisonManualGroup(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonManualGroupInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return null;
+
+    if (!(await this.getSourcingListProductWorkspace(workspaceId, input.sourcingListProductId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_manual_groups")
+      .insert({
+        workspace_id: workspaceId,
+        sourcing_list_product_id: input.sourcingListProductId,
+        member_refs: input.members,
+        created_by: userId,
+      })
+      .select(COMPARISON_GROUP_COLUMNS)
+      .single<RawApiComparisonManualGroup>();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteComparisonManualGroup(userId: string, workspaceId: string, groupId: string) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return false;
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_manual_groups")
+      .delete()
+      .eq("id", groupId)
+      .eq("workspace_id", workspaceId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  private async getSourcingListProductWorkspace(workspaceId: string, productId: string) {
+    const { data, error } = await this.client
+      .from("sourcing_list_products")
+      .select("id,sourcing_lists!inner(workspace_id)")
+      .eq("id", productId)
+      .eq("sourcing_lists.workspace_id", workspaceId)
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return data;
   }
 
   private async insertSourcingListProducts(
