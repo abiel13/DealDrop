@@ -284,6 +284,7 @@ export interface ApiWorkspaceInput {
 }
 
 export type ApiSourcingListStatus = "active" | "paused" | "completed";
+export type ApiSourcingAlertCostBasis = "marketplace_price" | "landed_unit_cost";
 
 export interface ApiSourcingListProduct {
   id: string;
@@ -296,8 +297,22 @@ export interface ApiSourcingListProduct {
   keywords: string[];
   targetQuantity: number;
   sourcedQuantity: number;
+  targetUnitCost: number | null;
+  targetUnitCostCurrency: string | null;
   maxUnitCost: number | null;
   maxUnitCostCurrency: string | null;
+  estimatedShippingCost: number | null;
+  estimatedShippingCurrency: string | null;
+  estimatedDutiesTaxes: number | null;
+  estimatedDutiesTaxesCurrency: string | null;
+  otherSourcingCost: number | null;
+  otherSourcingCostCurrency: string | null;
+  desiredRetailPrice: number | null;
+  desiredRetailPriceCurrency: string | null;
+  minimumDesiredMarginPercent: number | null;
+  maxLandedUnitCost: number | null;
+  maxLandedUnitCostCurrency: string | null;
+  alertCostBasis: ApiSourcingAlertCostBasis;
   preferredCondition: string | null;
   marketplaceIds: MarketplaceSource[];
   notes: string | null;
@@ -335,8 +350,22 @@ export interface ApiSourcingListProductInput {
   keywords?: string[];
   targetQuantity: number;
   sourcedQuantity?: number;
+  targetUnitCost?: number | null;
+  targetUnitCostCurrency?: string | null;
   maxUnitCost?: number | null;
   maxUnitCostCurrency?: string | null;
+  estimatedShippingCost?: number | null;
+  estimatedShippingCurrency?: string | null;
+  estimatedDutiesTaxes?: number | null;
+  estimatedDutiesTaxesCurrency?: string | null;
+  otherSourcingCost?: number | null;
+  otherSourcingCostCurrency?: string | null;
+  desiredRetailPrice?: number | null;
+  desiredRetailPriceCurrency?: string | null;
+  minimumDesiredMarginPercent?: number | null;
+  maxLandedUnitCost?: number | null;
+  maxLandedUnitCostCurrency?: string | null;
+  alertCostBasis?: ApiSourcingAlertCostBasis;
   preferredCondition?: string | null;
   marketplaceIds: MarketplaceSource[];
   notes?: string | null;

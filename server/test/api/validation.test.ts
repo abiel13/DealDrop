@@ -7,6 +7,7 @@ import {
   parseSearchQuery,
   parseBody,
   searchBodySchema,
+  sourcingListProductSchema,
   updateWatchlistSchema,
   watchlistFiltersSchema,
 } from "../../src/api/validation";
@@ -53,6 +54,37 @@ test("rejects excluded keyword arrays larger than the supported limit", () => {
     () =>
       parseBody(watchlistFiltersSchema, {
         excludedKeywords: Array.from({ length: 21 }, (_, index) => `term-${index}`),
+      }),
+    /request body is invalid/i,
+  );
+});
+
+test("validates business purchase criteria and landed-cost alert basis", () => {
+  const product = parseBody(sourcingListProductSchema, {
+    category: "Phones",
+    productName: "iPhone 15",
+    targetQuantity: 10,
+    targetUnitCost: 400,
+    targetUnitCostCurrency: "usd",
+    estimatedShippingCost: 50,
+    estimatedShippingCurrency: "USD",
+    minimumDesiredMarginPercent: 30,
+    maxLandedUnitCost: 430,
+    maxLandedUnitCostCurrency: "USD",
+    alertCostBasis: "landed_unit_cost",
+    marketplaceIds: ["ebay"],
+  });
+
+  assert.equal(product.targetUnitCostCurrency, "USD");
+  assert.equal(product.alertCostBasis, "landed_unit_cost");
+  assert.throws(
+    () =>
+      parseBody(sourcingListProductSchema, {
+        category: "Phones",
+        productName: "iPhone 15",
+        targetQuantity: 10,
+        minimumDesiredMarginPercent: 101,
+        marketplaceIds: ["ebay"],
       }),
     /request body is invalid/i,
   );

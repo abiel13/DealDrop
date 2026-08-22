@@ -666,8 +666,30 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
     keywords: product.keywords,
     targetQuantity: product.target_quantity,
     sourcedQuantity: product.sourced_quantity,
+    targetUnitCost: product.target_unit_cost === null ? null : Number(product.target_unit_cost),
+    targetUnitCostCurrency: product.target_unit_cost_currency,
     maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
     maxUnitCostCurrency: product.max_unit_cost_currency,
+    estimatedShippingCost:
+      product.estimated_shipping_cost === null ? null : Number(product.estimated_shipping_cost),
+    estimatedShippingCurrency: product.estimated_shipping_currency,
+    estimatedDutiesTaxes:
+      product.estimated_duties_taxes === null ? null : Number(product.estimated_duties_taxes),
+    estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+    otherSourcingCost:
+      product.other_sourcing_cost === null ? null : Number(product.other_sourcing_cost),
+    otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+    desiredRetailPrice:
+      product.desired_retail_price === null ? null : Number(product.desired_retail_price),
+    desiredRetailPriceCurrency: product.desired_retail_price_currency,
+    minimumDesiredMarginPercent:
+      product.minimum_desired_margin_percent === null
+        ? null
+        : Number(product.minimum_desired_margin_percent),
+    maxLandedUnitCost:
+      product.max_landed_unit_cost === null ? null : Number(product.max_landed_unit_cost),
+    maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+    alertCostBasis: product.alert_cost_basis,
     preferredCondition: product.preferred_condition,
     marketplaceIds:
       product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],

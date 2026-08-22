@@ -30,26 +30,65 @@ const optionalDate = z
     "Use YYYY-MM-DD or leave this blank.",
   );
 
-const productSchema = z.object({
-  category: z.string().trim().min(1, "Add a category."),
-  productName: z.string().trim().min(1, "Add a product name."),
-  sku: z.string(),
-  upc: z.string(),
-  gtin: z.string(),
-  mpn: z.string(),
-  keywords: z.string(),
-  targetQuantity: z
-    .string()
-    .regex(/^\d+$/, "Enter a whole number.")
-    .refine((value) => Number(value) > 0, "Quantity must be at least 1."),
-  maxUnitCost: z
-    .string()
-    .refine((value) => value === "" || Number.isFinite(Number(value)), "Enter a valid amount."),
-  preferredCondition: z.string(),
-  marketplaceIds: z.array(z.string()).min(1, "Choose at least one marketplace."),
-  notes: z.string(),
-  requiredBy: optionalDate,
-});
+const optionalAmount = z
+  .string()
+  .refine(
+    (value) => value === "" || (Number.isFinite(Number(value)) && Number(value) >= 0),
+    "Enter a non-negative amount or leave this blank.",
+  );
+
+const optionalPercent = z
+  .string()
+  .refine(
+    (value) =>
+      value === "" ||
+      (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100),
+    "Enter a percentage from 0 to 100 or leave this blank.",
+  );
+
+const productSchema = z
+  .object({
+    category: z.string().trim().min(1, "Add a category."),
+    productName: z.string().trim().min(1, "Add a product name."),
+    sku: z.string(),
+    upc: z.string(),
+    gtin: z.string(),
+    mpn: z.string(),
+    keywords: z.string(),
+    targetQuantity: z
+      .string()
+      .regex(/^\d+$/, "Enter a whole number.")
+      .refine((value) => Number(value) > 0, "Quantity must be at least 1."),
+    economicsCurrency: z
+      .string()
+      .trim()
+      .refine(
+        (value) => value === "" || /^[A-Za-z]{3}$/.test(value),
+        "Use a 3-letter currency code.",
+      ),
+    targetUnitCost: optionalAmount,
+    maxUnitCost: optionalAmount,
+    estimatedShippingCost: optionalAmount,
+    estimatedDutiesTaxes: optionalAmount,
+    otherSourcingCost: optionalAmount,
+    desiredRetailPrice: optionalAmount,
+    minimumDesiredMarginPercent: optionalPercent,
+    maxLandedUnitCost: optionalAmount,
+    alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]),
+    preferredCondition: z.string(),
+    marketplaceIds: z.array(z.string()).min(1, "Choose at least one marketplace."),
+    notes: z.string(),
+    requiredBy: optionalDate,
+  })
+  .superRefine((value, context) => {
+    if (value.alertCostBasis === "landed_unit_cost" && value.maxLandedUnitCost === "") {
+      context.addIssue({
+        code: "custom",
+        path: ["maxLandedUnitCost"],
+        message: "Add a landed-cost threshold for landed-cost alerts.",
+      });
+    }
+  });
 
 const formSchema = z.object({
   name: z.string().trim().min(2, "Enter a name for this sourcing list."),
@@ -67,7 +106,16 @@ const emptyProduct: FormValues["products"][number] = {
   mpn: "",
   keywords: "",
   targetQuantity: "1",
+  economicsCurrency: "",
+  targetUnitCost: "",
   maxUnitCost: "",
+  estimatedShippingCost: "",
+  estimatedDutiesTaxes: "",
+  otherSourcingCost: "",
+  desiredRetailPrice: "",
+  minimumDesiredMarginPercent: "",
+  maxLandedUnitCost: "",
+  alertCostBasis: "marketplace_price",
   preferredCondition: "",
   marketplaceIds: [],
   notes: "",
@@ -134,27 +182,52 @@ export function SourcingListFormScreen() {
     const input: SourcingListInput = {
       name: values.name.trim(),
       status: "active",
-      products: values.products.map((product) => ({
-        category: product.category.trim(),
-        productName: product.productName.trim(),
-        sku: optionalText(product.sku),
-        upc: optionalText(product.upc),
-        gtin: optionalText(product.gtin),
-        mpn: optionalText(product.mpn),
-        keywords: product.keywords
-          .split(",")
-          .map((keyword) => keyword.trim())
-          .filter(Boolean),
-        targetQuantity: Number(product.targetQuantity),
-        maxUnitCost: product.maxUnitCost.trim() ? Number(product.maxUnitCost) : null,
-        maxUnitCostCurrency: product.maxUnitCost.trim()
-          ? (workspace?.defaultCurrency ?? null)
-          : null,
-        preferredCondition: optionalText(product.preferredCondition),
-        marketplaceIds: product.marketplaceIds as MarketplaceSource[],
-        notes: optionalText(product.notes),
-        requiredBy: optionalText(product.requiredBy),
-      })),
+      products: values.products.map((product) => {
+        const currency =
+          product.economicsCurrency.trim().toUpperCase() || workspace?.defaultCurrency || "USD";
+        const amount = (value: string) => (value.trim() ? Number(value) : null);
+        const targetUnitCost = amount(product.targetUnitCost);
+        const maxUnitCost = amount(product.maxUnitCost);
+        const estimatedShippingCost = amount(product.estimatedShippingCost);
+        const estimatedDutiesTaxes = amount(product.estimatedDutiesTaxes);
+        const otherSourcingCost = amount(product.otherSourcingCost);
+        const desiredRetailPrice = amount(product.desiredRetailPrice);
+        const maxLandedUnitCost = amount(product.maxLandedUnitCost);
+
+        return {
+          category: product.category.trim(),
+          productName: product.productName.trim(),
+          sku: optionalText(product.sku),
+          upc: optionalText(product.upc),
+          gtin: optionalText(product.gtin),
+          mpn: optionalText(product.mpn),
+          keywords: product.keywords
+            .split(",")
+            .map((keyword) => keyword.trim())
+            .filter(Boolean),
+          targetQuantity: Number(product.targetQuantity),
+          targetUnitCost,
+          targetUnitCostCurrency: targetUnitCost === null ? null : currency,
+          maxUnitCost,
+          maxUnitCostCurrency: maxUnitCost === null ? null : currency,
+          estimatedShippingCost,
+          estimatedShippingCurrency: estimatedShippingCost === null ? null : currency,
+          estimatedDutiesTaxes,
+          estimatedDutiesTaxesCurrency: estimatedDutiesTaxes === null ? null : currency,
+          otherSourcingCost,
+          otherSourcingCostCurrency: otherSourcingCost === null ? null : currency,
+          desiredRetailPrice,
+          desiredRetailPriceCurrency: desiredRetailPrice === null ? null : currency,
+          minimumDesiredMarginPercent: amount(product.minimumDesiredMarginPercent),
+          maxLandedUnitCost,
+          maxLandedUnitCostCurrency: maxLandedUnitCost === null ? null : currency,
+          alertCostBasis: product.alertCostBasis,
+          preferredCondition: optionalText(product.preferredCondition),
+          marketplaceIds: product.marketplaceIds as MarketplaceSource[],
+          notes: optionalText(product.notes),
+          requiredBy: optionalText(product.requiredBy),
+        };
+      }),
     };
     createMutation.mutate(input);
   }
@@ -234,16 +307,16 @@ export function SourcingListFormScreen() {
               <View className="flex-row gap-3">
                 <Controller
                   control={control}
-                  name={`products.${index}.targetQuantity`}
+                  name={`products.${index}.targetUnitCost`}
                   render={({ field: { onBlur, onChange, value } }) => (
                     <Input
                       className="flex-1"
-                      label="Target quantity"
-                      keyboardType="number-pad"
+                      label={`Target unit cost (${workspace?.defaultCurrency ?? "currency"})`}
+                      keyboardType="decimal-pad"
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      error={errors.products?.[index]?.targetQuantity?.message}
+                      error={errors.products?.[index]?.targetUnitCost?.message}
                     />
                   )}
                 />
@@ -263,6 +336,165 @@ export function SourcingListFormScreen() {
                   )}
                 />
               </View>
+              <Controller
+                control={control}
+                name={`products.${index}.targetQuantity`}
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Target quantity"
+                    keyboardType="number-pad"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.products?.[index]?.targetQuantity?.message}
+                  />
+                )}
+              />
+              <Card padding="sm" className="gap-3 bg-surface-muted">
+                <AppText variant="label">Unit economics</AppText>
+                <AppText variant="caption">
+                  Enter manual order-level costs in one currency. Blank costs stay unknown; enter 0
+                  when a cost is known to be zero.
+                </AppText>
+                <Controller
+                  control={control}
+                  name={`products.${index}.economicsCurrency`}
+                  render={({ field: { onBlur, onChange, value } }) => (
+                    <Input
+                      label="Planning currency"
+                      placeholder={workspace?.defaultCurrency ?? "USD"}
+                      autoCapitalize="characters"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      error={errors.products?.[index]?.economicsCurrency?.message}
+                    />
+                  )}
+                />
+                <View className="flex-row gap-3">
+                  <Controller
+                    control={control}
+                    name={`products.${index}.estimatedShippingCost`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Shipping total"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.estimatedShippingCost?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`products.${index}.estimatedDutiesTaxes`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Duties / taxes total"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.estimatedDutiesTaxes?.message}
+                      />
+                    )}
+                  />
+                </View>
+                <View className="flex-row gap-3">
+                  <Controller
+                    control={control}
+                    name={`products.${index}.otherSourcingCost`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Other sourcing total"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.otherSourcingCost?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`products.${index}.desiredRetailPrice`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Desired retail / unit"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.desiredRetailPrice?.message}
+                      />
+                    )}
+                  />
+                </View>
+                <View className="flex-row gap-3">
+                  <Controller
+                    control={control}
+                    name={`products.${index}.maxLandedUnitCost`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Max landed / unit"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.maxLandedUnitCost?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`products.${index}.minimumDesiredMarginPercent`}
+                    render={({ field: { onBlur, onChange, value } }) => (
+                      <Input
+                        className="flex-1"
+                        label="Minimum margin %"
+                        keyboardType="decimal-pad"
+                        onBlur={onBlur}
+                        onChangeText={onChange}
+                        value={value}
+                        error={errors.products?.[index]?.minimumDesiredMarginPercent?.message}
+                      />
+                    )}
+                  />
+                </View>
+                <Controller
+                  control={control}
+                  name={`products.${index}.alertCostBasis`}
+                  render={({ field: { onChange, value } }) => (
+                    <View className="gap-2">
+                      <AppText variant="label">Alert cost basis</AppText>
+                      <View className="flex-row gap-2">
+                        <Button
+                          size="sm"
+                          variant={value === "marketplace_price" ? "primary" : "outline"}
+                          className="flex-1 px-2"
+                          onPress={() => onChange("marketplace_price")}
+                        >
+                          Marketplace price
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={value === "landed_unit_cost" ? "primary" : "outline"}
+                          className="flex-1 px-2"
+                          onPress={() => onChange("landed_unit_cost")}
+                        >
+                          Landed cost
+                        </Button>
+                      </View>
+                    </View>
+                  )}
+                />
+              </Card>
               <View className="flex-row gap-3">
                 <Controller
                   control={control}

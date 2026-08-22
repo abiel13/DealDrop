@@ -147,6 +147,15 @@ const sourcingListMarketplaceIdsSchema = z
     return [...new Set(selection)] as MarketplaceSource[];
   });
 
+const sourcingMoneySchema = finiteNumber.nonnegative().nullable().optional();
+const sourcingCurrencySchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{3}$/)
+  .transform((currency) => currency.toUpperCase())
+  .nullable()
+  .optional();
+
 const sourcingListProductShape = {
   category: z.string().trim().min(1).max(80),
   productName: z.string().trim().min(1).max(200),
@@ -157,6 +166,8 @@ const sourcingListProductShape = {
   keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
   targetQuantity: z.number().int().min(1).max(1_000_000),
   sourcedQuantity: z.number().int().min(0).max(1_000_000).optional(),
+  targetUnitCost: sourcingMoneySchema,
+  targetUnitCostCurrency: sourcingCurrencySchema,
   maxUnitCost: finiteNumber.nonnegative().nullable().optional(),
   maxUnitCostCurrency: z
     .string()
@@ -165,6 +176,18 @@ const sourcingListProductShape = {
     .transform((currency) => currency.toUpperCase())
     .nullable()
     .optional(),
+  estimatedShippingCost: sourcingMoneySchema,
+  estimatedShippingCurrency: sourcingCurrencySchema,
+  estimatedDutiesTaxes: sourcingMoneySchema,
+  estimatedDutiesTaxesCurrency: sourcingCurrencySchema,
+  otherSourcingCost: sourcingMoneySchema,
+  otherSourcingCostCurrency: sourcingCurrencySchema,
+  desiredRetailPrice: sourcingMoneySchema,
+  desiredRetailPriceCurrency: sourcingCurrencySchema,
+  minimumDesiredMarginPercent: finiteNumber.min(0).max(100).nullable().optional(),
+  maxLandedUnitCost: sourcingMoneySchema,
+  maxLandedUnitCostCurrency: sourcingCurrencySchema,
+  alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]).optional(),
   preferredCondition: z.string().trim().max(80).nullable().optional(),
   marketplaceIds: sourcingListMarketplaceIdsSchema,
   notes: z.string().trim().max(2_000).nullable().optional(),

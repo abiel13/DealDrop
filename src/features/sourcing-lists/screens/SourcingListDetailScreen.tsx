@@ -13,6 +13,7 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, sourcingListImportRoute, sourcingListRoute } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
+import type { ApiSourcingListProduct } from "@/services/api";
 
 import {
   duplicateSourcingList,
@@ -22,6 +23,7 @@ import {
 } from "../services/sourcing-list.service";
 import { shareCsvFile } from "../services/csv-file.service";
 import { createSourcingListCsv } from "../services/sourcing-list-csv";
+import { calculateSourcingEconomics } from "../services/sourcing-economics";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
 const statuses: SourcingListStatus[] = ["active", "paused", "completed"];
@@ -205,9 +207,10 @@ export function SourcingListDetailScreen() {
             <AppText variant="bodySmall">
               Sources: {product.marketplaceIds.map(formatMarketplaceName).join(", ")}
             </AppText>
+            <SourcingEconomicsCard product={product} />
             {product.maxUnitCost !== null && (
               <AppText variant="bodySmall">
-                Target unit cost: {product.maxUnitCostCurrency ?? ""} {product.maxUnitCost}
+                Max marketplace unit cost: {product.maxUnitCostCurrency ?? ""} {product.maxUnitCost}
               </AppText>
             )}
             {product.preferredCondition && (
@@ -225,6 +228,125 @@ export function SourcingListDetailScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function SourcingEconomicsCard({ product }: { product: ApiSourcingListProduct }) {
+  const hasEconomics = [
+    product.targetUnitCost,
+    product.estimatedShippingCost,
+    product.estimatedDutiesTaxes,
+    product.otherSourcingCost,
+    product.desiredRetailPrice,
+    product.minimumDesiredMarginPercent,
+    product.maxLandedUnitCost,
+  ].some((value) => value !== null);
+  if (!hasEconomics) return null;
+
+  const economics = calculateSourcingEconomics({
+    quantity: product.targetQuantity,
+    marketplacePrice: product.targetUnitCost,
+    marketplaceCurrency: product.targetUnitCostCurrency,
+    estimatedShippingCost: product.estimatedShippingCost,
+    estimatedShippingCurrency: product.estimatedShippingCurrency,
+    estimatedDutiesTaxes: product.estimatedDutiesTaxes,
+    estimatedDutiesTaxesCurrency: product.estimatedDutiesTaxesCurrency,
+    otherSourcingCost: product.otherSourcingCost,
+    otherSourcingCostCurrency: product.otherSourcingCostCurrency,
+    desiredRetailPrice: product.desiredRetailPrice,
+    desiredRetailPriceCurrency: product.desiredRetailPriceCurrency,
+    minimumDesiredMarginPercent: product.minimumDesiredMarginPercent,
+    maxLandedUnitCost: product.maxLandedUnitCost,
+    maxLandedUnitCostCurrency: product.maxLandedUnitCostCurrency,
+  });
+  const costCurrency = economics.currency ?? product.targetUnitCostCurrency;
+
+  return (
+    <Card padding="sm" className="gap-2 bg-surface-muted">
+      <View className="flex-row items-center justify-between gap-2">
+        <AppText variant="label">Unit economics estimate</AppText>
+        <AppText variant="caption">Manual inputs</AppText>
+      </View>
+      <AppText variant="bodySmall">
+        Marketplace price: {formatCost(product.targetUnitCost, product.targetUnitCostCurrency)} /
+        unit
+      </AppText>
+      <AppText variant="bodySmall">
+        Shipping: {formatCost(product.estimatedShippingCost, product.estimatedShippingCurrency)}{" "}
+        total
+      </AppText>
+      <AppText variant="bodySmall">
+        Duties/taxes:{" "}
+        {formatCost(product.estimatedDutiesTaxes, product.estimatedDutiesTaxesCurrency)} total
+      </AppText>
+      <AppText variant="bodySmall">
+        Other sourcing cost:{" "}
+        {formatCost(product.otherSourcingCost, product.otherSourcingCostCurrency)} total
+      </AppText>
+      {economics.costCurrencyMismatch ? (
+        <AppText variant="error">
+          Landed-cost calculations unavailable because cost components use different currencies. No
+          conversion is applied.
+        </AppText>
+      ) : economics.estimatedLandedUnitCost === null ? (
+        <AppText variant="bodySmall">
+          Landed cost unavailable: {economics.unknownComponents.join(", ").toLowerCase()} unknown.
+        </AppText>
+      ) : (
+        <>
+          <AppText variant="bodySmall">
+            Landed unit cost: {formatCost(economics.estimatedLandedUnitCost, costCurrency)}{" "}
+            (estimate)
+          </AppText>
+          <AppText variant="bodySmall">
+            Total acquisition: {formatCost(economics.estimatedTotalAcquisitionCost, costCurrency)}{" "}
+            for {product.targetQuantity} units
+          </AppText>
+        </>
+      )}
+      {economics.currencyMismatch && !economics.costCurrencyMismatch && (
+        <AppText variant="error">
+          Retail or alert thresholds use a different currency, so those comparisons are unavailable.
+          No conversion is applied.
+        </AppText>
+      )}
+      {product.desiredRetailPrice !== null && (
+        <AppText variant="bodySmall">
+          Gross margin:{" "}
+          {economics.estimatedGrossMarginPercent === null
+            ? "Unavailable — check price and currency"
+            : `${formatCost(economics.estimatedGrossMarginPerUnit, costCurrency)} / unit (${economics.estimatedGrossMarginPercent.toFixed(2)}%)`}
+        </AppText>
+      )}
+      {product.minimumDesiredMarginPercent !== null && economics.minimumMarginMet !== null && (
+        <AppText variant="bodySmall">
+          Minimum margin: {economics.minimumMarginMet ? "met" : "not met"} (
+          {product.minimumDesiredMarginPercent}%)
+        </AppText>
+      )}
+      <AppText variant="bodySmall">
+        Alert basis:{" "}
+        {product.alertCostBasis === "landed_unit_cost" ? "landed cost" : "marketplace price"}
+        {product.alertCostBasis === "landed_unit_cost" && product.maxLandedUnitCost !== null
+          ? ` · max ${formatCost(product.maxLandedUnitCost, product.maxLandedUnitCostCurrency)}`
+          : ""}
+      </AppText>
+      {product.alertCostBasis === "landed_unit_cost" && (
+        <AppText variant="bodySmall">
+          Landed-cost threshold:{" "}
+          {economics.maxLandedCostMet === null
+            ? "comparison unavailable"
+            : economics.maxLandedCostMet
+              ? "met"
+              : "not met"}
+        </AppText>
+      )}
+    </Card>
+  );
+}
+
+function formatCost(amount: number | null, currency: string | null) {
+  if (amount === null) return "Unknown";
+  return `${currency ? `${currency} ` : ""}${amount.toFixed(2)}`;
 }
 
 function formatMarketplaceName(source: string) {
