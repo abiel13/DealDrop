@@ -9,6 +9,9 @@ export const authRoutes = {
   notifications: "/notifications" as Href,
   profile: "/profile" as Href,
   workspace: "/workspace" as Href,
+  sourcingLists: "/sourcing-lists" as Href,
+  sourcingListForm: "/sourcing-list-form" as Href,
+  sourcingList: "/sourcing-list" as Href,
   weeklySummary: "/weekly-summary" as Href,
   watchlists: "/watchlists" as Href,
   savedListings: "/saved-listings" as Href,
@@ -21,6 +24,13 @@ export function watchlistFormRoute(id?: string) {
   return id ? (`/watchlist-form?id=${encodeURIComponent(id)}` as Href) : authRoutes.watchlistForm;
 }
 
+export function sourcingListFormRoute() {
+  return authRoutes.sourcingListForm;
+}
+
+export function sourcingListRoute(sourcingListId: string) {
+  return `/sourcing-list/${encodeURIComponent(sourcingListId)}` as Href;
+}
 export function listingRoute(id: string) {
   return `/listing/${encodeURIComponent(id)}` as Href;
 }

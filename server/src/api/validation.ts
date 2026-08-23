@@ -129,6 +129,85 @@ const marketplaceIdsSchema = z
 
 const marketplaceSourceSelectionSchema = z.union([z.literal("all"), marketplaceIdsSchema]);
 
+const sourcingListMarketplaceIdsSchema = z
+  .array(z.string().trim().min(1).max(80))
+  .min(1)
+  .max(10)
+  .transform((selection, context) => {
+    const knownSources = new Set<string>(Object.values(MARKETPLACE_IDS));
+    const unknownSource = selection.find((source) => !knownSources.has(source));
+    if (unknownSource) {
+      context.addIssue({
+        code: "custom",
+        message: `Marketplace source is not supported: ${unknownSource}.`,
+      });
+      return z.NEVER;
+    }
+
+    return [...new Set(selection)] as MarketplaceSource[];
+  });
+
+const sourcingListProductShape = {
+  category: z.string().trim().min(1).max(80),
+  productName: z.string().trim().min(1).max(200),
+  sku: z.string().trim().max(120).nullable().optional(),
+  upc: z.string().trim().max(120).nullable().optional(),
+  gtin: z.string().trim().max(120).nullable().optional(),
+  mpn: z.string().trim().max(120).nullable().optional(),
+  keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
+  targetQuantity: z.number().int().min(1).max(1_000_000),
+  sourcedQuantity: z.number().int().min(0).max(1_000_000).optional(),
+  maxUnitCost: finiteNumber.nonnegative().nullable().optional(),
+  maxUnitCostCurrency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/)
+    .transform((currency) => currency.toUpperCase())
+    .nullable()
+    .optional(),
+  preferredCondition: z.string().trim().max(80).nullable().optional(),
+  marketplaceIds: sourcingListMarketplaceIdsSchema,
+  notes: z.string().trim().max(2_000).nullable().optional(),
+  requiredBy: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((date) => !Number.isNaN(Date.parse(`${date}T00:00:00.000Z`)), "requiredBy is invalid")
+    .nullable()
+    .optional(),
+};
+
+export const createSourcingListSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    status: z.enum(["active", "paused", "completed"]).default("active"),
+    products: z.array(z.object(sourcingListProductShape).strict()).min(1).max(100),
+  })
+  .strict();
+
+export const updateSourcingListSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    status: z.enum(["active", "paused", "completed"]).optional(),
+  })
+  .strict()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one sourcing list field is required.",
+  );
+
+export const duplicateSourcingListSchema = z
+  .object({ name: z.string().trim().min(2).max(120).optional() })
+  .strict();
+
+export const updateSourcingListProductSchema = z
+  .object(sourcingListProductShape)
+  .partial()
+  .strict()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one sourcing list product field is required.",
+  );
+
 const watchlistPayloadShape = {
   name: z.string().trim().min(1).max(120),
   searchQuery: z.string().trim().min(1).max(200),

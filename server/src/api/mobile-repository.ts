@@ -9,6 +9,10 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiSourcingListInput,
+  ApiSourcingListProductInput,
+  ApiSourcingListProductUpdateInput,
+  ApiSourcingListUpdateInput,
   ApiWorkspaceInput,
   ListingProblemReportInput,
   ApiWeeklySummary,
@@ -16,6 +20,7 @@ import type {
   RawApiListing,
   RawApiMatch,
   RawApiNotification,
+  RawApiSourcingList,
   RawApiWatchlist,
   StoredListingReference,
 } from "./types";
@@ -28,6 +33,9 @@ const MATCH_LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const WORKSPACE_COLUMNS =
   "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
+const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
+const SOURCING_LIST_PRODUCT_COLUMNS =
+  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,max_unit_cost,max_unit_cost_currency,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
 
 export interface Page<T> {
   items: T[];
@@ -175,6 +183,53 @@ export interface MobileApiRepositoryContract {
     input: { expoPushToken: string; platform: "ios" | "android" | "web" },
   ): Promise<void>;
   getWeeklySummary(userId: string): Promise<ApiWeeklySummary>;
+  getSourcingLists?(
+    userId: string,
+    workspaceId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<RawApiSourcingList>>;
+  getSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<RawApiSourcingList | null>;
+  createSourcingList?(
+    userId: string,
+    workspaceId: string,
+    input: ApiSourcingListInput,
+  ): Promise<RawApiSourcingList | null>;
+  updateSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ): Promise<RawApiSourcingList | null>;
+  duplicateSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    name?: string,
+  ): Promise<RawApiSourcingList | null>;
+  addSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ): Promise<RawApiSourcingList | null>;
+  updateSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: ApiSourcingListProductUpdateInput,
+  ): Promise<RawApiSourcingList | null>;
+  deleteSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ): Promise<boolean>;
 }
 
 export class MobileApiRepository implements MobileApiRepositoryContract {
@@ -268,6 +323,318 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
 
     return { ...workspace, role: "owner" };
+  }
+
+  async getSourcingLists(
+    userId: string,
+    workspaceId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<RawApiSourcingList>> {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return { items: [], nextCursor: null, hasMore: false };
+    }
+
+    let query = this.client
+      .from("sourcing_lists")
+      .select(SOURCING_LIST_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(limit + 1);
+    if (cursor) {
+      query = query.lt("updated_at", cursor);
+    }
+
+    const { data, error } = await query.returns<Omit<RawApiSourcingList, "products">[]>();
+    if (error) {
+      throw error;
+    }
+
+    const page = toPage(data ?? [], limit, (item) => item.updated_at);
+    const items = await Promise.all(
+      page.items.map((list) => this.getSourcingListForWorkspace(workspaceId, list.id, list)),
+    );
+    return { ...page, items: items.filter((item): item is RawApiSourcingList => item !== null) };
+  }
+
+  async getSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<RawApiSourcingList | null> {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("sourcing_lists")
+      .select(SOURCING_LIST_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .eq("id", sourcingListId)
+      .maybeSingle<Omit<RawApiSourcingList, "products">>();
+    if (error) {
+      throw error;
+    }
+
+    return data ? this.getSourcingListForWorkspace(workspaceId, sourcingListId, data) : null;
+  }
+
+  async createSourcingList(
+    userId: string,
+    workspaceId: string,
+    input: ApiSourcingListInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const { data: list, error: listError } = await this.client
+      .from("sourcing_lists")
+      .insert({
+        workspace_id: workspaceId,
+        created_by: userId,
+        name: input.name,
+        status: input.status ?? "active",
+      })
+      .select(SOURCING_LIST_COLUMNS)
+      .single<Omit<RawApiSourcingList, "products">>();
+    if (listError) {
+      throw listError;
+    }
+
+    await this.insertSourcingListProducts(workspace.default_currency, list.id, input.products);
+    return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async updateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const { data: list, error } = await this.client
+      .from("sourcing_lists")
+      .update(input)
+      .eq("workspace_id", workspaceId)
+      .eq("id", sourcingListId)
+      .select(SOURCING_LIST_COLUMNS)
+      .maybeSingle<Omit<RawApiSourcingList, "products">>();
+    if (error) {
+      throw error;
+    }
+
+    return list ? this.getSourcingListForWorkspace(workspaceId, list.id, list) : null;
+  }
+
+  async duplicateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    name?: string,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const source = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!source) {
+      return null;
+    }
+
+    const { data: list, error: listError } = await this.client
+      .from("sourcing_lists")
+      .insert({
+        workspace_id: workspaceId,
+        created_by: userId,
+        name: name ?? `${source.name} copy`,
+        status: "active",
+      })
+      .select(SOURCING_LIST_COLUMNS)
+      .single<Omit<RawApiSourcingList, "products">>();
+    if (listError) {
+      throw listError;
+    }
+
+    await this.insertSourcingListProducts(
+      workspace.default_currency,
+      list.id,
+      source.products.map((product) => ({
+        category: product.category,
+        productName: product.product_name,
+        sku: product.sku,
+        upc: product.upc,
+        gtin: product.gtin,
+        mpn: product.mpn,
+        keywords: product.keywords,
+        targetQuantity: product.target_quantity,
+        sourcedQuantity: 0,
+        maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
+        maxUnitCostCurrency: product.max_unit_cost_currency,
+        preferredCondition: product.preferred_condition,
+        marketplaceIds:
+          product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
+        notes: product.notes,
+        requiredBy: product.required_by,
+      })),
+    );
+
+    return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async addSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) {
+      return null;
+    }
+
+    await this.insertSourcingListProducts(workspace.default_currency, sourcingListId, [input]);
+    return this.getSourcingList(userId, workspaceId, sourcingListId);
+  }
+
+  async updateSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: ApiSourcingListProductUpdateInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    const existing = list?.products.find((product) => product.id === productId);
+    if (!list || !existing) {
+      return null;
+    }
+
+    const update = toSourcingProductRow(workspace.default_currency, input);
+    const { error } = await this.client
+      .from("sourcing_list_products")
+      .update(update)
+      .eq("id", productId)
+      .eq("sourcing_list_id", sourcingListId);
+    if (error) {
+      throw error;
+    }
+
+    if (input.marketplaceIds !== undefined) {
+      await this.replaceSourcingListProductMarketplaces(productId, input.marketplaceIds);
+    }
+    return this.getSourcingList(userId, workspaceId, sourcingListId);
+  }
+
+  async deleteSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ): Promise<boolean> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return false;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list?.products.some((product) => product.id === productId)) {
+      return false;
+    }
+
+    const { error, count } = await this.client
+      .from("sourcing_list_products")
+      .delete({ count: "exact" })
+      .eq("id", productId)
+      .eq("sourcing_list_id", sourcingListId);
+    if (error) {
+      throw error;
+    }
+    return (count ?? 0) > 0;
+  }
+
+  private async insertSourcingListProducts(
+    defaultCurrency: string,
+    sourcingListId: string,
+    products: ApiSourcingListProductInput[],
+  ) {
+    const rows = products.map((product, index) => ({
+      sourcing_list_id: sourcingListId,
+      ...toSourcingProductRow(defaultCurrency, product),
+      sort_order: index,
+    }));
+    const { data, error } = await this.client
+      .from("sourcing_list_products")
+      .insert(rows)
+      .select(SOURCING_LIST_PRODUCT_COLUMNS)
+      .returns<RawApiSourcingList["products"]>();
+    if (error) {
+      throw error;
+    }
+
+    for (const [index, product] of products.entries()) {
+      const inserted = data?.[index];
+      if (inserted) {
+        await this.replaceSourcingListProductMarketplaces(inserted.id, product.marketplaceIds);
+      }
+    }
+  }
+
+  private async replaceSourcingListProductMarketplaces(
+    productId: string,
+    marketplaceIds: string[],
+  ) {
+    const { error: deleteError } = await this.client
+      .from("sourcing_list_product_marketplaces")
+      .delete()
+      .eq("sourcing_list_product_id", productId);
+    if (deleteError) {
+      throw deleteError;
+    }
+    const { error: insertError } = await this.client
+      .from("sourcing_list_product_marketplaces")
+      .insert(
+        marketplaceIds.map((marketplaceId) => ({
+          sourcing_list_product_id: productId,
+          marketplace_id: marketplaceId,
+        })),
+      );
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  private async getSourcingListForWorkspace(
+    workspaceId: string,
+    sourcingListId: string,
+    list: Omit<RawApiSourcingList, "products">,
+  ): Promise<RawApiSourcingList | null> {
+    const { data: products, error } = await this.client
+      .from("sourcing_list_products")
+      .select(SOURCING_LIST_PRODUCT_COLUMNS)
+      .eq("sourcing_list_id", sourcingListId)
+      .order("sort_order", { ascending: true })
+      .returns<RawApiSourcingList["products"]>();
+    if (error) {
+      throw error;
+    }
+
+    return list.workspace_id === workspaceId ? { ...list, products: products ?? [] } : null;
   }
 
   persistListings(listings: MarketplaceListing[]) {
@@ -1099,6 +1466,36 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
     return new Map((data ?? []).map((item) => [item.match_id, item.feedback]));
   }
+}
+
+function isWorkspaceEditor(role: RawApiWorkspace["role"]) {
+  return role === "owner" || role === "buyer";
+}
+
+function toSourcingProductRow(
+  defaultCurrency: string,
+  input: ApiSourcingListProductInput | ApiSourcingListProductUpdateInput,
+) {
+  const row: Record<string, unknown> = {};
+  if (input.category !== undefined) row.category = input.category;
+  if (input.productName !== undefined) row.product_name = input.productName;
+  if (input.sku !== undefined) row.sku = input.sku;
+  if (input.upc !== undefined) row.upc = input.upc;
+  if (input.gtin !== undefined) row.gtin = input.gtin;
+  if (input.mpn !== undefined) row.mpn = input.mpn;
+  if (input.keywords !== undefined) row.keywords = input.keywords;
+  if (input.targetQuantity !== undefined) row.target_quantity = input.targetQuantity;
+  if (input.sourcedQuantity !== undefined) row.sourced_quantity = input.sourcedQuantity;
+  if (input.maxUnitCost !== undefined) row.max_unit_cost = input.maxUnitCost;
+  if (input.maxUnitCostCurrency !== undefined) {
+    row.max_unit_cost_currency = input.maxUnitCostCurrency;
+  } else if (input.maxUnitCost !== undefined && input.maxUnitCost !== null) {
+    row.max_unit_cost_currency = defaultCurrency;
+  }
+  if (input.preferredCondition !== undefined) row.preferred_condition = input.preferredCondition;
+  if (input.notes !== undefined) row.notes = input.notes;
+  if (input.requiredBy !== undefined) row.required_by = input.requiredBy;
+  return row;
 }
 
 function toPage<T>(items: T[], limit: number, cursorValue: (item: T) => string): Page<T> {

@@ -85,6 +85,7 @@ export function WorkspaceScreen() {
     <WorkspaceOverview
       workspaces={workspaces}
       onBack={() => router.back()}
+      onOpenSourcingLists={() => router.push(authRoutes.sourcingLists)}
       onSwitchToPersonal={() => {
         useWorkspaceStore.getState().setActiveWorkspaceId(null);
         router.replace(authRoutes.home);
@@ -278,10 +279,12 @@ function WorkspaceOnboarding({
 function WorkspaceOverview({
   workspaces,
   onBack,
+  onOpenSourcingLists,
   onSwitchToPersonal,
 }: {
   workspaces: Workspace[];
   onBack: () => void;
+  onOpenSourcingLists: () => void;
   onSwitchToPersonal: () => void;
 }) {
   const theme = useTheme();
@@ -358,9 +361,12 @@ function WorkspaceOverview({
         <Card padding="md" className="gap-2 bg-primary-soft">
           <AppText variant="title">Business sourcing starts here</AppText>
           <AppText variant="bodySmall">
-            Future Pro tools will keep sourcing lists, comparisons, suppliers, notes, and activity
-            inside this workspace.
+            Keep each restock and inventory job together with products, target quantities, prices,
+            sources, and required dates.
           </AppText>
+          <Button size="sm" onPress={onOpenSourcingLists}>
+            Open sourcing lists
+          </Button>
         </Card>
 
         <Button variant="outline" onPress={onSwitchToPersonal}>

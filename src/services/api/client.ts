@@ -17,6 +17,10 @@ import type {
   ApiPushTokenRegistration,
   ApiSearchRequest,
   ApiSearchResult,
+  ApiSourcingList,
+  ApiSourcingListInput,
+  ApiSourcingListProductInput,
+  ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
   ApiWeeklySummary,
@@ -109,6 +113,79 @@ export class DealDropApiClient {
       method: "POST",
       body: input,
     });
+  }
+
+  async getSourcingLists(
+    workspaceId: string,
+    options: { cursor?: string | null; limit?: number } = {},
+  ) {
+    const params = new URLSearchParams();
+    if (options.cursor) params.set("cursor", options.cursor);
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    const queryString = params.toString();
+    const path = `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists`;
+    return this.request<ApiSourcingList[]>(queryString ? `${path}?${queryString}` : path);
+  }
+
+  async getSourcingList(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async createSourcingList(workspaceId: string, input: ApiSourcingListInput) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateSourcingList(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async duplicateSourcingList(workspaceId: string, sourcingListId: string, name?: string) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/duplicate`,
+      { method: "POST", body: name ? { name } : {} },
+    );
+  }
+
+  async addSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: Partial<ApiSourcingListProductInput>,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async deleteSourcingListProduct(workspaceId: string, sourcingListId: string, productId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async getWatchlist(watchlistId: string) {
