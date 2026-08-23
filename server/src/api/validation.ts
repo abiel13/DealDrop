@@ -216,6 +216,8 @@ export const createSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
     status: z.enum(["active", "paused", "completed"]).default("active"),
+    targetBudget: sourcingMoneySchema,
+    targetBudgetCurrency: sourcingCurrencySchema,
     products: z.array(sourcingListProductSchema).min(1).max(100),
   })
   .strict();
@@ -224,11 +226,14 @@ export const updateSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
     status: z.enum(["active", "paused", "completed"]).optional(),
+    targetBudget: sourcingMoneySchema,
+    targetBudgetCurrency: sourcingCurrencySchema,
   })
   .strict()
+  .refine((value) => Object.keys(value).length > 0, "At least one sourcing list field is required.")
   .refine(
-    (value) => Object.keys(value).length > 0,
-    "At least one sourcing list field is required.",
+    (value) => value.targetBudgetCurrency === undefined || value.targetBudget !== undefined,
+    "targetBudget is required when changing targetBudgetCurrency.",
   );
 
 export const duplicateSourcingListSchema = z

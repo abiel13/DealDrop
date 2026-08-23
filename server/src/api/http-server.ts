@@ -339,6 +339,15 @@ async function routeProtectedRequest(
       return;
     }
 
+    if (segments.length === 5 && segments[4] === "summary" && method === "GET") {
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSourcingSummary(userId, workspaceId, sourcingListId),
+      );
+      return;
+    }
+
     if (segments.length === 4 && method === "GET") {
       sendSuccess(
         response,

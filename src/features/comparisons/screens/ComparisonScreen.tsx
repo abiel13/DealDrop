@@ -68,6 +68,9 @@ export function ComparisonScreen() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-summary", workspaceId, sourcingListId],
+      });
     },
   });
   const saveSupplierMutation = useMutation({

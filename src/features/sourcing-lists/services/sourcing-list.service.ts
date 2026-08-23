@@ -1,5 +1,11 @@
 import { apiClient } from "@/services/api";
-import type { ApiSourcingActivity, ApiSourcingNote, ApiSourcingPriceHistory } from "@/services/api";
+import type {
+  ApiSourcingActivity,
+  ApiSourcingListUpdateInput,
+  ApiSourcingNote,
+  ApiSourcingPriceHistory,
+  ApiSourcingSummary,
+} from "@/services/api";
 
 import type {
   SourcingList,
@@ -7,7 +13,6 @@ import type {
   SourcingListImportInput,
   SourcingListImportResult,
   SourcingListProductInput,
-  SourcingListStatus,
 } from "../types/sourcing-list.types";
 
 export async function getSourcingLists(workspaceId: string): Promise<SourcingList[]> {
@@ -23,6 +28,14 @@ export async function getSourcingList(
   return response.data;
 }
 
+export async function getSourcingSummary(
+  workspaceId: string,
+  sourcingListId: string,
+): Promise<ApiSourcingSummary> {
+  const response = await apiClient.getSourcingSummary(workspaceId, sourcingListId);
+  return response.data;
+}
+
 export async function createSourcingList(
   workspaceId: string,
   input: SourcingListInput,
@@ -34,7 +47,7 @@ export async function createSourcingList(
 export async function updateSourcingList(
   workspaceId: string,
   sourcingListId: string,
-  input: { name?: string; status?: SourcingListStatus },
+  input: ApiSourcingListUpdateInput,
 ): Promise<SourcingList> {
   const response = await apiClient.updateSourcingList(workspaceId, sourcingListId, input);
   return response.data;

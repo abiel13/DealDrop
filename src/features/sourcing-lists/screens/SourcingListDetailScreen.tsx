@@ -30,6 +30,7 @@ import type {
   ApiSourcingListProduct,
   ApiSourcingList,
   ApiSourcingListProductInput,
+  ApiSourcingSummary,
   ApiSourcingWorkflowStatus,
   ApiWorkspaceMember,
 } from "@/services/api";
@@ -40,12 +41,13 @@ import {
   getSourcingActivity,
   getSourcingNotes,
   getSourcingList,
+  getSourcingSummary,
   getSourcingListErrorMessage,
   updateSourcingListProduct,
   updateSourcingList,
 } from "../services/sourcing-list.service";
 import { shareCsvFile } from "../services/csv-file.service";
-import { createSourcingListCsv } from "../services/sourcing-list-csv";
+import { createSourcingSummaryCsv } from "../services/sourcing-list-csv";
 import { calculateSourcingEconomics } from "../services/sourcing-economics";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
@@ -86,6 +88,11 @@ export function SourcingListDetailScreen() {
   const activityQuery = useQuery({
     queryKey: ["sourcing-activity", workspaceId, sourcingListId],
     queryFn: () => getSourcingActivity(workspaceId ?? "", sourcingListId),
+    enabled: Boolean(user && workspaceId && sourcingListId),
+  });
+  const summaryQuery = useQuery({
+    queryKey: ["sourcing-summary", workspaceId, sourcingListId],
+    queryFn: () => getSourcingSummary(workspaceId ?? "", sourcingListId),
     enabled: Boolean(user && workspaceId && sourcingListId),
   });
   const updateMutation = useMutation({
@@ -131,7 +138,11 @@ export function SourcingListDetailScreen() {
     setExporting(true);
     setExportError(null);
     try {
-      await shareCsvFile(`${safeFilename(list.name)}.csv`, createSourcingListCsv(list));
+      if (!summaryQuery.data) throw new Error("Sourcing summary is not available.");
+      await shareCsvFile(
+        `${safeFilename(list.name)}-sourcing-results.csv`,
+        createSourcingSummaryCsv(summaryQuery.data),
+      );
     } catch {
       setExportError("We couldn't export this sourcing list. Please try again.");
     } finally {
@@ -184,6 +195,12 @@ export function SourcingListDetailScreen() {
           </AppText>
         </Card>
 
+        <SourcingSummaryCard
+          summary={summaryQuery.data}
+          isLoading={summaryQuery.isLoading}
+          hasError={summaryQuery.isError}
+        />
+
         <Card padding="md" className="gap-3">
           <AppText variant="label">Spreadsheet tools</AppText>
           <View className="flex-row gap-2">
@@ -199,7 +216,8 @@ export function SourcingListDetailScreen() {
               size="sm"
               variant="secondary"
               className="flex-1 px-2"
-              loading={exporting}
+              loading={exporting || summaryQuery.isLoading}
+              disabled={!summaryQuery.data}
               onPress={() => void exportList()}
             >
               Export CSV
@@ -318,6 +336,102 @@ export function SourcingListDetailScreen() {
   );
 }
 
+function SourcingSummaryCard({
+  summary,
+  isLoading,
+  hasError,
+}: {
+  summary: ApiSourcingSummary | undefined;
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card padding="md" className="gap-2">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="bodySmall">Calculating from saved sourcing results…</AppText>
+      </Card>
+    );
+  }
+
+  if (hasError || !summary) {
+    return (
+      <Card padding="md" className="gap-2">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="bodySmall">
+          The summary is unavailable right now. Saved sourcing work is unchanged.
+        </AppText>
+      </Card>
+    );
+  }
+
+  const budgetCurrency =
+    summary.targetBudgetCurrency ?? summary.currentEstimatedSourcingCostCurrency;
+  return (
+    <Card padding="md" className="gap-3">
+      <View className="flex-row items-center justify-between gap-3">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="caption">From saved DealDrop data</AppText>
+      </View>
+      <View className="flex-row gap-3">
+        <SummaryMetric label="Products" value={String(summary.totalProductsRequested)} />
+        <SummaryMetric label="Qualifying" value={String(summary.productsWithQualifyingResults)} />
+        <SummaryMetric label="Shortlisted" value={String(summary.productsShortlisted)} />
+      </View>
+      <View className="flex-row gap-3">
+        <SummaryMetric label="Still searching" value={String(summary.productsStillBeingSearched)} />
+        <SummaryMetric label="Completed" value={String(summary.productsCompleted)} />
+        <SummaryMetric label="Requested units" value={String(summary.totalRequestedQuantity)} />
+      </View>
+      <AppText variant="bodySmall">
+        Current estimated sourcing cost:{" "}
+        {formatCost(
+          summary.currentEstimatedSourcingCost,
+          summary.currentEstimatedSourcingCostCurrency,
+        )}
+        {!summary.costDataComplete && " (partial)"}
+      </AppText>
+      {summary.targetBudget !== null && (
+        <AppText variant="bodySmall">
+          Target budget: {formatCost(summary.targetBudget, summary.targetBudgetCurrency)}
+        </AppText>
+      )}
+      {summary.budgetVariance !== null && budgetCurrency && (
+        <AppText variant="bodySmall">
+          Budget position: {summary.budgetVariance >= 0 ? "under" : "over"} by{" "}
+          {formatCost(Math.abs(summary.budgetVariance), budgetCurrency)}
+        </AppText>
+      )}
+      {summary.potentialSavings !== null && (
+        <AppText variant="bodySmall">
+          Potential savings against budget: {formatCost(summary.potentialSavings, budgetCurrency)}
+        </AppText>
+      )}
+      {summary.unknownCostProducts > 0 && (
+        <AppText variant="caption">
+          {summary.unknownCostProducts} product
+          {summary.unknownCostProducts === 1 ? "" : "s"} lack enough selected cost data for a
+          complete total.
+        </AppText>
+      )}
+      {summary.currencyMismatch && (
+        <AppText variant="caption">
+          Costs use different currencies, so they are not silently combined.
+        </AppText>
+      )}
+    </Card>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-1 gap-1">
+      <AppText variant="caption">{label}</AppText>
+      <AppText variant="title">{value}</AppText>
+    </View>
+  );
+}
+
 function ProductWorkflowCard({
   workspaceId,
   sourcingListId,
@@ -346,6 +460,9 @@ function ProductWorkflowCard({
       onUpdated(list);
       void queryClient.invalidateQueries({
         queryKey: ["sourcing-activity", workspaceId, sourcingListId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-summary", workspaceId, sourcingListId],
       });
     },
   });

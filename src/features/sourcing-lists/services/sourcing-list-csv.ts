@@ -3,6 +3,7 @@ import type {
   ApiSourcingList,
   ApiSourcingListProduct,
   ApiSourcingListProductInput,
+  ApiSourcingSummary,
   MarketplaceSource,
 } from "@/services/api";
 
@@ -24,6 +25,25 @@ export const SOURCING_LIST_CSV_HEADERS = [
 ] as const;
 
 export const MAX_SOURCING_CSV_ROWS = 1_000;
+
+export const SOURCING_RESULTS_CSV_HEADERS = [
+  "SKU",
+  "product",
+  "quantity",
+  "selected supplier",
+  "marketplace",
+  "unit cost",
+  "unit cost currency",
+  "estimated landed cost",
+  "landed cost currency",
+  "total cost",
+  "total cost currency",
+  "URL",
+  "status",
+  "notes",
+  "cost basis",
+  "estimate",
+] as const;
 
 export interface SourcingCsvDraft {
   productName: string;
@@ -197,6 +217,28 @@ export function createSourcingListCsv(list: ApiSourcingList): string {
     product.requiredBy ?? "",
   ]);
   return serializeCsv([SOURCING_LIST_CSV_HEADERS, ...rows]);
+}
+
+export function createSourcingSummaryCsv(summary: ApiSourcingSummary): string {
+  const rows = summary.exportRows.map((row) => [
+    row.sku ?? "",
+    row.product,
+    String(row.quantity),
+    row.selectedSupplier ?? "",
+    row.marketplace ?? "",
+    row.unitCost === null ? "" : String(row.unitCost),
+    row.unitCostCurrency ?? "",
+    row.estimatedLandedCost === null ? "" : String(row.estimatedLandedCost),
+    row.estimatedLandedCostCurrency ?? "",
+    row.totalCost === null ? "" : String(row.totalCost),
+    row.totalCostCurrency ?? "",
+    row.url ?? "",
+    row.status,
+    row.notes ?? "",
+    row.costBasis ?? "",
+    row.isEstimate ? "yes" : "no",
+  ]);
+  return serializeCsv([SOURCING_RESULTS_CSV_HEADERS, ...rows]);
 }
 
 export function createSourcingListCsvTemplate(

@@ -141,6 +141,8 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
   await client.getSourcingLists("workspace-1", { limit: 20 });
   await client.createSourcingList("workspace-1", {
     name: "Q4 Phone Inventory",
+    targetBudget: 7200,
+    targetBudgetCurrency: "USD",
     products: [
       {
         category: "Phones",
@@ -161,6 +163,7 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
       },
     ],
   });
+  await client.getSourcingSummary("workspace-1", "list-1");
 
   assert.equal(
     calls[0]?.input,
@@ -172,6 +175,8 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
   );
   assert.deepEqual(JSON.parse(calls[1]?.init?.body as string), {
     name: "Q4 Phone Inventory",
+    targetBudget: 7200,
+    targetBudgetCurrency: "USD",
     products: [
       {
         category: "Phones",
@@ -184,6 +189,10 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
   assert.equal(
     calls[2]?.input,
     "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists/list-1/import",
+  );
+  assert.equal(
+    calls[3]?.input,
+    "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists/list-1/summary",
   );
 });
 
