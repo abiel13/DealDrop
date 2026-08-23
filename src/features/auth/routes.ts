@@ -10,6 +10,7 @@ export const authRoutes = {
   profile: "/profile" as Href,
   workspace: "/workspace" as Href,
   sourcingLists: "/sourcing-lists" as Href,
+  suppliers: "/suppliers" as Href,
   sourcingListForm: "/sourcing-list-form" as Href,
   sourcingList: "/sourcing-list" as Href,
   weeklySummary: "/weekly-summary" as Href,
@@ -35,8 +36,30 @@ export function sourcingListRoute(sourcingListId: string) {
 export function sourcingListImportRoute(sourcingListId: string) {
   return `/sourcing-list/${encodeURIComponent(sourcingListId)}/import` as Href;
 }
-export function listingRoute(id: string) {
-  return `/listing/${encodeURIComponent(id)}` as Href;
+
+export function sourcingListProductComparisonRoute(
+  sourcingListId: string,
+  sourcingListProductId: string,
+) {
+  return `/sourcing-list/${encodeURIComponent(sourcingListId)}/product/${encodeURIComponent(sourcingListProductId)}/compare` as Href;
+}
+
+export function sourcingListProductHistoryRoute(
+  sourcingListId: string,
+  sourcingListProductId: string,
+) {
+  return `/sourcing-list/${encodeURIComponent(sourcingListId)}/product/${encodeURIComponent(sourcingListProductId)}/history` as Href;
+}
+
+export function listingRoute(
+  id: string,
+  context?: { matchId?: string | null; watchlistId?: string | null },
+) {
+  const params = new URLSearchParams();
+  if (context?.matchId) params.set("matchId", context.matchId);
+  if (context?.watchlistId) params.set("watchlistId", context.watchlistId);
+  const query = params.toString();
+  return `/listing/${encodeURIComponent(id)}${query ? `?${query}` : ""}` as Href;
 }
 
 export function notificationsMatchRoute(matchId: string) {

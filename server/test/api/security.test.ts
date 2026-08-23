@@ -376,6 +376,10 @@ test("validates security configuration and route operation mapping", () => {
     /origin values without paths or wildcards/,
   );
   assert.equal(operationForRoute("GET", ["search"]), "search");
+  assert.equal(
+    operationForRoute("POST", ["workspaces", "workspace-id", "comparisons", "search"]),
+    "search",
+  );
   assert.equal(operationForRoute("POST", ["events"]), "event_capture");
   assert.equal(
     operationForRoute("POST", ["notifications", "push-token"]),

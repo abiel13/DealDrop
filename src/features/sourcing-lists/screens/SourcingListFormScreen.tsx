@@ -76,6 +76,16 @@ const productSchema = z
     minimumDesiredMarginPercent: optionalPercent,
     maxLandedUnitCost: optionalAmount,
     alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]),
+    alertEnabled: z.boolean(),
+    alertTargetPriceReached: z.boolean(),
+    alertNewCheaperSource: z.boolean(),
+    alertPriceDropped: z.boolean(),
+    alertQuantityAvailable: z.boolean(),
+    alertBackInStock: z.boolean(),
+    alertCooldownMinutes: z
+      .string()
+      .regex(/^\d+$/, "Enter cooldown in minutes.")
+      .refine((value) => Number(value) >= 15 && Number(value) <= 10080, "Use 15 to 10080 minutes."),
     preferredCondition: z.string(),
     marketplaceIds: z.array(z.string()).min(1, "Choose at least one marketplace."),
     notes: z.string(),
@@ -117,6 +127,13 @@ const emptyProduct: FormValues["products"][number] = {
   minimumDesiredMarginPercent: "",
   maxLandedUnitCost: "",
   alertCostBasis: "marketplace_price",
+  alertEnabled: true,
+  alertTargetPriceReached: true,
+  alertNewCheaperSource: true,
+  alertPriceDropped: true,
+  alertQuantityAvailable: true,
+  alertBackInStock: true,
+  alertCooldownMinutes: "1440",
   preferredCondition: "",
   marketplaceIds: [],
   notes: "",
@@ -223,6 +240,13 @@ export function SourcingListFormScreen() {
           maxLandedUnitCost,
           maxLandedUnitCostCurrency: maxLandedUnitCost === null ? null : currency,
           alertCostBasis: product.alertCostBasis,
+          alertEnabled: product.alertEnabled,
+          alertTargetPriceReached: product.alertTargetPriceReached,
+          alertNewCheaperSource: product.alertNewCheaperSource,
+          alertPriceDropped: product.alertPriceDropped,
+          alertQuantityAvailable: product.alertQuantityAvailable,
+          alertBackInStock: product.alertBackInStock,
+          alertCooldownMinutes: Number(product.alertCooldownMinutes),
           preferredCondition: optionalText(product.preferredCondition),
           marketplaceIds: product.marketplaceIds as MarketplaceSource[],
           notes: optionalText(product.notes),
@@ -493,6 +517,94 @@ export function SourcingListFormScreen() {
                 )}
               />
             </Card>
+            <Card padding="sm" className="gap-3 bg-surface-muted">
+              <AppText variant="label">Opportunity alerts</AppText>
+              <AppText variant="caption">
+                Alerts are based only on marketplace data DealDrop has observed. A cooldown helps
+                prevent repeated notifications while prices move around a threshold.
+              </AppText>
+              <Controller
+                control={control}
+                name={`products.${index}.alertEnabled`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle label="Enable sourcing alerts" value={value} onChange={onChange} />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertTargetPriceReached`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle
+                    label="Target price reached"
+                    value={value}
+                    onChange={onChange}
+                    disabled={!watchedProducts[index]?.alertEnabled}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertNewCheaperSource`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle
+                    label="New cheaper source found"
+                    value={value}
+                    onChange={onChange}
+                    disabled={!watchedProducts[index]?.alertEnabled}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertPriceDropped`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle
+                    label="Observed price dropped"
+                    value={value}
+                    onChange={onChange}
+                    disabled={!watchedProducts[index]?.alertEnabled}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertQuantityAvailable`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle
+                    label="Required quantity becomes available"
+                    value={value}
+                    onChange={onChange}
+                    disabled={!watchedProducts[index]?.alertEnabled}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertBackInStock`}
+                render={({ field: { onChange, value } }) => (
+                  <AlertToggle
+                    label="Previously unavailable product returns"
+                    value={value}
+                    onChange={onChange}
+                    disabled={!watchedProducts[index]?.alertEnabled}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name={`products.${index}.alertCooldownMinutes`}
+                render={({ field: { onBlur, onChange, value } }) => (
+                  <Input
+                    label="Alert cooldown (minutes)"
+                    keyboardType="number-pad"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.products?.[index]?.alertCooldownMinutes?.message}
+                  />
+                )}
+              />
+            </Card>
             <View className="flex-row gap-3">
               <Controller
                 control={control}
@@ -679,4 +791,33 @@ function formatMarketplaceName(source: string) {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function AlertToggle({
+  label,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value, disabled }}
+      className={`rounded-xl border px-3 py-3 ${
+        value && !disabled ? "border-primary bg-primary-soft" : "border-border bg-surface"
+      } ${disabled ? "opacity-50" : ""}`}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+    >
+      <AppText variant="bodySmall">
+        {value ? "On · " : "Off · "}
+        {label}
+      </AppText>
+    </Pressable>
+  );
 }

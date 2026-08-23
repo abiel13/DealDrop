@@ -2,10 +2,20 @@ import { randomUUID } from "node:crypto";
 
 import { deduplicateMarketplaceListings } from "../../listings/deduplication";
 import { MarketplaceError } from "../../marketplaces/shared/errors";
-import type { MarketplaceErrorCategory, MarketplaceSource } from "../../marketplaces/shared/types";
+import { buildMarketplaceComparison } from "../../marketplaces/comparison";
+import type {
+  MarketplaceErrorCategory,
+  MarketplaceProductIdentifier,
+  MarketplaceSource,
+} from "../../marketplaces/shared/types";
 import type { MarketplaceSearchCoordinatorResponse } from "../../marketplaces/search/types";
 import { ListingIngestionPipeline } from "../../database/listing-ingestion";
 import { isWatchlistMonitorable } from "../../database/listing-repository";
+import {
+  evaluateSourcingOpportunityAlerts,
+  toSourcingComparisonCriteria,
+  type SourcingMonitoringTarget,
+} from "../../sourcing/alerts";
 import type { MarketplaceWatchlist } from "../../types/backend";
 import type {
   MonitoringSearchGroup,
@@ -141,6 +151,8 @@ export async function runWatchlistMonitoringWorker(
     }
   }
 
+  await monitorSourcingTargets(dependencies, ingestion, summary);
+
   try {
     summary.notificationDelivery = await repository.processNotificationQueue();
     logger.info("Watchlist monitoring notification queue processed", {
@@ -189,6 +201,186 @@ export async function runWatchlistMonitoringWorker(
   });
 
   return summary;
+}
+
+async function monitorSourcingTargets(
+  dependencies: WatchlistMonitoringWorkerDependencies,
+  ingestion: ListingIngestionPipeline,
+  summary: WatchlistMonitoringRunSummary,
+) {
+  const { availableSources, logger, repository } = dependencies;
+  if (
+    !repository.getActiveSourcingTargets ||
+    !repository.getSourcingProductAlertStates ||
+    !repository.persistSourcingProductMonitoring
+  ) {
+    return;
+  }
+
+  let targets: SourcingMonitoringTarget[];
+  try {
+    targets = await repository.getActiveSourcingTargets(availableSources);
+  } catch (error) {
+    const failure = toFailure("notifications", "sourcing_targets", error, []);
+    summary.failures.push(failure);
+    logger.error("Sourcing target monitoring could not load targets", {
+      category: failure.category,
+      error: failure.message,
+    });
+    return;
+  }
+
+  for (const target of targets) {
+    try {
+      const response = await searchSourcingTargetWithRetry(target, dependencies);
+      if (response.partialFailures.length > 0) {
+        logger.warn("Sourcing target search completed with partial failures", {
+          productId: target.productId,
+          sources: response.partialFailures.map((failure) => failure.source),
+          workspaceId: target.workspaceId,
+        });
+      }
+
+      const ingestionResult = await ingestion.ingest(response.listings);
+      const listingIds = new Map(
+        ingestionResult.storedListings.map((listing) => [
+          `${listing.marketplace_id}:${listing.external_id}`,
+          listing.id,
+        ]),
+      );
+      const comparisons = buildMarketplaceComparison(
+        response.listings,
+        toSourcingComparisonCriteria(target),
+        { listingIds },
+      );
+      const offers = comparisons.comparisons.flatMap((comparison) => comparison.offers);
+      const previousStates = await repository.getSourcingProductAlertStates(
+        target.workspaceId,
+        target.productId,
+      );
+      const evaluation = evaluateSourcingOpportunityAlerts(
+        target,
+        offers,
+        previousStates,
+        new Date().toISOString(),
+      );
+      await repository.persistSourcingProductMonitoring(
+        target,
+        offers,
+        evaluation.stateUpdates,
+        evaluation.alerts,
+      );
+      logger.info("Sourcing target monitoring completed", {
+        alerts: evaluation.alerts.length,
+        offers: offers.length,
+        productId: target.productId,
+        workspaceId: target.workspaceId,
+      });
+    } catch (error) {
+      const source = target.marketplaceIds[0] ?? "ebay";
+      const failure = toFailure(
+        source,
+        error instanceof MonitoringSearchFailure ? error.category : "persistence",
+        error,
+        [target.productId],
+      );
+      summary.failures.push(failure);
+      logger.error("Sourcing target monitoring failed", {
+        category: failure.category,
+        error: failure.message,
+        productId: target.productId,
+        workspaceId: target.workspaceId,
+      });
+    }
+  }
+}
+
+async function searchSourcingTargetWithRetry(
+  target: SourcingMonitoringTarget,
+  dependencies: WatchlistMonitoringWorkerDependencies,
+): Promise<MarketplaceSearchCoordinatorResponse> {
+  const { config, coordinator, logger, sleep = defaultSleep } = dependencies;
+  let lastFailure: MonitoringSearchFailure | undefined;
+
+  for (let attempt = 1; attempt <= config.retryAttempts; attempt += 1) {
+    try {
+      const response = await coordinator.search({
+        searchQuery: buildSourcingSearchQuery(target),
+        filters: {},
+        sources: target.marketplaceIds,
+        productIdentifiers: buildSourcingProductIdentifiers(target),
+        pagination: { limit: config.searchLimit },
+      });
+      if (response.partialFailures.length === 0 || response.listings.length > 0) {
+        return response;
+      }
+
+      const partialFailure = response.partialFailures[0]!;
+      lastFailure = new MonitoringSearchFailure(
+        partialFailure.source,
+        partialFailure.category,
+        safeMonitoringFailureMessage(partialFailure.source, partialFailure.category),
+      );
+    } catch (error) {
+      lastFailure = new MonitoringSearchFailure(
+        target.marketplaceIds[0] ?? "ebay",
+        error instanceof MarketplaceError ? error.category : "unavailable",
+        safeMonitoringFailureMessage(
+          target.marketplaceIds[0] ?? "ebay",
+          error instanceof MarketplaceError ? error.category : "unavailable",
+        ),
+      );
+    }
+
+    if (
+      !lastFailure ||
+      !RETRYABLE_CATEGORIES.has(lastFailure.category as MarketplaceErrorCategory)
+    ) {
+      throw (
+        lastFailure ??
+        new MonitoringSearchFailure(
+          target.marketplaceIds[0] ?? "ebay",
+          "unavailable",
+          "Search failed.",
+        )
+      );
+    }
+
+    if (attempt >= config.retryAttempts) {
+      throw lastFailure;
+    }
+
+    const delayMs = config.retryBaseDelayMs * 2 ** (attempt - 1);
+    logger.warn("Retrying sourcing target search", {
+      attempt,
+      delayMs,
+      error: lastFailure.message,
+      productId: target.productId,
+      workspaceId: target.workspaceId,
+    });
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  throw (
+    lastFailure ??
+    new MonitoringSearchFailure(target.marketplaceIds[0] ?? "ebay", "unavailable", "Search failed.")
+  );
+}
+
+function buildSourcingSearchQuery(target: SourcingMonitoringTarget) {
+  return [target.productName, ...target.keywords].filter(Boolean).join(" ").slice(0, 200);
+}
+
+function buildSourcingProductIdentifiers(
+  target: SourcingMonitoringTarget,
+): MarketplaceProductIdentifier[] {
+  const identifiers: MarketplaceProductIdentifier[] = [];
+  if (target.upc) identifiers.push({ type: "upc", value: target.upc });
+  if (target.gtin) identifiers.push({ type: "ean", value: target.gtin });
+  if (target.mpn) identifiers.push({ type: "part_number", value: target.mpn });
+  return identifiers;
 }
 
 export function groupWatchlists(watchlists: MarketplaceWatchlist[]): MonitoringSearchGroup[] {

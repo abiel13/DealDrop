@@ -188,6 +188,13 @@ const sourcingListProductShape = {
   maxLandedUnitCost: sourcingMoneySchema,
   maxLandedUnitCostCurrency: sourcingCurrencySchema,
   alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]).optional(),
+  alertEnabled: z.boolean().optional(),
+  alertTargetPriceReached: z.boolean().optional(),
+  alertNewCheaperSource: z.boolean().optional(),
+  alertPriceDropped: z.boolean().optional(),
+  alertQuantityAvailable: z.boolean().optional(),
+  alertBackInStock: z.boolean().optional(),
+  alertCooldownMinutes: z.number().int().min(15).max(10_080).optional(),
   preferredCondition: z.string().trim().max(80).nullable().optional(),
   marketplaceIds: sourcingListMarketplaceIdsSchema,
   notes: z.string().trim().max(2_000).nullable().optional(),
@@ -196,6 +203,10 @@ const sourcingListProductShape = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .refine((date) => !Number.isNaN(Date.parse(`${date}T00:00:00.000Z`)), "requiredBy is invalid")
     .nullable()
+    .optional(),
+  assignedTo: z.string().uuid().nullable().optional(),
+  workflowStatus: z
+    .enum(["searching", "shortlisted", "ready_to_buy", "ordered", "skipped", "completed"])
     .optional(),
 };
 
@@ -231,6 +242,25 @@ export const updateSourcingListProductSchema = z
   .refine(
     (value) => Object.keys(value).length > 0,
     "At least one sourcing list product field is required.",
+  );
+
+export const inviteWorkspaceMemberSchema = z
+  .object({
+    email: z.string().trim().email().max(320),
+    role: z.enum(["buyer", "viewer"]).default("buyer"),
+  })
+  .strict();
+
+export const createSourcingNoteSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid().nullable().optional(),
+    comparisonShortlistId: z.string().uuid().nullable().optional(),
+    body: z.string().trim().min(1).max(2_000),
+  })
+  .strict()
+  .refine(
+    (value) => Boolean(value.sourcingListProductId || value.comparisonShortlistId),
+    "A sourcing product or shortlisted offer is required.",
   );
 
 export const importSourcingListProductsSchema = z
@@ -419,6 +449,112 @@ export const searchBodySchema = z
   .refine(
     (input) => input.searchQuery.length > 0 || (input.productIdentifiers?.length ?? 0) > 0,
     "searchQuery or productIdentifiers is required",
+  );
+
+const comparisonOfferSchema = z
+  .object({
+    source: z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]),
+    externalId: z.string().trim().min(1).max(300),
+    offerId: z.string().trim().min(1).max(400),
+    listingId: z.string().uuid().nullable(),
+    title: z.string().trim().min(1).max(300),
+    sellerName: z.string().trim().max(200).nullable(),
+    sellerId: z.string().trim().max(300).nullable().optional(),
+    price: finiteNumber.nonnegative().nullable(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    imageUrl: z.string().url().nullable(),
+    url: z.string().url(),
+    availableQuantity: z.number().int().nonnegative().nullable(),
+    shippingCost: finiteNumber.nonnegative().nullable(),
+    shippingCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    landedUnitCost: finiteNumber.nonnegative().nullable(),
+    landedUnitCostCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    condition: z.string().trim().max(100).nullable(),
+    deliveryInformation: z.string().trim().max(500).nullable(),
+    availability: z.string().trim().max(200).nullable(),
+    qualification: z.enum(["qualifies", "does_not_qualify", "unknown"]),
+    qualificationReasons: z.array(z.string().trim().min(1).max(200)).max(10),
+    isShortlisted: z.boolean(),
+    savedSupplier: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200),
+        status: z.enum(["preferred", "avoid", "unreviewed"]),
+      })
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+export const comparisonSearchSchema = z
+  .object({
+    sourcingListId: z.string().uuid(),
+    sourcingListProductId: z.string().uuid(),
+  })
+  .strict();
+
+export const comparisonShortlistSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    offer: comparisonOfferSchema,
+    supplierId: z.string().uuid().nullable().optional(),
+  })
+  .strict();
+
+export const createSupplierSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    marketplace: z.enum(
+      Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+    ),
+    marketplaceSellerId: z.string().trim().max(300).nullable().optional(),
+    supplierUrl: z.string().url().nullable().optional(),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+    status: z.enum(["preferred", "avoid", "unreviewed"]).optional(),
+    internalContactInfo: z.string().trim().max(1000).nullable().optional(),
+    typicalLeadTimeDays: z.number().int().nonnegative().max(3650).nullable().optional(),
+    minimumOrderQuantity: z.number().int().nonnegative().max(1_000_000_000).nullable().optional(),
+  })
+  .strict();
+
+export const updateSupplierSchema = createSupplierSchema.partial();
+
+export const comparisonManualGroupSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    members: z
+      .array(
+        z
+          .object({
+            source: z.enum(
+              Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+            ),
+            externalId: z.string().trim().min(1).max(300),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(20),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      new Set(input.members.map((member) => `${member.source}:${member.externalId}`)).size ===
+      input.members.length,
+    "Comparison group members must be unique.",
   );
 
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {

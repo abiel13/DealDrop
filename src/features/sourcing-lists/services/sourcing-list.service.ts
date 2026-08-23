@@ -1,4 +1,5 @@
 import { apiClient } from "@/services/api";
+import type { ApiSourcingActivity, ApiSourcingNote, ApiSourcingPriceHistory } from "@/services/api";
 
 import type {
   SourcingList,
@@ -63,6 +64,71 @@ export async function addSourcingListProduct(
   input: SourcingListProductInput,
 ): Promise<SourcingList> {
   const response = await apiClient.addSourcingListProduct(workspaceId, sourcingListId, input);
+  return response.data;
+}
+
+export async function updateSourcingListProduct(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  input: Partial<SourcingListProductInput>,
+): Promise<SourcingList> {
+  const response = await apiClient.updateSourcingListProduct(
+    workspaceId,
+    sourcingListId,
+    productId,
+    input,
+  );
+  return response.data;
+}
+
+export async function getSourcingProductPriceHistory(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+): Promise<ApiSourcingPriceHistory> {
+  const response = await apiClient.getSourcingProductPriceHistory(
+    workspaceId,
+    sourcingListId,
+    productId,
+  );
+  return response.data;
+}
+
+export async function getSourcingActivity(
+  workspaceId: string,
+  sourcingListId: string,
+): Promise<ApiSourcingActivity[]> {
+  const response = await apiClient.getSourcingActivity(workspaceId, sourcingListId);
+  return response.data;
+}
+
+export async function getSourcingNotes(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  shortlistId?: string,
+): Promise<ApiSourcingNote[]> {
+  const response = await apiClient.getSourcingNotes(
+    workspaceId,
+    sourcingListId,
+    productId,
+    shortlistId,
+  );
+  return response.data;
+}
+
+export async function createSourcingNote(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  body: string,
+  comparisonShortlistId?: string,
+): Promise<ApiSourcingNote> {
+  const response = await apiClient.createSourcingNote(workspaceId, sourcingListId, productId, {
+    body,
+    comparisonShortlistId,
+  });
   return response.data;
 }
 

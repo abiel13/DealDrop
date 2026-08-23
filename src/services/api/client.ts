@@ -6,6 +6,16 @@ import type {
   ApiListing,
   ApiListingProblemReportInput,
   ApiListingProblemReportResponse,
+  ApiComparisonManualGroupInput,
+  ApiComparisonManualGroup,
+  ApiComparisonResult,
+  ApiComparisonShortlistInput,
+  ApiComparisonShortlist,
+  ApiSupplier,
+  ApiSupplierFilters,
+  ApiSupplierInput,
+  ApiSupplierShortlistHistory,
+  ApiSupplierUpdateInput,
   ApiListingQuery,
   ApiMatchQuery,
   ApiMarketplace,
@@ -22,12 +32,17 @@ import type {
   ApiSourcingListImportResult,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
+  ApiSourcingPriceHistory,
   ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
   ApiWeeklySummary,
   ApiWorkspace,
+  ApiWorkspaceMember,
+  ApiWorkspaceRole,
   ApiWorkspaceInput,
+  ApiSourcingActivity,
+  ApiSourcingNote,
 } from "./types";
 
 type AccessTokenProvider = () => Promise<string | null>;
@@ -117,6 +132,22 @@ export class DealDropApiClient {
     });
   }
 
+  async getWorkspaceMembers(workspaceId: string) {
+    return this.request<ApiWorkspaceMember[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members`,
+    );
+  }
+
+  async inviteWorkspaceMember(
+    workspaceId: string,
+    input: { email: string; role: Exclude<ApiWorkspaceRole, "owner"> },
+  ) {
+    return this.request<ApiWorkspaceMember>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/invite`,
+      { method: "POST", body: input },
+    );
+  }
+
   async getSourcingLists(
     workspaceId: string,
     options: { cursor?: string | null; limit?: number } = {},
@@ -132,6 +163,119 @@ export class DealDropApiClient {
   async getSourcingList(workspaceId: string, sourcingListId: string) {
     return this.request<ApiSourcingList>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async getSourcingActivity(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingActivity[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/activity`,
+    );
+  }
+
+  async getSourcingNotes(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    shortlistId?: string,
+  ) {
+    const query = shortlistId ? `?shortlistId=${encodeURIComponent(shortlistId)}` : "";
+    return this.request<ApiSourcingNote[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/notes${query}`,
+    );
+  }
+
+  async createSourcingNote(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: { body: string; comparisonShortlistId?: string | null },
+  ) {
+    return this.request<ApiSourcingNote>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/notes`,
+      {
+        method: "POST",
+        body: { sourcingListProductId: productId, ...input },
+      },
+    );
+  }
+
+  async compareSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ) {
+    return this.request<ApiComparisonResult>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/search`,
+      {
+        method: "POST",
+        body: { sourcingListId, sourcingListProductId },
+      },
+    );
+  }
+
+  async shortlistComparisonOffer(workspaceId: string, input: ApiComparisonShortlistInput) {
+    return this.request<ApiComparisonShortlist>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async removeComparisonShortlist(workspaceId: string, shortlistId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists/${encodeURIComponent(shortlistId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async createComparisonManualGroup(workspaceId: string, input: ApiComparisonManualGroupInput) {
+    return this.request<ApiComparisonManualGroup>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async deleteComparisonManualGroup(workspaceId: string, groupId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups/${encodeURIComponent(groupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async getSuppliers(workspaceId: string, filters: ApiSupplierFilters = {}) {
+    const params = new URLSearchParams();
+    if (filters.query) params.set("query", filters.query);
+    if (filters.marketplace) params.set("marketplace", filters.marketplace);
+    if (filters.status) params.set("status", filters.status);
+    const query = params.toString();
+    return this.request<ApiSupplier[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers${query ? `?${query}` : ""}`,
+    );
+  }
+
+  async createSupplier(workspaceId: string, input: ApiSupplierInput) {
+    return this.request<ApiSupplier>(`/workspaces/${encodeURIComponent(workspaceId)}/suppliers`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async updateSupplier(workspaceId: string, supplierId: string, input: ApiSupplierUpdateInput) {
+    return this.request<ApiSupplier>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async deleteSupplier(workspaceId: string, supplierId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async getSupplierShortlistHistory(workspaceId: string, supplierId: string) {
+    return this.request<ApiSupplierShortlistHistory[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}/history`,
     );
   }
 
@@ -198,6 +342,16 @@ export class DealDropApiClient {
     return this.request<{ deleted: boolean }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async getSourcingProductPriceHistory(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ) {
+    return this.request<ApiSourcingPriceHistory>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/history`,
     );
   }
 

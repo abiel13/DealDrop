@@ -5,6 +5,7 @@ import { getMarketplaceCatalog, type MarketplaceAdapterRegistry } from "../marke
 import { MarketplaceError } from "../marketplaces/shared/errors";
 import { MarketplaceSearchCoordinatorError } from "../marketplaces/search/errors";
 import type { WorkerLogger } from "../types/backend";
+import type { ApiSupplierFilters } from "./types";
 import type { RequestAuthenticator } from "./auth";
 import {
   ApiConcurrencyError,
@@ -47,6 +48,13 @@ import {
   notificationPreferencesSchema,
   pushTokenSchema,
   searchBodySchema,
+  comparisonSearchSchema,
+  comparisonShortlistSchema,
+  comparisonManualGroupSchema,
+  createSupplierSchema,
+  updateSupplierSchema,
+  inviteWorkspaceMemberSchema,
+  createSourcingNoteSchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
@@ -322,6 +330,15 @@ async function routeProtectedRequest(
     }
     assertResourceId(sourcingListId);
 
+    if (segments.length === 5 && segments[4] === "activity" && method === "GET") {
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSourcingActivity(userId, workspaceId, sourcingListId),
+      );
+      return;
+    }
+
     if (segments.length === 4 && method === "GET") {
       sendSuccess(
         response,
@@ -385,6 +402,58 @@ async function routeProtectedRequest(
     }
 
     const productId = segments[5];
+    if (
+      segments.length === 7 &&
+      segments[4] === "products" &&
+      productId &&
+      segments[6] === "history" &&
+      method === "GET"
+    ) {
+      assertResourceId(productId);
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSourcingProductPriceHistory(userId, workspaceId, sourcingListId, productId),
+      );
+      return;
+    }
+
+    if (
+      segments.length === 7 &&
+      segments[4] === "products" &&
+      productId &&
+      segments[6] === "notes"
+    ) {
+      assertResourceId(productId);
+      if (method === "GET") {
+        sendSuccess(
+          response,
+          requestId,
+          await api.getSourcingNotes(
+            userId,
+            workspaceId,
+            productId,
+            url.searchParams.get("shortlistId") ?? undefined,
+          ),
+        );
+        return;
+      }
+      if (method === "POST") {
+        const input = parseBody(
+          createSourcingNoteSchema,
+          await readJsonBody(request, maxBodyBytes),
+        );
+        sendSuccess(
+          response,
+          requestId,
+          await api.createSourcingNote(userId, workspaceId, input),
+          undefined,
+          201,
+        );
+        return;
+      }
+    }
+
     if (segments.length === 6 && segments[4] === "products" && productId) {
       assertResourceId(productId);
       if (method === "PATCH") {
@@ -411,6 +480,147 @@ async function routeProtectedRequest(
         sendSuccess(response, requestId, { deleted: true });
         return;
       }
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && action === "members") {
+    assertResourceId(resourceId);
+    if (segments.length === 3 && method === "GET") {
+      sendSuccess(response, requestId, await api.getWorkspaceMembers(userId, resourceId));
+      return;
+    }
+    if (segments.length === 4 && segments[3] === "invite" && method === "POST") {
+      const input = parseBody(
+        inviteWorkspaceMemberSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.inviteWorkspaceMember(userId, resourceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && action === "comparisons") {
+    assertResourceId(resourceId);
+    const workspaceId = resourceId;
+    const comparisonResource = segments[3];
+
+    if (comparisonResource === "search" && segments.length === 4 && method === "POST") {
+      const input = parseBody(comparisonSearchSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.compareSourcingListProduct(
+          userId,
+          workspaceId,
+          input.sourcingListId,
+          input.sourcingListProductId,
+        ),
+      );
+      return;
+    }
+
+    if (comparisonResource === "shortlists" && segments.length === 4 && method === "POST") {
+      const input = parseBody(comparisonShortlistSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.shortlistComparisonOffer(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (comparisonResource === "shortlists" && segments.length === 5 && method === "DELETE") {
+      assertResourceId(segments[4]!);
+      await api.deleteComparisonShortlist(userId, workspaceId, segments[4]!);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
+    }
+
+    if (comparisonResource === "groups" && segments.length === 4 && method === "POST") {
+      const input = parseBody(
+        comparisonManualGroupSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.createComparisonManualGroup(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (comparisonResource === "groups" && segments.length === 5 && method === "DELETE") {
+      assertResourceId(segments[4]!);
+      await api.deleteComparisonManualGroup(userId, workspaceId, segments[4]!);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
+    }
+  }
+
+  if (resource === "workspaces" && resourceId && action === "suppliers") {
+    assertResourceId(resourceId);
+    const workspaceId = resourceId;
+    const supplierId = segments[3];
+
+    if (!supplierId && method === "GET") {
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSuppliers(userId, workspaceId, parseSupplierFilters(url)),
+      );
+      return;
+    }
+
+    if (!supplierId && method === "POST") {
+      const input = parseBody(createSupplierSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.createSupplier(userId, workspaceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (!supplierId) {
+      throw new ApiNotFoundError("The supplier endpoint was not found.");
+    }
+    assertResourceId(supplierId);
+
+    if (segments.length === 5 && segments[4] === "history" && method === "GET") {
+      sendSuccess(
+        response,
+        requestId,
+        await api.getSupplierShortlistHistory(userId, workspaceId, supplierId),
+      );
+      return;
+    }
+
+    if (segments.length === 4 && method === "PATCH") {
+      const input = parseBody(updateSupplierSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.updateSupplier(userId, workspaceId, supplierId, input),
+      );
+      return;
+    }
+
+    if (segments.length === 4 && method === "DELETE") {
+      await api.deleteSupplier(userId, workspaceId, supplierId);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
     }
   }
 
@@ -639,6 +849,31 @@ function parseMatchQuery(url: URL) {
 
   return {
     ...(status ? { status: "dismissed" as const } : {}),
+  };
+}
+
+function parseSupplierFilters(url: URL): ApiSupplierFilters {
+  const query = url.searchParams.get("query")?.trim() || undefined;
+  if (query && query.length > 120) {
+    throw new ApiValidationError("Supplier search must be 120 characters or fewer.");
+  }
+
+  const marketplace = url.searchParams.get("marketplace")?.trim() || undefined;
+  if (marketplace && !["amazon_business", "ebay", "etsy", "rakuten"].includes(marketplace)) {
+    throw new ApiValidationError("The supplier marketplace is invalid.");
+  }
+
+  const status = url.searchParams.get("status")?.trim() || undefined;
+  if (status && !["preferred", "avoid", "unreviewed"].includes(status)) {
+    throw new ApiValidationError("The supplier status is invalid.");
+  }
+
+  return {
+    ...(query ? { query } : {}),
+    ...(marketplace
+      ? { marketplace: marketplace as NonNullable<ApiSupplierFilters["marketplace"]> }
+      : {}),
+    ...(status ? { status: status as NonNullable<ApiSupplierFilters["status"]> } : {}),
   };
 }
 
