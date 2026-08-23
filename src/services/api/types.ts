@@ -1,4 +1,4 @@
-export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
+export type MarketplaceSource = "amazon_business" | "ebay" | "etsy" | "rakuten";
 
 export type ApiListingProblemReportCategory =
   "broken_link" | "wrong_price" | "stale_listing" | "incorrect_match" | "missing_image" | "other";
@@ -55,6 +55,10 @@ export interface ApiMarketplaceCapabilities {
   supportsRadius: boolean;
   supportsCondition: boolean;
   supportsPagination: boolean;
+  supportsProductIdentifiers?: boolean;
+  supportsOffers?: boolean;
+  supportsMerchantFilters?: boolean;
+  supportsDeliveryInformation?: boolean;
 }
 
 export interface ApiMarketplace {
@@ -189,10 +193,19 @@ export interface ApiSearchRequest {
   searchQuery: string;
   sources?: MarketplaceSource[] | "all";
   filters?: ApiSearchFilters;
+  productIdentifiers?: ApiProductIdentifier[];
   pagination?: {
     cursor?: string | null;
     limit?: number;
   };
+}
+
+export type ApiProductIdentifierType =
+  "asin" | "upc" | "ean" | "isbn" | "sku" | "part_number" | "oem_part_number";
+
+export interface ApiProductIdentifier {
+  type: ApiProductIdentifierType;
+  value: string;
 }
 
 export interface ApiSearchPartialFailure {

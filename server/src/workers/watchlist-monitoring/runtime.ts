@@ -1,3 +1,5 @@
+import { createAmazonBusinessMarketplaceAdapter } from "../../marketplaces/amazon-business/adapter";
+import { loadAmazonBusinessMarketplaceConfig } from "../../marketplaces/amazon-business/config";
 import { createEbayMarketplaceAdapter } from "../../marketplaces/ebay/adapter";
 import { loadEbayMarketplaceConfig } from "../../marketplaces/ebay/config";
 import { createEtsyMarketplaceAdapter } from "../../marketplaces/etsy/adapter";
@@ -32,6 +34,28 @@ export async function createWatchlistMonitoringRuntime(
   options: WatchlistMonitoringRuntimeOptions = {},
 ): Promise<WatchlistMonitoringRuntime> {
   const adapters: Record<string, MarketplaceAdapter | undefined> = {};
+
+  if (config.enabledSources.includes(MARKETPLACE_IDS.amazonBusiness)) {
+    try {
+      const amazonBusinessConfig = loadAmazonBusinessMarketplaceConfig(env);
+      if (amazonBusinessConfig.enabled) {
+        adapters[MARKETPLACE_IDS.amazonBusiness] = createAmazonBusinessMarketplaceAdapter(
+          amazonBusinessConfig,
+          logger,
+        );
+      } else {
+        logger.info("Amazon Business monitoring adapter disabled", {
+          reason: "not_enabled",
+          source: MARKETPLACE_IDS.amazonBusiness,
+        });
+      }
+    } catch (error) {
+      logger.warn("Amazon Business monitoring adapter disabled", {
+        errorType: error instanceof Error ? error.name : typeof error,
+        source: MARKETPLACE_IDS.amazonBusiness,
+      });
+    }
+  }
 
   if (config.enabledSources.includes(MARKETPLACE_IDS.ebay)) {
     try {

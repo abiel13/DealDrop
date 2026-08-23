@@ -1,6 +1,7 @@
 import type { WatchlistFilters } from "../../types/backend";
 
 export const MARKETPLACE_IDS = {
+  amazonBusiness: "amazon_business",
   ebay: "ebay",
   etsy: "etsy",
   rakuten: "rakuten",
@@ -74,7 +75,16 @@ export interface MarketplaceListing {
 export interface MarketplaceSearchRequest {
   searchQuery: string;
   filters: WatchlistFilters;
+  productIdentifiers?: MarketplaceProductIdentifier[];
   pagination?: MarketplacePaginationRequest;
+}
+
+export type MarketplaceProductIdentifierType =
+  "asin" | "upc" | "ean" | "isbn" | "sku" | "part_number" | "oem_part_number";
+
+export interface MarketplaceProductIdentifier {
+  type: MarketplaceProductIdentifierType;
+  value: string;
 }
 
 export interface MarketplacePaginationRequest {
@@ -98,6 +108,10 @@ export interface MarketplaceCapabilities {
   supportsRadius: boolean;
   supportsCondition: boolean;
   supportsPagination: boolean;
+  supportsProductIdentifiers?: boolean;
+  supportsOffers?: boolean;
+  supportsMerchantFilters?: boolean;
+  supportsDeliveryInformation?: boolean;
 }
 
 export type MarketplaceErrorCategory =

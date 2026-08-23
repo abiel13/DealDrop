@@ -6,6 +6,7 @@ import {
   DEALDROP_PRODUCT_CATEGORIES,
   MARKETPLACE_IDS,
   type DealDropProductCategory,
+  type MarketplaceProductIdentifierType,
   type MarketplaceSource,
 } from "../marketplaces/shared/types";
 import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
@@ -273,9 +274,28 @@ export { productEventSchema };
 
 export const searchBodySchema = z
   .object({
-    searchQuery: z.string().trim().min(1).max(200),
+    searchQuery: z.string().trim().max(200).default(""),
     sources: marketplaceSourceSelectionSchema.optional(),
     filters: watchlistFiltersSchema.default({}),
+    productIdentifiers: z
+      .array(
+        z
+          .object({
+            type: z.enum([
+              "asin",
+              "upc",
+              "ean",
+              "isbn",
+              "sku",
+              "part_number",
+              "oem_part_number",
+            ] as [MarketplaceProductIdentifierType, ...MarketplaceProductIdentifierType[]]),
+            value: z.string().trim().min(1).max(120),
+          })
+          .strict(),
+      )
+      .max(1)
+      .optional(),
     pagination: z
       .object({
         cursor: z.string().trim().min(1).max(4096).nullable().optional(),
@@ -284,7 +304,11 @@ export const searchBodySchema = z
       .strict()
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) => input.searchQuery.length > 0 || (input.productIdentifiers?.length ?? 0) > 0,
+    "searchQuery or productIdentifiers is required",
+  );
 
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
@@ -301,6 +325,11 @@ export function parseSearchQuery(url: URL) {
   const values = Object.fromEntries(url.searchParams.entries());
   const conditions = url.searchParams.getAll("condition");
   const sourcesValue = url.searchParams.get("sources");
+  const identifierType = url.searchParams.get("identifierType");
+  const identifier = url.searchParams.get("identifier");
+  if ((identifierType && !identifier) || (!identifierType && identifier)) {
+    throw new ApiValidationError("identifierType and identifier must be provided together.");
+  }
   const raw: Record<string, unknown> = {
     searchQuery: url.searchParams.get("searchQuery") ?? url.searchParams.get("q") ?? undefined,
     sources: sourcesValue
@@ -311,6 +340,8 @@ export function parseSearchQuery(url: URL) {
             .map((source) => source.trim())
             .filter(Boolean)
       : undefined,
+    productIdentifiers:
+      identifierType && identifier ? [{ type: identifierType, value: identifier }] : undefined,
     filters: {
       price: {
         min: optionalNumber(url.searchParams.get("minPrice")),
@@ -349,6 +380,8 @@ const SEARCH_QUERY_KEYS = new Set([
   "searchQuery",
   "q",
   "sources",
+  "identifierType",
+  "identifier",
   "minPrice",
   "maxPrice",
   "currency",
