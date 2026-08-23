@@ -37,3 +37,7 @@ export interface MarketplaceSearchCoordinatorOptions {
   defaultTimeoutMs?: number;
   sourceTimeoutMs?: Partial<Record<MarketplaceSource, number>>;
 }
+
+export interface MarketplaceSearchCoordinatorSearchOptions {
+  preserveAlternatives?: boolean;
+}

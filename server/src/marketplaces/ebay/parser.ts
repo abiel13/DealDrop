@@ -63,6 +63,12 @@ function parseEbayItem(value: unknown): ParsedEbayListing {
     postedAt: text(item.itemCreationDate) || text(item.itemOriginDate),
     metadata: {
       ...(text(item.conditionId) ? { conditionId: text(item.conditionId) } : {}),
+      ...(text(item.upc) ? { upc: text(item.upc) } : {}),
+      ...(text(item.ean) ? { ean: text(item.ean) } : {}),
+      ...(text(item.gtin) ? { gtin: text(item.gtin) } : {}),
+      ...(text(item.mpn) ? { mpn: text(item.mpn) } : {}),
+      ...(text(item.brand) ? { brand: text(item.brand) } : {}),
+      ...(text(item.model) ? { model: text(item.model) } : {}),
       ...(Array.isArray(item.buyingOptions)
         ? {
             buyingOptions: item.buyingOptions.filter(

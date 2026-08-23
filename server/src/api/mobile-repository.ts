@@ -7,13 +7,25 @@ import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shar
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
 import type { WatchlistFilters } from "../types/backend";
 import type {
+  ApiComparisonManualGroupInput,
+  ApiComparisonShortlistInput,
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiSourcingListImportInput,
+  ApiSourcingListInput,
+  ApiSourcingListProductInput,
+  ApiSourcingListProductUpdateInput,
+  ApiSourcingListUpdateInput,
+  ApiWorkspaceInput,
   ListingProblemReportInput,
   ApiWeeklySummary,
+  RawApiWorkspace,
   RawApiListing,
   RawApiMatch,
   RawApiNotification,
+  RawApiSourcingList,
+  RawApiComparisonManualGroup,
+  RawApiComparisonShortlist,
   RawApiWatchlist,
   StoredListingReference,
 } from "./types";
@@ -24,6 +36,15 @@ const LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const MATCH_LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
+const WORKSPACE_COLUMNS =
+  "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
+const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
+const SOURCING_LIST_PRODUCT_COLUMNS =
+  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
+const COMPARISON_SHORTLIST_COLUMNS =
+  "id,workspace_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,created_by,created_at";
+const COMPARISON_GROUP_COLUMNS =
+  "id,workspace_id,sourcing_list_product_id,member_refs,created_by,created_at,updated_at";
 
 export interface Page<T> {
   items: T[];
@@ -39,6 +60,8 @@ export interface StoredMatch extends RawApiMatch {
 export interface MatchQueryOptions {
   status?: "dismissed";
 }
+
+export interface StoredWorkspace extends RawApiWorkspace {}
 
 export interface StoredListingAccess {
   listing: RawApiListing;
@@ -63,6 +86,20 @@ interface StoredPriceObservation {
   observed_at: string;
 }
 
+interface SourcingListImportRpcRow {
+  imported_count: number;
+  duplicate_import: boolean;
+}
+
+function isSourcingListImportRpcRow(value: unknown): value is SourcingListImportRpcRow {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const row = value as Record<string, unknown>;
+  return typeof row.imported_count === "number" && typeof row.duplicate_import === "boolean";
+}
+
 interface WeeklyMatchRow {
   id: string;
   watchlist_id: string;
@@ -81,6 +118,9 @@ interface WeeklyWatchlistRow {
 }
 
 export interface MobileApiRepositoryContract {
+  getWorkspaces(userId: string): Promise<StoredWorkspace[]>;
+  getWorkspace(userId: string, workspaceId: string): Promise<StoredWorkspace | null>;
+  createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<StoredWorkspace>;
   persistListings(listings: MarketplaceListing[]): Promise<StoredListingReference[]>;
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
@@ -166,6 +206,91 @@ export interface MobileApiRepositoryContract {
     input: { expoPushToken: string; platform: "ios" | "android" | "web" },
   ): Promise<void>;
   getWeeklySummary(userId: string): Promise<ApiWeeklySummary>;
+  getSourcingLists?(
+    userId: string,
+    workspaceId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<RawApiSourcingList>>;
+  getSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<RawApiSourcingList | null>;
+  createSourcingList?(
+    userId: string,
+    workspaceId: string,
+    input: ApiSourcingListInput,
+  ): Promise<RawApiSourcingList | null>;
+  updateSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ): Promise<RawApiSourcingList | null>;
+  duplicateSourcingList?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    name?: string,
+  ): Promise<RawApiSourcingList | null>;
+  importSourcingListProducts?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ): Promise<{
+    list: RawApiSourcingList;
+    imported_count: number;
+    duplicate_import: boolean;
+  } | null>;
+  addSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ): Promise<RawApiSourcingList | null>;
+  updateSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: ApiSourcingListProductUpdateInput,
+  ): Promise<RawApiSourcingList | null>;
+  deleteSourcingListProduct?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ): Promise<boolean>;
+  getComparisonState?(
+    userId: string,
+    workspaceId: string,
+    sourcingListProductId: string,
+  ): Promise<{
+    shortlists: RawApiComparisonShortlist[];
+    manualGroups: RawApiComparisonManualGroup[];
+  } | null>;
+  upsertComparisonShortlist?(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonShortlistInput,
+  ): Promise<RawApiComparisonShortlist | null>;
+  deleteComparisonShortlist?(
+    userId: string,
+    workspaceId: string,
+    shortlistId: string,
+  ): Promise<boolean>;
+  createComparisonManualGroup?(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonManualGroupInput,
+  ): Promise<RawApiComparisonManualGroup | null>;
+  deleteComparisonManualGroup?(
+    userId: string,
+    workspaceId: string,
+    groupId: string,
+  ): Promise<boolean>;
 }
 
 export class MobileApiRepository implements MobileApiRepositoryContract {
@@ -173,6 +298,599 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
   constructor(private readonly client: SupabaseClient) {
     this.listingRepository = new ListingRepository(client);
+  }
+
+  async getWorkspaces(userId: string): Promise<StoredWorkspace[]> {
+    const { data: memberships, error: membershipError } = await this.client
+      .from("workspace_members")
+      .select("workspace_id,role")
+      .eq("user_id", userId)
+      .returns<Array<{ workspace_id: string; role: RawApiWorkspace["role"] }>>();
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+
+    const workspaceIds = memberships.map((membership) => membership.workspace_id);
+    const roles = new Map(
+      memberships.map((membership) => [membership.workspace_id, membership.role]),
+    );
+    const { data: workspaces, error: workspaceError } = await this.client
+      .from("workspaces")
+      .select(WORKSPACE_COLUMNS)
+      .in("id", workspaceIds)
+      .order("created_at", { ascending: false })
+      .returns<Omit<RawApiWorkspace, "role">[]>();
+
+    if (workspaceError) {
+      throw workspaceError;
+    }
+
+    return (workspaces ?? []).map((workspace) => ({
+      ...workspace,
+      role: roles.get(workspace.id) ?? "viewer",
+    }));
+  }
+
+  async getWorkspace(userId: string, workspaceId: string): Promise<StoredWorkspace | null> {
+    const { data: membership, error: membershipError } = await this.client
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", userId)
+      .maybeSingle<{ role: RawApiWorkspace["role"] }>();
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    if (!membership) {
+      return null;
+    }
+
+    const { data: workspace, error: workspaceError } = await this.client
+      .from("workspaces")
+      .select(WORKSPACE_COLUMNS)
+      .eq("id", workspaceId)
+      .maybeSingle<Omit<RawApiWorkspace, "role">>();
+
+    if (workspaceError) {
+      throw workspaceError;
+    }
+
+    return workspace ? { ...workspace, role: membership.role } : null;
+  }
+
+  async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<StoredWorkspace> {
+    const { data: workspace, error } = await this.client
+      .from("workspaces")
+      .insert({
+        owner_id: userId,
+        name: input.name,
+        business_type: input.businessType,
+        primary_sourcing_categories: input.primarySourcingCategories,
+        default_currency: input.defaultCurrency,
+        country_region: input.countryRegion,
+      })
+      .select(WORKSPACE_COLUMNS)
+      .single<Omit<RawApiWorkspace, "role">>();
+
+    if (error) {
+      throw error;
+    }
+
+    return { ...workspace, role: "owner" };
+  }
+
+  async getSourcingLists(
+    userId: string,
+    workspaceId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<Page<RawApiSourcingList>> {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return { items: [], nextCursor: null, hasMore: false };
+    }
+
+    let query = this.client
+      .from("sourcing_lists")
+      .select(SOURCING_LIST_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .limit(limit + 1);
+    if (cursor) {
+      query = query.lt("updated_at", cursor);
+    }
+
+    const { data, error } = await query.returns<Omit<RawApiSourcingList, "products">[]>();
+    if (error) {
+      throw error;
+    }
+
+    const page = toPage(data ?? [], limit, (item) => item.updated_at);
+    const items = await Promise.all(
+      page.items.map((list) => this.getSourcingListForWorkspace(workspaceId, list.id, list)),
+    );
+    return { ...page, items: items.filter((item): item is RawApiSourcingList => item !== null) };
+  }
+
+  async getSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<RawApiSourcingList | null> {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("sourcing_lists")
+      .select(SOURCING_LIST_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .eq("id", sourcingListId)
+      .maybeSingle<Omit<RawApiSourcingList, "products">>();
+    if (error) {
+      throw error;
+    }
+
+    return data ? this.getSourcingListForWorkspace(workspaceId, sourcingListId, data) : null;
+  }
+
+  async createSourcingList(
+    userId: string,
+    workspaceId: string,
+    input: ApiSourcingListInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const { data: list, error: listError } = await this.client
+      .from("sourcing_lists")
+      .insert({
+        workspace_id: workspaceId,
+        created_by: userId,
+        name: input.name,
+        status: input.status ?? "active",
+      })
+      .select(SOURCING_LIST_COLUMNS)
+      .single<Omit<RawApiSourcingList, "products">>();
+    if (listError) {
+      throw listError;
+    }
+
+    await this.insertSourcingListProducts(workspace.default_currency, list.id, input.products);
+    return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async updateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const { data: list, error } = await this.client
+      .from("sourcing_lists")
+      .update(input)
+      .eq("workspace_id", workspaceId)
+      .eq("id", sourcingListId)
+      .select(SOURCING_LIST_COLUMNS)
+      .maybeSingle<Omit<RawApiSourcingList, "products">>();
+    if (error) {
+      throw error;
+    }
+
+    return list ? this.getSourcingListForWorkspace(workspaceId, list.id, list) : null;
+  }
+
+  async duplicateSourcingList(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    name?: string,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const source = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!source) {
+      return null;
+    }
+
+    const { data: list, error: listError } = await this.client
+      .from("sourcing_lists")
+      .insert({
+        workspace_id: workspaceId,
+        created_by: userId,
+        name: name ?? `${source.name} copy`,
+        status: "active",
+      })
+      .select(SOURCING_LIST_COLUMNS)
+      .single<Omit<RawApiSourcingList, "products">>();
+    if (listError) {
+      throw listError;
+    }
+
+    await this.insertSourcingListProducts(
+      workspace.default_currency,
+      list.id,
+      source.products.map((product) => ({
+        category: product.category,
+        productName: product.product_name,
+        sku: product.sku,
+        upc: product.upc,
+        gtin: product.gtin,
+        mpn: product.mpn,
+        keywords: product.keywords,
+        targetQuantity: product.target_quantity,
+        sourcedQuantity: 0,
+        targetUnitCost: toNullableNumber(product.target_unit_cost),
+        targetUnitCostCurrency: product.target_unit_cost_currency,
+        maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
+        maxUnitCostCurrency: product.max_unit_cost_currency,
+        estimatedShippingCost: toNullableNumber(product.estimated_shipping_cost),
+        estimatedShippingCurrency: product.estimated_shipping_currency,
+        estimatedDutiesTaxes: toNullableNumber(product.estimated_duties_taxes),
+        estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+        otherSourcingCost: toNullableNumber(product.other_sourcing_cost),
+        otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+        desiredRetailPrice: toNullableNumber(product.desired_retail_price),
+        desiredRetailPriceCurrency: product.desired_retail_price_currency,
+        minimumDesiredMarginPercent: toNullableNumber(product.minimum_desired_margin_percent),
+        maxLandedUnitCost: toNullableNumber(product.max_landed_unit_cost),
+        maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+        alertCostBasis: product.alert_cost_basis,
+        preferredCondition: product.preferred_condition,
+        marketplaceIds:
+          product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
+        notes: product.notes,
+        requiredBy: product.required_by,
+      })),
+    );
+
+    return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async importSourcingListProducts(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .rpc("import_sourcing_list_products", {
+        target_user_id: userId,
+        target_sourcing_list_id: sourcingListId,
+        target_file_fingerprint: input.fileFingerprint,
+        target_products: input.products,
+      })
+      .returns<
+        Array<{
+          imported_count: number;
+          duplicate_import: boolean;
+        }>
+      >();
+    if (error) {
+      throw error;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const refreshedList = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!isSourcingListImportRpcRow(result) || !refreshedList) {
+      return null;
+    }
+
+    return {
+      list: refreshedList,
+      imported_count: Number(result.imported_count),
+      duplicate_import: result.duplicate_import,
+    };
+  }
+
+  async addSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) {
+      return null;
+    }
+
+    await this.insertSourcingListProducts(workspace.default_currency, sourcingListId, [input]);
+    return this.getSourcingList(userId, workspaceId, sourcingListId);
+  }
+
+  async updateSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: ApiSourcingListProductUpdateInput,
+  ): Promise<RawApiSourcingList | null> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    const existing = list?.products.find((product) => product.id === productId);
+    if (!list || !existing) {
+      return null;
+    }
+
+    const update = toSourcingProductRow(workspace.default_currency, input);
+    const { error } = await this.client
+      .from("sourcing_list_products")
+      .update(update)
+      .eq("id", productId)
+      .eq("sourcing_list_id", sourcingListId);
+    if (error) {
+      throw error;
+    }
+
+    if (input.marketplaceIds !== undefined) {
+      await this.replaceSourcingListProductMarketplaces(productId, input.marketplaceIds);
+    }
+    return this.getSourcingList(userId, workspaceId, sourcingListId);
+  }
+
+  async deleteSourcingListProduct(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ): Promise<boolean> {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return false;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list?.products.some((product) => product.id === productId)) {
+      return false;
+    }
+
+    const { error, count } = await this.client
+      .from("sourcing_list_products")
+      .delete({ count: "exact" })
+      .eq("id", productId)
+      .eq("sourcing_list_id", sourcingListId);
+    if (error) {
+      throw error;
+    }
+    return (count ?? 0) > 0;
+  }
+
+  async getComparisonState(userId: string, workspaceId: string, sourcingListProductId: string) {
+    if (!(await this.getWorkspace(userId, workspaceId))) {
+      return null;
+    }
+
+    const product = await this.getSourcingListProductWorkspace(workspaceId, sourcingListProductId);
+    if (!product) {
+      return null;
+    }
+
+    const [shortlistsResult, groupsResult] = await Promise.all([
+      this.client
+        .from("workspace_comparison_shortlists")
+        .select(COMPARISON_SHORTLIST_COLUMNS)
+        .eq("workspace_id", workspaceId)
+        .eq("sourcing_list_product_id", sourcingListProductId)
+        .order("created_at", { ascending: false })
+        .returns<RawApiComparisonShortlist[]>(),
+      this.client
+        .from("workspace_comparison_manual_groups")
+        .select(COMPARISON_GROUP_COLUMNS)
+        .eq("workspace_id", workspaceId)
+        .eq("sourcing_list_product_id", sourcingListProductId)
+        .order("updated_at", { ascending: false })
+        .returns<RawApiComparisonManualGroup[]>(),
+    ]);
+
+    if (shortlistsResult.error) throw shortlistsResult.error;
+    if (groupsResult.error) throw groupsResult.error;
+
+    return {
+      shortlists: shortlistsResult.data ?? [],
+      manualGroups: groupsResult.data ?? [],
+    };
+  }
+
+  async upsertComparisonShortlist(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonShortlistInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return null;
+
+    if (!(await this.getSourcingListProductWorkspace(workspaceId, input.sourcingListProductId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_shortlists")
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          sourcing_list_product_id: input.sourcingListProductId,
+          marketplace_id: input.offer.source,
+          external_id: input.offer.externalId,
+          listing_id: input.offer.listingId,
+          offer_snapshot: input.offer,
+          created_by: userId,
+        },
+        { onConflict: "workspace_id,sourcing_list_product_id,marketplace_id,external_id" },
+      )
+      .select(COMPARISON_SHORTLIST_COLUMNS)
+      .single<RawApiComparisonShortlist>();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteComparisonShortlist(userId: string, workspaceId: string, shortlistId: string) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return false;
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_shortlists")
+      .delete()
+      .eq("id", shortlistId)
+      .eq("workspace_id", workspaceId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  async createComparisonManualGroup(
+    userId: string,
+    workspaceId: string,
+    input: ApiComparisonManualGroupInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return null;
+
+    if (!(await this.getSourcingListProductWorkspace(workspaceId, input.sourcingListProductId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_manual_groups")
+      .insert({
+        workspace_id: workspaceId,
+        sourcing_list_product_id: input.sourcingListProductId,
+        member_refs: input.members,
+        created_by: userId,
+      })
+      .select(COMPARISON_GROUP_COLUMNS)
+      .single<RawApiComparisonManualGroup>();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteComparisonManualGroup(userId: string, workspaceId: string, groupId: string) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) return false;
+
+    const { data, error } = await this.client
+      .from("workspace_comparison_manual_groups")
+      .delete()
+      .eq("id", groupId)
+      .eq("workspace_id", workspaceId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  private async getSourcingListProductWorkspace(workspaceId: string, productId: string) {
+    const { data, error } = await this.client
+      .from("sourcing_list_products")
+      .select("id,sourcing_lists!inner(workspace_id)")
+      .eq("id", productId)
+      .eq("sourcing_lists.workspace_id", workspaceId)
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return data;
+  }
+
+  private async insertSourcingListProducts(
+    defaultCurrency: string,
+    sourcingListId: string,
+    products: ApiSourcingListProductInput[],
+  ) {
+    const rows = products.map((product, index) => ({
+      sourcing_list_id: sourcingListId,
+      ...toSourcingProductRow(defaultCurrency, product),
+      sort_order: index,
+    }));
+    const { data, error } = await this.client
+      .from("sourcing_list_products")
+      .insert(rows)
+      .select(SOURCING_LIST_PRODUCT_COLUMNS)
+      .returns<RawApiSourcingList["products"]>();
+    if (error) {
+      throw error;
+    }
+
+    for (const [index, product] of products.entries()) {
+      const inserted = data?.[index];
+      if (inserted) {
+        await this.replaceSourcingListProductMarketplaces(inserted.id, product.marketplaceIds);
+      }
+    }
+  }
+
+  private async replaceSourcingListProductMarketplaces(
+    productId: string,
+    marketplaceIds: string[],
+  ) {
+    const { error: deleteError } = await this.client
+      .from("sourcing_list_product_marketplaces")
+      .delete()
+      .eq("sourcing_list_product_id", productId);
+    if (deleteError) {
+      throw deleteError;
+    }
+    const { error: insertError } = await this.client
+      .from("sourcing_list_product_marketplaces")
+      .insert(
+        marketplaceIds.map((marketplaceId) => ({
+          sourcing_list_product_id: productId,
+          marketplace_id: marketplaceId,
+        })),
+      );
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  private async getSourcingListForWorkspace(
+    workspaceId: string,
+    sourcingListId: string,
+    list: Omit<RawApiSourcingList, "products">,
+  ): Promise<RawApiSourcingList | null> {
+    const { data: products, error } = await this.client
+      .from("sourcing_list_products")
+      .select(SOURCING_LIST_PRODUCT_COLUMNS)
+      .eq("sourcing_list_id", sourcingListId)
+      .order("sort_order", { ascending: true })
+      .returns<RawApiSourcingList["products"]>();
+    if (error) {
+      throw error;
+    }
+
+    return list.workspace_id === workspaceId ? { ...list, products: products ?? [] } : null;
   }
 
   persistListings(listings: MarketplaceListing[]) {
@@ -1004,6 +1722,89 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
     return new Map((data ?? []).map((item) => [item.match_id, item.feedback]));
   }
+}
+
+function isWorkspaceEditor(role: RawApiWorkspace["role"]) {
+  return role === "owner" || role === "buyer";
+}
+
+function toSourcingProductRow(
+  defaultCurrency: string,
+  input: ApiSourcingListProductInput | ApiSourcingListProductUpdateInput,
+) {
+  const row: Record<string, unknown> = {};
+  if (input.category !== undefined) row.category = input.category;
+  if (input.productName !== undefined) row.product_name = input.productName;
+  if (input.sku !== undefined) row.sku = input.sku;
+  if (input.upc !== undefined) row.upc = input.upc;
+  if (input.gtin !== undefined) row.gtin = input.gtin;
+  if (input.mpn !== undefined) row.mpn = input.mpn;
+  if (input.keywords !== undefined) row.keywords = input.keywords;
+  if (input.targetQuantity !== undefined) row.target_quantity = input.targetQuantity;
+  if (input.sourcedQuantity !== undefined) row.sourced_quantity = input.sourcedQuantity;
+  if (input.targetUnitCost !== undefined) row.target_unit_cost = input.targetUnitCost;
+  if (input.targetUnitCostCurrency !== undefined) {
+    row.target_unit_cost_currency = input.targetUnitCostCurrency;
+  } else if (input.targetUnitCost !== undefined) {
+    row.target_unit_cost_currency = input.targetUnitCost === null ? null : defaultCurrency;
+  }
+  if (input.maxUnitCost !== undefined) row.max_unit_cost = input.maxUnitCost;
+  if (input.maxUnitCostCurrency !== undefined) {
+    row.max_unit_cost_currency = input.maxUnitCostCurrency;
+  } else if (input.maxUnitCost !== undefined && input.maxUnitCost !== null) {
+    row.max_unit_cost_currency = defaultCurrency;
+  }
+  if (input.estimatedShippingCost !== undefined) {
+    row.estimated_shipping_cost = input.estimatedShippingCost;
+  }
+  if (input.estimatedShippingCurrency !== undefined) {
+    row.estimated_shipping_currency = input.estimatedShippingCurrency;
+  } else if (input.estimatedShippingCost !== undefined) {
+    row.estimated_shipping_currency = input.estimatedShippingCost === null ? null : defaultCurrency;
+  }
+  if (input.estimatedDutiesTaxes !== undefined) {
+    row.estimated_duties_taxes = input.estimatedDutiesTaxes;
+  }
+  if (input.estimatedDutiesTaxesCurrency !== undefined) {
+    row.estimated_duties_taxes_currency = input.estimatedDutiesTaxesCurrency;
+  } else if (input.estimatedDutiesTaxes !== undefined) {
+    row.estimated_duties_taxes_currency =
+      input.estimatedDutiesTaxes === null ? null : defaultCurrency;
+  }
+  if (input.otherSourcingCost !== undefined) {
+    row.other_sourcing_cost = input.otherSourcingCost;
+  }
+  if (input.otherSourcingCostCurrency !== undefined) {
+    row.other_sourcing_cost_currency = input.otherSourcingCostCurrency;
+  } else if (input.otherSourcingCost !== undefined) {
+    row.other_sourcing_cost_currency = input.otherSourcingCost === null ? null : defaultCurrency;
+  }
+  if (input.desiredRetailPrice !== undefined) row.desired_retail_price = input.desiredRetailPrice;
+  if (input.desiredRetailPriceCurrency !== undefined) {
+    row.desired_retail_price_currency = input.desiredRetailPriceCurrency;
+  } else if (input.desiredRetailPrice !== undefined) {
+    row.desired_retail_price_currency = input.desiredRetailPrice === null ? null : defaultCurrency;
+  }
+  if (input.minimumDesiredMarginPercent !== undefined) {
+    row.minimum_desired_margin_percent = input.minimumDesiredMarginPercent;
+  }
+  if (input.maxLandedUnitCost !== undefined) {
+    row.max_landed_unit_cost = input.maxLandedUnitCost;
+  }
+  if (input.maxLandedUnitCostCurrency !== undefined) {
+    row.max_landed_unit_cost_currency = input.maxLandedUnitCostCurrency;
+  } else if (input.maxLandedUnitCost !== undefined) {
+    row.max_landed_unit_cost_currency = input.maxLandedUnitCost === null ? null : defaultCurrency;
+  }
+  if (input.alertCostBasis !== undefined) row.alert_cost_basis = input.alertCostBasis;
+  if (input.preferredCondition !== undefined) row.preferred_condition = input.preferredCondition;
+  if (input.notes !== undefined) row.notes = input.notes;
+  if (input.requiredBy !== undefined) row.required_by = input.requiredBy;
+  return row;
+}
+
+function toNullableNumber(value: number | string | null | undefined) {
+  return value === null || value === undefined ? null : Number(value);
 }
 
 function toPage<T>(items: T[], limit: number, cursorValue: (item: T) => string): Page<T> {

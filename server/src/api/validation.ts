@@ -6,12 +6,31 @@ import {
   DEALDROP_PRODUCT_CATEGORIES,
   MARKETPLACE_IDS,
   type DealDropProductCategory,
+  type MarketplaceProductIdentifierType,
   type MarketplaceSource,
 } from "../marketplaces/shared/types";
 import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
 import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
+
+export const createWorkspaceSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    businessType: z.string().trim().min(2).max(80),
+    primarySourcingCategories: z
+      .array(z.string().trim().min(1).max(80))
+      .min(1)
+      .max(10)
+      .transform((categories) => [...new Set(categories)]),
+    defaultCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .transform((currency) => currency.toUpperCase()),
+    countryRegion: z.string().trim().min(2).max(100),
+  })
+  .strict();
 
 export const watchlistFiltersSchema = z
   .object({
@@ -109,6 +128,117 @@ const marketplaceIdsSchema = z
   });
 
 const marketplaceSourceSelectionSchema = z.union([z.literal("all"), marketplaceIdsSchema]);
+
+const sourcingListMarketplaceIdsSchema = z
+  .array(z.string().trim().min(1).max(80))
+  .min(1)
+  .max(10)
+  .transform((selection, context) => {
+    const knownSources = new Set<string>(Object.values(MARKETPLACE_IDS));
+    const unknownSource = selection.find((source) => !knownSources.has(source));
+    if (unknownSource) {
+      context.addIssue({
+        code: "custom",
+        message: `Marketplace source is not supported: ${unknownSource}.`,
+      });
+      return z.NEVER;
+    }
+
+    return [...new Set(selection)] as MarketplaceSource[];
+  });
+
+const sourcingMoneySchema = finiteNumber.nonnegative().nullable().optional();
+const sourcingCurrencySchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{3}$/)
+  .transform((currency) => currency.toUpperCase())
+  .nullable()
+  .optional();
+
+const sourcingListProductShape = {
+  category: z.string().trim().min(1).max(80),
+  productName: z.string().trim().min(1).max(200),
+  sku: z.string().trim().max(120).nullable().optional(),
+  upc: z.string().trim().max(120).nullable().optional(),
+  gtin: z.string().trim().max(120).nullable().optional(),
+  mpn: z.string().trim().max(120).nullable().optional(),
+  keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
+  targetQuantity: z.number().int().min(1).max(1_000_000),
+  sourcedQuantity: z.number().int().min(0).max(1_000_000).optional(),
+  targetUnitCost: sourcingMoneySchema,
+  targetUnitCostCurrency: sourcingCurrencySchema,
+  maxUnitCost: finiteNumber.nonnegative().nullable().optional(),
+  maxUnitCostCurrency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/)
+    .transform((currency) => currency.toUpperCase())
+    .nullable()
+    .optional(),
+  estimatedShippingCost: sourcingMoneySchema,
+  estimatedShippingCurrency: sourcingCurrencySchema,
+  estimatedDutiesTaxes: sourcingMoneySchema,
+  estimatedDutiesTaxesCurrency: sourcingCurrencySchema,
+  otherSourcingCost: sourcingMoneySchema,
+  otherSourcingCostCurrency: sourcingCurrencySchema,
+  desiredRetailPrice: sourcingMoneySchema,
+  desiredRetailPriceCurrency: sourcingCurrencySchema,
+  minimumDesiredMarginPercent: finiteNumber.min(0).max(100).nullable().optional(),
+  maxLandedUnitCost: sourcingMoneySchema,
+  maxLandedUnitCostCurrency: sourcingCurrencySchema,
+  alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]).optional(),
+  preferredCondition: z.string().trim().max(80).nullable().optional(),
+  marketplaceIds: sourcingListMarketplaceIdsSchema,
+  notes: z.string().trim().max(2_000).nullable().optional(),
+  requiredBy: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((date) => !Number.isNaN(Date.parse(`${date}T00:00:00.000Z`)), "requiredBy is invalid")
+    .nullable()
+    .optional(),
+};
+
+export const sourcingListProductSchema = z.object(sourcingListProductShape).strict();
+
+export const createSourcingListSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    status: z.enum(["active", "paused", "completed"]).default("active"),
+    products: z.array(sourcingListProductSchema).min(1).max(100),
+  })
+  .strict();
+
+export const updateSourcingListSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    status: z.enum(["active", "paused", "completed"]).optional(),
+  })
+  .strict()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one sourcing list field is required.",
+  );
+
+export const duplicateSourcingListSchema = z
+  .object({ name: z.string().trim().min(2).max(120).optional() })
+  .strict();
+
+export const updateSourcingListProductSchema = z
+  .object(sourcingListProductShape)
+  .partial()
+  .strict()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one sourcing list product field is required.",
+  );
+
+export const importSourcingListProductsSchema = z
+  .object({
+    fileFingerprint: z.string().trim().min(8).max(128),
+    products: z.array(sourcingListProductSchema).min(1).max(1_000),
+  })
+  .strict();
 
 const watchlistPayloadShape = {
   name: z.string().trim().min(1).max(120),
@@ -255,9 +385,28 @@ export { productEventSchema };
 
 export const searchBodySchema = z
   .object({
-    searchQuery: z.string().trim().min(1).max(200),
+    searchQuery: z.string().trim().max(200).default(""),
     sources: marketplaceSourceSelectionSchema.optional(),
     filters: watchlistFiltersSchema.default({}),
+    productIdentifiers: z
+      .array(
+        z
+          .object({
+            type: z.enum([
+              "asin",
+              "upc",
+              "ean",
+              "isbn",
+              "sku",
+              "part_number",
+              "oem_part_number",
+            ] as [MarketplaceProductIdentifierType, ...MarketplaceProductIdentifierType[]]),
+            value: z.string().trim().min(1).max(120),
+          })
+          .strict(),
+      )
+      .max(1)
+      .optional(),
     pagination: z
       .object({
         cursor: z.string().trim().min(1).max(4096).nullable().optional(),
@@ -266,7 +415,88 @@ export const searchBodySchema = z
       .strict()
       .optional(),
   })
+  .strict()
+  .refine(
+    (input) => input.searchQuery.length > 0 || (input.productIdentifiers?.length ?? 0) > 0,
+    "searchQuery or productIdentifiers is required",
+  );
+
+const comparisonOfferSchema = z
+  .object({
+    source: z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]),
+    externalId: z.string().trim().min(1).max(300),
+    offerId: z.string().trim().min(1).max(400),
+    listingId: z.string().uuid().nullable(),
+    title: z.string().trim().min(1).max(300),
+    sellerName: z.string().trim().max(200).nullable(),
+    price: finiteNumber.nonnegative().nullable(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    imageUrl: z.string().url().nullable(),
+    url: z.string().url(),
+    availableQuantity: z.number().int().nonnegative().nullable(),
+    shippingCost: finiteNumber.nonnegative().nullable(),
+    shippingCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    landedUnitCost: finiteNumber.nonnegative().nullable(),
+    landedUnitCostCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    condition: z.string().trim().max(100).nullable(),
+    deliveryInformation: z.string().trim().max(500).nullable(),
+    availability: z.string().trim().max(200).nullable(),
+    qualification: z.enum(["qualifies", "does_not_qualify", "unknown"]),
+    qualificationReasons: z.array(z.string().trim().min(1).max(200)).max(10),
+    isShortlisted: z.boolean(),
+  })
   .strict();
+
+export const comparisonSearchSchema = z
+  .object({
+    sourcingListId: z.string().uuid(),
+    sourcingListProductId: z.string().uuid(),
+  })
+  .strict();
+
+export const comparisonShortlistSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    offer: comparisonOfferSchema,
+  })
+  .strict();
+
+export const comparisonManualGroupSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid(),
+    members: z
+      .array(
+        z
+          .object({
+            source: z.enum(
+              Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+            ),
+            externalId: z.string().trim().min(1).max(300),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(20),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      new Set(input.members.map((member) => `${member.source}:${member.externalId}`)).size ===
+      input.members.length,
+    "Comparison group members must be unique.",
+  );
 
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
@@ -283,6 +513,11 @@ export function parseSearchQuery(url: URL) {
   const values = Object.fromEntries(url.searchParams.entries());
   const conditions = url.searchParams.getAll("condition");
   const sourcesValue = url.searchParams.get("sources");
+  const identifierType = url.searchParams.get("identifierType");
+  const identifier = url.searchParams.get("identifier");
+  if ((identifierType && !identifier) || (!identifierType && identifier)) {
+    throw new ApiValidationError("identifierType and identifier must be provided together.");
+  }
   const raw: Record<string, unknown> = {
     searchQuery: url.searchParams.get("searchQuery") ?? url.searchParams.get("q") ?? undefined,
     sources: sourcesValue
@@ -293,6 +528,8 @@ export function parseSearchQuery(url: URL) {
             .map((source) => source.trim())
             .filter(Boolean)
       : undefined,
+    productIdentifiers:
+      identifierType && identifier ? [{ type: identifierType, value: identifier }] : undefined,
     filters: {
       price: {
         min: optionalNumber(url.searchParams.get("minPrice")),
@@ -331,6 +568,8 @@ const SEARCH_QUERY_KEYS = new Set([
   "searchQuery",
   "q",
   "sources",
+  "identifierType",
+  "identifier",
   "minPrice",
   "maxPrice",
   "currency",

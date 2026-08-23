@@ -1,4 +1,4 @@
-export type MarketplaceSource = "ebay" | "etsy" | "rakuten";
+export type MarketplaceSource = "amazon_business" | "ebay" | "etsy" | "rakuten";
 
 export type ApiListingProblemReportCategory =
   "broken_link" | "wrong_price" | "stale_listing" | "incorrect_match" | "missing_image" | "other";
@@ -55,6 +55,10 @@ export interface ApiMarketplaceCapabilities {
   supportsRadius: boolean;
   supportsCondition: boolean;
   supportsPagination: boolean;
+  supportsProductIdentifiers?: boolean;
+  supportsOffers?: boolean;
+  supportsMerchantFilters?: boolean;
+  supportsDeliveryInformation?: boolean;
 }
 
 export interface ApiMarketplace {
@@ -189,10 +193,19 @@ export interface ApiSearchRequest {
   searchQuery: string;
   sources?: MarketplaceSource[] | "all";
   filters?: ApiSearchFilters;
+  productIdentifiers?: ApiProductIdentifier[];
   pagination?: {
     cursor?: string | null;
     limit?: number;
   };
+}
+
+export type ApiProductIdentifierType =
+  "asin" | "upc" | "ean" | "isbn" | "sku" | "part_number" | "oem_part_number";
+
+export interface ApiProductIdentifier {
+  type: ApiProductIdentifierType;
+  value: string;
 }
 
 export interface ApiSearchPartialFailure {
@@ -246,6 +259,218 @@ export interface ApiWatchlistInput {
   isFavorite?: boolean;
   lifecycleState?: WatchlistLifecycleState;
   snoozedUntil?: string | null;
+}
+
+export type ApiWorkspaceRole = "owner" | "buyer" | "viewer";
+
+export interface ApiWorkspace {
+  id: string;
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+  role: ApiWorkspaceRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiWorkspaceInput {
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+}
+
+export type ApiSourcingListStatus = "active" | "paused" | "completed";
+export type ApiSourcingAlertCostBasis = "marketplace_price" | "landed_unit_cost";
+
+export interface ApiSourcingListProduct {
+  id: string;
+  category: string;
+  productName: string;
+  sku: string | null;
+  upc: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  keywords: string[];
+  targetQuantity: number;
+  sourcedQuantity: number;
+  targetUnitCost: number | null;
+  targetUnitCostCurrency: string | null;
+  maxUnitCost: number | null;
+  maxUnitCostCurrency: string | null;
+  estimatedShippingCost: number | null;
+  estimatedShippingCurrency: string | null;
+  estimatedDutiesTaxes: number | null;
+  estimatedDutiesTaxesCurrency: string | null;
+  otherSourcingCost: number | null;
+  otherSourcingCostCurrency: string | null;
+  desiredRetailPrice: number | null;
+  desiredRetailPriceCurrency: string | null;
+  minimumDesiredMarginPercent: number | null;
+  maxLandedUnitCost: number | null;
+  maxLandedUnitCostCurrency: string | null;
+  alertCostBasis: ApiSourcingAlertCostBasis;
+  preferredCondition: string | null;
+  marketplaceIds: MarketplaceSource[];
+  notes: string | null;
+  requiredBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSourcingListProgress {
+  totalProducts: number;
+  completedProducts: number;
+  targetQuantity: number;
+  sourcedQuantity: number;
+  percentComplete: number;
+}
+
+export interface ApiSourcingList {
+  id: string;
+  workspaceId: string;
+  name: string;
+  status: ApiSourcingListStatus;
+  products: ApiSourcingListProduct[];
+  progress: ApiSourcingListProgress;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSourcingListProductInput {
+  category: string;
+  productName: string;
+  sku?: string | null;
+  upc?: string | null;
+  gtin?: string | null;
+  mpn?: string | null;
+  keywords?: string[];
+  targetQuantity: number;
+  sourcedQuantity?: number;
+  targetUnitCost?: number | null;
+  targetUnitCostCurrency?: string | null;
+  maxUnitCost?: number | null;
+  maxUnitCostCurrency?: string | null;
+  estimatedShippingCost?: number | null;
+  estimatedShippingCurrency?: string | null;
+  estimatedDutiesTaxes?: number | null;
+  estimatedDutiesTaxesCurrency?: string | null;
+  otherSourcingCost?: number | null;
+  otherSourcingCostCurrency?: string | null;
+  desiredRetailPrice?: number | null;
+  desiredRetailPriceCurrency?: string | null;
+  minimumDesiredMarginPercent?: number | null;
+  maxLandedUnitCost?: number | null;
+  maxLandedUnitCostCurrency?: string | null;
+  alertCostBasis?: ApiSourcingAlertCostBasis;
+  preferredCondition?: string | null;
+  marketplaceIds: MarketplaceSource[];
+  notes?: string | null;
+  requiredBy?: string | null;
+}
+
+export type ApiComparisonMatchMethod = "identifier" | "model_title" | "manual";
+export type ApiComparisonQualification = "qualifies" | "does_not_qualify" | "unknown";
+
+export interface ApiComparisonOffer {
+  source: MarketplaceSource;
+  externalId: string;
+  offerId: string;
+  listingId: string | null;
+  title: string;
+  sellerName: string | null;
+  price: number | null;
+  currency: string | null;
+  imageUrl: string | null;
+  url: string;
+  availableQuantity: number | null;
+  shippingCost: number | null;
+  shippingCurrency: string | null;
+  landedUnitCost: number | null;
+  landedUnitCostCurrency: string | null;
+  condition: string | null;
+  deliveryInformation: string | null;
+  availability: string | null;
+  qualification: ApiComparisonQualification;
+  qualificationReasons: string[];
+  isShortlisted: boolean;
+}
+
+export interface ApiProductComparison {
+  id: string;
+  title: string;
+  matchMethod: ApiComparisonMatchMethod;
+  confidence: "medium" | "high";
+  sources: MarketplaceSource[];
+  offers: ApiComparisonOffer[];
+  cheapestRawOfferId: string | null;
+  cheapestLandedOfferId: string | null;
+  cheapestQualifyingOfferId: string | null;
+  cheapestQualifyingLandedOfferId: string | null;
+  cheapestRawCurrency: string | null;
+  cheapestLandedCurrency: string | null;
+  currenciesCompared: string[];
+  rawAndLandedWinnersDiffer: boolean;
+}
+
+export interface ApiComparisonShortlist {
+  id: string;
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+  createdAt: string;
+}
+
+export interface ApiComparisonManualGroup {
+  id: string;
+  sourcingListProductId: string;
+  members: { source: MarketplaceSource; externalId: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiComparisonResult {
+  sourcingListProduct: ApiSourcingListProduct;
+  searchQuery: string;
+  comparisons: ApiProductComparison[];
+  sources: MarketplaceSource[];
+  partialFailures: ApiSearchPartialFailure[];
+  shortlisted: ApiComparisonShortlist[];
+  manualGroups: ApiComparisonManualGroup[];
+}
+
+export interface ApiComparisonShortlistInput {
+  sourcingListProductId: string;
+  offer: ApiComparisonOffer;
+}
+
+export interface ApiComparisonManualGroupInput {
+  sourcingListProductId: string;
+  members: { source: MarketplaceSource; externalId: string }[];
+}
+
+export interface ApiSourcingListInput {
+  name: string;
+  status?: ApiSourcingListStatus;
+  products: ApiSourcingListProductInput[];
+}
+
+export interface ApiSourcingListUpdateInput {
+  name?: string;
+  status?: ApiSourcingListStatus;
+}
+
+export interface ApiSourcingListImportInput {
+  fileFingerprint: string;
+  products: ApiSourcingListProductInput[];
+}
+
+export interface ApiSourcingListImportResult {
+  list: ApiSourcingList;
+  importedCount: number;
+  duplicateImport: boolean;
 }
 
 export interface ApiMatch {

@@ -10,7 +10,12 @@ import type {
   Page,
   StoredMatch,
 } from "../../src/api/mobile-repository";
-import type { RawApiListing, RawApiNotification, RawApiWatchlist } from "../../src/api/types";
+import type {
+  RawApiListing,
+  RawApiNotification,
+  RawApiWatchlist,
+  RawApiWorkspace,
+} from "../../src/api/types";
 import type { RequestAuthenticator } from "../../src/api/auth";
 import {
   FixedWindowRateLimiter,
@@ -371,6 +376,10 @@ test("validates security configuration and route operation mapping", () => {
     /origin values without paths or wildcards/,
   );
   assert.equal(operationForRoute("GET", ["search"]), "search");
+  assert.equal(
+    operationForRoute("POST", ["workspaces", "workspace-id", "comparisons", "search"]),
+    "search",
+  );
   assert.equal(operationForRoute("POST", ["events"]), "event_capture");
   assert.equal(
     operationForRoute("POST", ["notifications", "push-token"]),
@@ -408,6 +417,15 @@ function createRepository(
   overrides: Partial<MobileApiRepositoryContract> = {},
 ): MobileApiRepositoryContract {
   return {
+    async getWorkspaces() {
+      return [];
+    },
+    async getWorkspace() {
+      return null;
+    },
+    async createWorkspace() {
+      return workspace();
+    },
     async persistListings(listings) {
       return listings.map((item) => ({
         id: LISTING_ID,
@@ -559,6 +577,21 @@ function watchlist(): RawApiWatchlist {
     last_checked_at: null,
     created_at: "2026-08-10T00:00:00.000Z",
     updated_at: "2026-08-10T00:00:00.000Z",
+  };
+}
+
+function workspace(): RawApiWorkspace {
+  return {
+    id: "88888888-8888-4888-8888-888888888888",
+    owner_id: USER_ID,
+    name: "Example workspace",
+    business_type: "Reseller",
+    primary_sourcing_categories: ["Electronics"],
+    default_currency: "USD",
+    country_region: "Nigeria",
+    role: "owner",
+    created_at: "2026-08-09T00:00:00.000Z",
+    updated_at: "2026-08-09T00:00:00.000Z",
   };
 }
 

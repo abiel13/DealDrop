@@ -16,6 +16,7 @@ import type {
   MarketplaceSearchCoordinatorRequest,
   MarketplaceSearchCoordinatorResponse,
   MarketplaceSearchPartialFailure,
+  MarketplaceSearchCoordinatorSearchOptions,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -57,6 +58,7 @@ export class MarketplaceSearchCoordinator {
 
   async search(
     request: MarketplaceSearchCoordinatorRequest,
+    options: MarketplaceSearchCoordinatorSearchOptions = {},
   ): Promise<MarketplaceSearchCoordinatorResponse> {
     const sources = this.resolveSources(request.sources);
     const limit = searchLimit(request.pagination?.limit);
@@ -82,6 +84,7 @@ export class MarketplaceSearchCoordinator {
         return this.searchSource(source, adapter, {
           searchQuery: request.searchQuery,
           filters: request.filters,
+          ...(request.productIdentifiers ? { productIdentifiers: request.productIdentifiers } : {}),
           pagination: {
             cursor: sourceCursors[source],
             limit: sourceLimit,
@@ -118,7 +121,12 @@ export class MarketplaceSearchCoordinator {
       nextCursors[source] = sourceCursors[source] ?? null;
     });
 
-    const deduplicated = deduplicateMarketplaceListings(listings);
+    const deduplicated = options.preserveAlternatives
+      ? {
+          listings,
+          summary: { duplicateGroups: [], suppressedCount: 0 },
+        }
+      : deduplicateMarketplaceListings(listings);
     const relevance = applyListingRelevance(deduplicated.listings, intent);
     const sortedListings = sortListings(relevance.listings).slice(0, limit);
     const hasMore =
@@ -284,7 +292,14 @@ function safePartialFailureMessage(source: MarketplaceSource, category: string) 
 }
 
 function displaySource(source: MarketplaceSource) {
-  return source === "ebay" ? "eBay" : source.charAt(0).toUpperCase() + source.slice(1);
+  if (source === "ebay") {
+    return "eBay";
+  }
+
+  return source
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function sortListings(listings: MarketplaceListing[]) {

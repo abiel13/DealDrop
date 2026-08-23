@@ -27,6 +27,11 @@ test("catalog exposes known marketplace capabilities and enabled status", () => 
 
   assert.deepEqual(catalog, [
     {
+      source: MARKETPLACE_IDS.amazonBusiness,
+      enabled: false,
+      capabilities: null,
+    },
+    {
       source: MARKETPLACE_IDS.ebay,
       enabled: true,
       capabilities: ebayAdapter.capabilities,

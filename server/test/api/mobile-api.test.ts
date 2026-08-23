@@ -15,7 +15,9 @@ import type {
 import type {
   RawApiListing,
   RawApiNotification,
+  RawApiSourcingList,
   RawApiWatchlist,
+  RawApiWorkspace,
   StoredListingReference,
 } from "../../src/api/types";
 import type { MarketplaceAdapter } from "../../src/marketplaces/shared/adapter";
@@ -29,6 +31,7 @@ const LISTING_ID = "22222222-2222-4222-8222-222222222222";
 const WATCHLIST_ID = "33333333-3333-4333-8333-333333333333";
 const NOTIFICATION_ID = "44444444-4444-4444-8444-444444444444";
 const MATCH_ID = "55555555-5555-4555-8555-555555555555";
+const SOURCING_LIST_ID = "99999999-9999-4999-8999-999999999999";
 
 const logger: WorkerLogger = {
   info() {},
@@ -62,6 +65,122 @@ test("protected mobile API endpoints require a valid Bearer token", async () => 
     assert.equal(response.status, 401);
     assert.equal(body.error.code, "unauthorized");
     assert.ok(body.meta.requestId);
+  } finally {
+    await close(server);
+  }
+});
+
+test("sourcing list routes use the workspace path and return sourcing progress", async () => {
+  const received: { workspaceId?: string; input?: Record<string, unknown> } = {};
+  const list = sourcingList();
+  const repository = createRepository({
+    async getSourcingLists(userId, workspaceId) {
+      assert.equal(userId, USER_ID);
+      received.workspaceId = workspaceId;
+      return page([list]);
+    },
+    async createSourcingList(userId, workspaceId, input) {
+      assert.equal(userId, USER_ID);
+      received.workspaceId = workspaceId;
+      received.input = input as unknown as Record<string, unknown>;
+      return list;
+    },
+    async getSourcingList(_userId, workspaceId, sourcingListId) {
+      return workspaceId === workspace().id && sourcingListId === SOURCING_LIST_ID ? list : null;
+    },
+    async updateSourcingList() {
+      return list;
+    },
+    async duplicateSourcingList() {
+      return list;
+    },
+    async importSourcingListProducts() {
+      return { list, imported_count: 1, duplicate_import: false };
+    },
+    async addSourcingListProduct() {
+      return list;
+    },
+    async updateSourcingListProduct() {
+      return list;
+    },
+    async deleteSourcingListProduct() {
+      return true;
+    },
+  });
+  const server = createHttpServer(logger, {
+    adapters: { [MARKETPLACE_IDS.ebay]: adapter(MARKETPLACE_IDS.ebay, []) },
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const listResponse = await fetch(
+      `${baseUrl}/api/v1/workspaces/${workspace().id}/sourcing-lists`,
+      { headers: { Authorization: "Bearer valid-token" } },
+    );
+    const listBody = (await listResponse.json()) as {
+      data: Array<{
+        progress: { targetQuantity: number; sourcedQuantity: number; percentComplete: number };
+      }>;
+    };
+    assert.equal(listResponse.status, 200);
+    assert.equal(listBody.data[0]?.progress.targetQuantity, 12);
+    assert.equal(listBody.data[0]?.progress.sourcedQuantity, 4);
+    assert.equal(listBody.data[0]?.progress.percentComplete, 33);
+
+    const createResponse = await fetch(
+      `${baseUrl}/api/v1/workspaces/${workspace().id}/sourcing-lists`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Q4 Phone Inventory",
+          products: [
+            {
+              category: "Phones",
+              productName: "iPhone 15",
+              targetQuantity: 12,
+              marketplaceIds: [MARKETPLACE_IDS.ebay],
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(createResponse.status, 201);
+    assert.equal(received.workspaceId, workspace().id);
+    assert.equal((received.input?.name as string) ?? "", "Q4 Phone Inventory");
+
+    const importResponse = await fetch(
+      `${baseUrl}/api/v1/workspaces/${workspace().id}/sourcing-lists/${SOURCING_LIST_ID}/import`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileFingerprint: "12-deadbeef",
+          products: [
+            {
+              category: "Phones",
+              productName: "iPhone 15 Pro",
+              targetQuantity: 4,
+              marketplaceIds: [MARKETPLACE_IDS.ebay],
+            },
+          ],
+        }),
+      },
+    );
+    const importBody = (await importResponse.json()) as {
+      data: { importedCount: number; duplicateImport: boolean };
+    };
+    assert.equal(importResponse.status, 200);
+    assert.equal(importBody.data.importedCount, 1);
+    assert.equal(importBody.data.duplicateImport, false);
+
+    const forbiddenWorkspaceResponse = await fetch(
+      `${baseUrl}/api/v1/workspaces/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/sourcing-lists/${SOURCING_LIST_ID}`,
+      { headers: { Authorization: "Bearer valid-token" } },
+    );
+    assert.equal(forbiddenWorkspaceResponse.status, 404);
   } finally {
     await close(server);
   }
@@ -538,6 +657,101 @@ test("records product events and serves the weekly summary through protected rou
   }
 });
 
+test("workspace routes use the authenticated user and reject client ownership fields", async () => {
+  let requestedUserId: string | undefined;
+  let createdInput: unknown;
+  const repository = createRepository({
+    async getWorkspaces(userId) {
+      requestedUserId = userId;
+      return [workspace()];
+    },
+    async getWorkspace(userId, workspaceId) {
+      assert.equal(userId, USER_ID);
+      assert.equal(workspaceId, workspace().id);
+      return workspace();
+    },
+    async createWorkspace(userId, input) {
+      requestedUserId = userId;
+      createdInput = input;
+      return workspace();
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const listResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const listBody = (await listResponse.json()) as {
+      data: Array<{ id: string; role: string; businessType: string }>;
+    };
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(requestedUserId, USER_ID);
+    assert.equal(listBody.data[0]?.id, workspace().id);
+    assert.equal(listBody.data[0]?.role, "owner");
+    assert.equal(listBody.data[0]?.businessType, "Reseller");
+
+    const invalidResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ownerId: "attacker",
+        name: "Apex Electronics",
+        businessType: "Reseller",
+        primarySourcingCategories: ["Electronics"],
+        defaultCurrency: "USD",
+        countryRegion: "Nigeria",
+      }),
+    });
+    const invalidBody = (await invalidResponse.json()) as { error: { code: string } };
+    assert.equal(invalidResponse.status, 400);
+    assert.equal(invalidBody.error.code, "invalid_request");
+
+    const createResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer valid-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Apex Electronics",
+        businessType: "Reseller",
+        primarySourcingCategories: [" Electronics ", "Accessories"],
+        defaultCurrency: "ngn",
+        countryRegion: "Nigeria",
+      }),
+    });
+    const createBody = (await createResponse.json()) as {
+      data: { id: string; defaultCurrency: string; primarySourcingCategories: string[] };
+    };
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(createBody.data.id, workspace().id);
+    assert.deepEqual(createdInput, {
+      name: "Apex Electronics",
+      businessType: "Reseller",
+      primarySourcingCategories: ["Electronics", "Accessories"],
+      defaultCurrency: "NGN",
+      countryRegion: "Nigeria",
+    });
+
+    const detailResponse = await fetch(`${baseUrl}/api/v1/workspaces/${workspace().id}`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    assert.equal(detailResponse.status, 200);
+  } finally {
+    await close(server);
+  }
+});
+
 const validAuthenticator: RequestAuthenticator = {
   async authenticate(request) {
     if (request.headers.authorization !== "Bearer valid-token") {
@@ -552,6 +766,15 @@ function createRepository(
   overrides: Partial<MobileApiRepositoryContract> = {},
 ): MobileApiRepositoryContract {
   return {
+    async getWorkspaces() {
+      return [];
+    },
+    async getWorkspace() {
+      return null;
+    },
+    async createWorkspace() {
+      return workspace();
+    },
     async persistListings(listings) {
       return listings.map((item, index) => ({
         id: index === 0 ? LISTING_ID : `${LISTING_ID}-${index}`,
@@ -732,6 +955,57 @@ function watchlist(): RawApiWatchlist {
     created_at: "2026-08-09T00:00:00.000Z",
     updated_at: "2026-08-09T00:00:00.000Z",
     watchlist_marketplaces: [{ marketplace_id: MARKETPLACE_IDS.ebay }],
+  };
+}
+
+function workspace(): RawApiWorkspace {
+  return {
+    id: "88888888-8888-4888-8888-888888888888",
+    owner_id: USER_ID,
+    name: "Example workspace",
+    business_type: "Reseller",
+    primary_sourcing_categories: ["Electronics"],
+    default_currency: "USD",
+    country_region: "Nigeria",
+    role: "owner",
+    created_at: "2026-08-09T00:00:00.000Z",
+    updated_at: "2026-08-09T00:00:00.000Z",
+  };
+}
+
+function sourcingList(): RawApiSourcingList {
+  return {
+    id: SOURCING_LIST_ID,
+    workspace_id: workspace().id,
+    created_by: USER_ID,
+    name: "Q4 Phone Inventory",
+    status: "active",
+    created_at: "2026-08-09T00:00:00.000Z",
+    updated_at: "2026-08-09T00:00:00.000Z",
+    products: [
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        sourcing_list_id: SOURCING_LIST_ID,
+        category: "Phones",
+        product_name: "iPhone 15",
+        sku: "IPH15-128",
+        upc: null,
+        gtin: null,
+        mpn: null,
+        keywords: ["iPhone 15"],
+        target_quantity: 12,
+        sourced_quantity: 4,
+        max_unit_cost: "600.00",
+        max_unit_cost_currency: "USD",
+        preferred_condition: "New",
+        notes: "Prioritize unlocked stock.",
+        required_by: "2026-10-01",
+        sort_order: 0,
+        created_at: "2026-08-09T00:00:00.000Z",
+        updated_at: "2026-08-09T00:00:00.000Z",
+        sourcing_list_product_marketplaces: [{ marketplace_id: MARKETPLACE_IDS.ebay }],
+      },
+    ],
   };
 }
 

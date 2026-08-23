@@ -6,6 +6,11 @@ import type {
   ApiListing,
   ApiListingProblemReportInput,
   ApiListingProblemReportResponse,
+  ApiComparisonManualGroupInput,
+  ApiComparisonManualGroup,
+  ApiComparisonResult,
+  ApiComparisonShortlistInput,
+  ApiComparisonShortlist,
   ApiListingQuery,
   ApiMatchQuery,
   ApiMarketplace,
@@ -17,9 +22,17 @@ import type {
   ApiPushTokenRegistration,
   ApiSearchRequest,
   ApiSearchResult,
+  ApiSourcingList,
+  ApiSourcingListImportInput,
+  ApiSourcingListImportResult,
+  ApiSourcingListInput,
+  ApiSourcingListProductInput,
+  ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
   ApiWeeklySummary,
+  ApiWorkspace,
+  ApiWorkspaceInput,
 } from "./types";
 
 type AccessTokenProvider = () => Promise<string | null>;
@@ -92,6 +105,147 @@ export class DealDropApiClient {
 
   async getWatchlists() {
     return this.request<ApiWatchlist[]>("/watchlists");
+  }
+
+  async getWorkspaces() {
+    return this.request<ApiWorkspace[]>("/workspaces");
+  }
+
+  async getWorkspace(workspaceId: string) {
+    return this.request<ApiWorkspace>(`/workspaces/${encodeURIComponent(workspaceId)}`);
+  }
+
+  async createWorkspace(input: ApiWorkspaceInput) {
+    return this.request<ApiWorkspace>("/workspaces", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async getSourcingLists(
+    workspaceId: string,
+    options: { cursor?: string | null; limit?: number } = {},
+  ) {
+    const params = new URLSearchParams();
+    if (options.cursor) params.set("cursor", options.cursor);
+    if (options.limit !== undefined) params.set("limit", String(options.limit));
+    const queryString = params.toString();
+    const path = `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists`;
+    return this.request<ApiSourcingList[]>(queryString ? `${path}?${queryString}` : path);
+  }
+
+  async getSourcingList(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async compareSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    sourcingListProductId: string,
+  ) {
+    return this.request<ApiComparisonResult>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/search`,
+      {
+        method: "POST",
+        body: { sourcingListId, sourcingListProductId },
+      },
+    );
+  }
+
+  async shortlistComparisonOffer(workspaceId: string, input: ApiComparisonShortlistInput) {
+    return this.request<ApiComparisonShortlist>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async removeComparisonShortlist(workspaceId: string, shortlistId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/shortlists/${encodeURIComponent(shortlistId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async createComparisonManualGroup(workspaceId: string, input: ApiComparisonManualGroupInput) {
+    return this.request<ApiComparisonManualGroup>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async deleteComparisonManualGroup(workspaceId: string, groupId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups/${encodeURIComponent(groupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async createSourcingList(workspaceId: string, input: ApiSourcingListInput) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateSourcingList(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListUpdateInput,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async duplicateSourcingList(workspaceId: string, sourcingListId: string, name?: string) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/duplicate`,
+      { method: "POST", body: name ? { name } : {} },
+    );
+  }
+
+  async importSourcingListProducts(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ) {
+    return this.request<ApiSourcingListImportResult>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/import`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async addSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListProductInput,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async updateSourcingListProduct(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: Partial<ApiSourcingListProductInput>,
+  ) {
+    return this.request<ApiSourcingList>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async deleteSourcingListProduct(workspaceId: string, sourcingListId: string, productId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async getWatchlist(watchlistId: string) {

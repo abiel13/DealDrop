@@ -127,6 +127,66 @@ test("sends stable marketplace selection when saving a watchlist", async () => {
   });
 });
 
+test("keeps Pro sourcing-list requests nested under the workspace", async () => {
+  const calls: FetchCall[] = [];
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return response(201, envelope({ id: "list-1", products: [] }));
+    },
+  });
+
+  await client.getSourcingLists("workspace-1", { limit: 20 });
+  await client.createSourcingList("workspace-1", {
+    name: "Q4 Phone Inventory",
+    products: [
+      {
+        category: "Phones",
+        productName: "iPhone 15",
+        targetQuantity: 12,
+        marketplaceIds: ["ebay"],
+      },
+    ],
+  });
+  await client.importSourcingListProducts("workspace-1", "list-1", {
+    fileFingerprint: "12-deadbeef",
+    products: [
+      {
+        category: "Phones",
+        productName: "iPhone 15 Pro",
+        targetQuantity: 4,
+        marketplaceIds: ["ebay"],
+      },
+    ],
+  });
+
+  assert.equal(
+    calls[0]?.input,
+    "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists?limit=20",
+  );
+  assert.equal(
+    calls[1]?.input,
+    "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists",
+  );
+  assert.deepEqual(JSON.parse(calls[1]?.init?.body as string), {
+    name: "Q4 Phone Inventory",
+    products: [
+      {
+        category: "Phones",
+        productName: "iPhone 15",
+        targetQuantity: 12,
+        marketplaceIds: ["ebay"],
+      },
+    ],
+  });
+  assert.equal(
+    calls[2]?.input,
+    "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists/list-1/import",
+  );
+});
+
 test("submits only structured listing problem context", async () => {
   let requestBody: unknown;
   const client = new DealDropApiClient({

@@ -1,4 +1,4 @@
-import { Alert, Linking, Pressable, ScrollView, Switch, View } from "react-native";
+import { Alert, Linking, Pressable, Switch, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { AppIcon } from "@/components/ui/Icon";
 import type { AppIconName } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { getWeeklySummary } from "@/features/analytics/services/analytics.service";
@@ -21,6 +22,8 @@ import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { hasPremiumEntitlement } from "@/features/premium/services/premium.service";
 import { getPremiumErrorMessage } from "@/features/premium/utils/premium-errors";
+import { getWorkspaces } from "@/features/workspaces/services/workspace.service";
+import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
@@ -69,6 +72,8 @@ export function ProfileScreen() {
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId);
 
   const profileQueryKey = ["profile", user?.id] as const;
   const profileQuery = useQuery({
@@ -81,6 +86,11 @@ export function ProfileScreen() {
     queryFn: getWeeklySummary,
     enabled: Boolean(user),
     retry: false,
+  });
+  const workspacesQuery = useQuery({
+    queryKey: ["workspaces", user?.id],
+    queryFn: getWorkspaces,
+    enabled: Boolean(user),
   });
 
   const updateNameMutation = useMutation({
@@ -222,9 +232,11 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-6 px-5 pb-10 pt-6"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View className="gap-1">
@@ -307,6 +319,54 @@ export function ProfileScreen() {
 
         {actionMessage && <AppText className="text-primary">{actionMessage}</AppText>}
 
+        <AccountSection title="Business sourcing">
+          {workspacesQuery.isError ? (
+            <AccountRow
+              icon="storefront"
+              title="Workspace unavailable"
+              subtitle="Tap to try again"
+              onPress={() => void workspacesQuery.refetch()}
+            />
+          ) : workspacesQuery.data && workspacesQuery.data.length > 0 ? (
+            <>
+              <AccountRow
+                icon="person"
+                title="Personal DealDrop"
+                subtitle={
+                  activeWorkspaceId
+                    ? "Switch back to your personal searches"
+                    : "Your personal watchlists and saved listings"
+                }
+                onPress={() => {
+                  setActiveWorkspaceId(null);
+                  router.replace(authRoutes.home);
+                }}
+              />
+              {workspacesQuery.data.map((workspace, index) => (
+                <View key={workspace.id}>
+                  {index > 0 && <Divider />}
+                  <AccountRow
+                    icon="storefront"
+                    title={workspace.name}
+                    subtitle={`${workspace.businessType} · ${workspace.role}`}
+                    onPress={() => {
+                      setActiveWorkspaceId(workspace.id);
+                      router.push(authRoutes.workspace);
+                    }}
+                  />
+                </View>
+              ))}
+            </>
+          ) : (
+            <AccountRow
+              icon="storefront"
+              title="Create a Pro workspace"
+              subtitle="Keep business sourcing separate from your personal DealDrop"
+              onPress={() => router.push(authRoutes.workspace)}
+            />
+          )}
+        </AccountSection>
+
         {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (
           <AccountSection title="Insights">
             <AccountRow
@@ -373,7 +433,7 @@ export function ProfileScreen() {
             Delete account
           </Button>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
