@@ -143,6 +143,28 @@ export interface ApiWatchlist {
   updatedAt: string;
 }
 
+export type ApiWorkspaceRole = "owner" | "buyer" | "viewer";
+
+export interface ApiWorkspace {
+  id: string;
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+  role: ApiWorkspaceRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiWorkspaceInput {
+  name: string;
+  businessType: string;
+  primarySourcingCategories: string[];
+  defaultCurrency: string;
+  countryRegion: string;
+}
+
 export interface ApiMatch {
   id: string;
   status: "unread" | "read" | "dismissed";
@@ -249,6 +271,19 @@ export interface RawApiWatchlist {
   created_at: string;
   updated_at: string;
   watchlist_marketplaces?: Array<{ marketplace_id: MarketplaceSource }>;
+}
+
+export interface RawApiWorkspace {
+  id: string;
+  owner_id: string;
+  name: string;
+  business_type: string;
+  primary_sourcing_categories: string[];
+  default_currency: string;
+  country_region: string;
+  role: ApiWorkspaceRole;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RawApiMatch {

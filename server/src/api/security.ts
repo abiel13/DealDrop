@@ -292,6 +292,10 @@ export function operationForRoute(
     return method === "GET" ? "general" : "watchlist_mutation";
   }
 
+  if (resource === "workspaces") {
+    return method === "GET" ? "general" : "resource_mutation";
+  }
+
   if (resource === "notifications" && resourceId === "push-token" && method === "POST") {
     return "push_token_registration";
   }

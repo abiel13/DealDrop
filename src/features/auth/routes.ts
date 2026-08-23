@@ -8,6 +8,7 @@ export const authRoutes = {
   welcome: "/welcome" as Href,
   notifications: "/notifications" as Href,
   profile: "/profile" as Href,
+  workspace: "/workspace" as Href,
   weeklySummary: "/weekly-summary" as Href,
   watchlists: "/watchlists" as Href,
   savedListings: "/saved-listings" as Href,

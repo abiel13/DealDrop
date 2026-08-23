@@ -13,6 +13,24 @@ import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
 
+export const createWorkspaceSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    businessType: z.string().trim().min(2).max(80),
+    primarySourcingCategories: z
+      .array(z.string().trim().min(1).max(80))
+      .min(1)
+      .max(10)
+      .transform((categories) => [...new Set(categories)]),
+    defaultCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .transform((currency) => currency.toUpperCase()),
+    countryRegion: z.string().trim().min(2).max(100),
+  })
+  .strict();
+
 export const watchlistFiltersSchema = z
   .object({
     aliases: z.array(z.string().trim().min(1).max(100)).max(20).optional(),

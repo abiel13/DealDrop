@@ -20,6 +20,8 @@ import type {
   ApiWatchlist,
   ApiWatchlistInput,
   ApiWeeklySummary,
+  ApiWorkspace,
+  ApiWorkspaceInput,
 } from "./types";
 
 type AccessTokenProvider = () => Promise<string | null>;
@@ -92,6 +94,21 @@ export class DealDropApiClient {
 
   async getWatchlists() {
     return this.request<ApiWatchlist[]>("/watchlists");
+  }
+
+  async getWorkspaces() {
+    return this.request<ApiWorkspace[]>("/workspaces");
+  }
+
+  async getWorkspace(workspaceId: string) {
+    return this.request<ApiWorkspace>(`/workspaces/${encodeURIComponent(workspaceId)}`);
+  }
+
+  async createWorkspace(input: ApiWorkspaceInput) {
+    return this.request<ApiWorkspace>("/workspaces", {
+      method: "POST",
+      body: input,
+    });
   }
 
   async getWatchlist(watchlistId: string) {

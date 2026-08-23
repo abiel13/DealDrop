@@ -18,6 +18,7 @@ import type {
   MatchQueryOptions,
   MobileApiRepositoryContract,
   StoredMatch,
+  StoredWorkspace,
 } from "./mobile-repository";
 import { toApiListing } from "./types";
 import type {
@@ -30,6 +31,8 @@ import type {
   ApiSearchResult,
   ApiWatchlist,
   ApiWeeklySummary,
+  ApiWorkspace,
+  ApiWorkspaceInput,
   RawApiWatchlist,
 } from "./types";
 
@@ -137,6 +140,25 @@ export class MobileApiService {
 
   getWeeklySummary(userId: string): Promise<ApiWeeklySummary> {
     return this.dependencies.repository.getWeeklySummary(userId);
+  }
+
+  async getWorkspaces(userId: string): Promise<ApiWorkspace[]> {
+    const workspaces = await this.dependencies.repository.getWorkspaces(userId);
+    return workspaces.map(toWorkspace);
+  }
+
+  async getWorkspace(userId: string, workspaceId: string): Promise<ApiWorkspace> {
+    const workspace = await this.dependencies.repository.getWorkspace(userId, workspaceId);
+    if (!workspace) {
+      throw new ApiNotFoundError("The workspace was not found.");
+    }
+
+    return toWorkspace(workspace);
+  }
+
+  async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<ApiWorkspace> {
+    const workspace = await this.dependencies.repository.createWorkspace(userId, input);
+    return toWorkspace(workspace);
   }
 
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
@@ -392,6 +414,20 @@ function toWatchlist(watchlist: RawApiWatchlist): ApiWatchlist {
     lastCheckedAt: watchlist.last_checked_at,
     createdAt: watchlist.created_at,
     updatedAt: watchlist.updated_at,
+  };
+}
+
+function toWorkspace(workspace: StoredWorkspace): ApiWorkspace {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    businessType: workspace.business_type,
+    primarySourcingCategories: workspace.primary_sourcing_categories,
+    defaultCurrency: workspace.default_currency,
+    countryRegion: workspace.country_region,
+    role: workspace.role,
+    createdAt: workspace.created_at,
+    updatedAt: workspace.updated_at,
   };
 }
 

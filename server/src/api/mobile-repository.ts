@@ -9,8 +9,10 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiWorkspaceInput,
   ListingProblemReportInput,
   ApiWeeklySummary,
+  RawApiWorkspace,
   RawApiListing,
   RawApiMatch,
   RawApiNotification,
@@ -24,6 +26,8 @@ const LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
 const MATCH_LISTING_COLUMNS =
   "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
+const WORKSPACE_COLUMNS =
+  "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
 
 export interface Page<T> {
   items: T[];
@@ -39,6 +43,8 @@ export interface StoredMatch extends RawApiMatch {
 export interface MatchQueryOptions {
   status?: "dismissed";
 }
+
+export interface StoredWorkspace extends RawApiWorkspace {}
 
 export interface StoredListingAccess {
   listing: RawApiListing;
@@ -81,6 +87,9 @@ interface WeeklyWatchlistRow {
 }
 
 export interface MobileApiRepositoryContract {
+  getWorkspaces(userId: string): Promise<StoredWorkspace[]>;
+  getWorkspace(userId: string, workspaceId: string): Promise<StoredWorkspace | null>;
+  createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<StoredWorkspace>;
   persistListings(listings: MarketplaceListing[]): Promise<StoredListingReference[]>;
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
@@ -173,6 +182,92 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
   constructor(private readonly client: SupabaseClient) {
     this.listingRepository = new ListingRepository(client);
+  }
+
+  async getWorkspaces(userId: string): Promise<StoredWorkspace[]> {
+    const { data: memberships, error: membershipError } = await this.client
+      .from("workspace_members")
+      .select("workspace_id,role")
+      .eq("user_id", userId)
+      .returns<Array<{ workspace_id: string; role: RawApiWorkspace["role"] }>>();
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    if (!memberships || memberships.length === 0) {
+      return [];
+    }
+
+    const workspaceIds = memberships.map((membership) => membership.workspace_id);
+    const roles = new Map(
+      memberships.map((membership) => [membership.workspace_id, membership.role]),
+    );
+    const { data: workspaces, error: workspaceError } = await this.client
+      .from("workspaces")
+      .select(WORKSPACE_COLUMNS)
+      .in("id", workspaceIds)
+      .order("created_at", { ascending: false })
+      .returns<Omit<RawApiWorkspace, "role">[]>();
+
+    if (workspaceError) {
+      throw workspaceError;
+    }
+
+    return (workspaces ?? []).map((workspace) => ({
+      ...workspace,
+      role: roles.get(workspace.id) ?? "viewer",
+    }));
+  }
+
+  async getWorkspace(userId: string, workspaceId: string): Promise<StoredWorkspace | null> {
+    const { data: membership, error: membershipError } = await this.client
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", userId)
+      .maybeSingle<{ role: RawApiWorkspace["role"] }>();
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    if (!membership) {
+      return null;
+    }
+
+    const { data: workspace, error: workspaceError } = await this.client
+      .from("workspaces")
+      .select(WORKSPACE_COLUMNS)
+      .eq("id", workspaceId)
+      .maybeSingle<Omit<RawApiWorkspace, "role">>();
+
+    if (workspaceError) {
+      throw workspaceError;
+    }
+
+    return workspace ? { ...workspace, role: membership.role } : null;
+  }
+
+  async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<StoredWorkspace> {
+    const { data: workspace, error } = await this.client
+      .from("workspaces")
+      .insert({
+        owner_id: userId,
+        name: input.name,
+        business_type: input.businessType,
+        primary_sourcing_categories: input.primarySourcingCategories,
+        default_currency: input.defaultCurrency,
+        country_region: input.countryRegion,
+      })
+      .select(WORKSPACE_COLUMNS)
+      .single<Omit<RawApiWorkspace, "role">>();
+
+    if (error) {
+      throw error;
+    }
+
+    return { ...workspace, role: "owner" };
   }
 
   persistListings(listings: MarketplaceListing[]) {

@@ -21,6 +21,8 @@ import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { hasPremiumEntitlement } from "@/features/premium/services/premium.service";
 import { getPremiumErrorMessage } from "@/features/premium/utils/premium-errors";
+import { getWorkspaces } from "@/features/workspaces/services/workspace.service";
+import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
@@ -69,6 +71,8 @@ export function ProfileScreen() {
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId);
 
   const profileQueryKey = ["profile", user?.id] as const;
   const profileQuery = useQuery({
@@ -81,6 +85,11 @@ export function ProfileScreen() {
     queryFn: getWeeklySummary,
     enabled: Boolean(user),
     retry: false,
+  });
+  const workspacesQuery = useQuery({
+    queryKey: ["workspaces", user?.id],
+    queryFn: getWorkspaces,
+    enabled: Boolean(user),
   });
 
   const updateNameMutation = useMutation({
@@ -306,6 +315,54 @@ export function ProfileScreen() {
         </Card>
 
         {actionMessage && <AppText className="text-primary">{actionMessage}</AppText>}
+
+        <AccountSection title="Business sourcing">
+          {workspacesQuery.isError ? (
+            <AccountRow
+              icon="storefront"
+              title="Workspace unavailable"
+              subtitle="Tap to try again"
+              onPress={() => void workspacesQuery.refetch()}
+            />
+          ) : workspacesQuery.data && workspacesQuery.data.length > 0 ? (
+            <>
+              <AccountRow
+                icon="person"
+                title="Personal DealDrop"
+                subtitle={
+                  activeWorkspaceId
+                    ? "Switch back to your personal searches"
+                    : "Your personal watchlists and saved listings"
+                }
+                onPress={() => {
+                  setActiveWorkspaceId(null);
+                  router.replace(authRoutes.home);
+                }}
+              />
+              {workspacesQuery.data.map((workspace, index) => (
+                <View key={workspace.id}>
+                  {index > 0 && <Divider />}
+                  <AccountRow
+                    icon="storefront"
+                    title={workspace.name}
+                    subtitle={`${workspace.businessType} · ${workspace.role}`}
+                    onPress={() => {
+                      setActiveWorkspaceId(workspace.id);
+                      router.push(authRoutes.workspace);
+                    }}
+                  />
+                </View>
+              ))}
+            </>
+          ) : (
+            <AccountRow
+              icon="storefront"
+              title="Create a Pro workspace"
+              subtitle="Keep business sourcing separate from your personal DealDrop"
+              onPress={() => router.push(authRoutes.workspace)}
+            />
+          )}
+        </AccountSection>
 
         {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (
           <AccountSection title="Insights">
