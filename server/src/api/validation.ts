@@ -147,6 +147,15 @@ const sourcingListMarketplaceIdsSchema = z
     return [...new Set(selection)] as MarketplaceSource[];
   });
 
+const sourcingMoneySchema = finiteNumber.nonnegative().nullable().optional();
+const sourcingCurrencySchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{3}$/)
+  .transform((currency) => currency.toUpperCase())
+  .nullable()
+  .optional();
+
 const sourcingListProductShape = {
   category: z.string().trim().min(1).max(80),
   productName: z.string().trim().min(1).max(200),
@@ -157,6 +166,8 @@ const sourcingListProductShape = {
   keywords: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
   targetQuantity: z.number().int().min(1).max(1_000_000),
   sourcedQuantity: z.number().int().min(0).max(1_000_000).optional(),
+  targetUnitCost: sourcingMoneySchema,
+  targetUnitCostCurrency: sourcingCurrencySchema,
   maxUnitCost: finiteNumber.nonnegative().nullable().optional(),
   maxUnitCostCurrency: z
     .string()
@@ -165,6 +176,18 @@ const sourcingListProductShape = {
     .transform((currency) => currency.toUpperCase())
     .nullable()
     .optional(),
+  estimatedShippingCost: sourcingMoneySchema,
+  estimatedShippingCurrency: sourcingCurrencySchema,
+  estimatedDutiesTaxes: sourcingMoneySchema,
+  estimatedDutiesTaxesCurrency: sourcingCurrencySchema,
+  otherSourcingCost: sourcingMoneySchema,
+  otherSourcingCostCurrency: sourcingCurrencySchema,
+  desiredRetailPrice: sourcingMoneySchema,
+  desiredRetailPriceCurrency: sourcingCurrencySchema,
+  minimumDesiredMarginPercent: finiteNumber.min(0).max(100).nullable().optional(),
+  maxLandedUnitCost: sourcingMoneySchema,
+  maxLandedUnitCostCurrency: sourcingCurrencySchema,
+  alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]).optional(),
   preferredCondition: z.string().trim().max(80).nullable().optional(),
   marketplaceIds: sourcingListMarketplaceIdsSchema,
   notes: z.string().trim().max(2_000).nullable().optional(),
@@ -176,11 +199,13 @@ const sourcingListProductShape = {
     .optional(),
 };
 
+export const sourcingListProductSchema = z.object(sourcingListProductShape).strict();
+
 export const createSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
     status: z.enum(["active", "paused", "completed"]).default("active"),
-    products: z.array(z.object(sourcingListProductShape).strict()).min(1).max(100),
+    products: z.array(sourcingListProductSchema).min(1).max(100),
   })
   .strict();
 
@@ -207,6 +232,13 @@ export const updateSourcingListProductSchema = z
     (value) => Object.keys(value).length > 0,
     "At least one sourcing list product field is required.",
   );
+
+export const importSourcingListProductsSchema = z
+  .object({
+    fileFingerprint: z.string().trim().min(8).max(128),
+    products: z.array(sourcingListProductSchema).min(1).max(1_000),
+  })
+  .strict();
 
 const watchlistPayloadShape = {
   name: z.string().trim().min(1).max(120),

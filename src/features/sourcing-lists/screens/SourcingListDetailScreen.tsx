@@ -2,6 +2,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,9 +10,10 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
-import { authRoutes, sourcingListRoute } from "@/features/auth/routes";
+import { authRoutes, sourcingListImportRoute, sourcingListRoute } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
+import type { ApiSourcingListProduct } from "@/services/api";
 
 import {
   duplicateSourcingList,
@@ -19,6 +21,9 @@ import {
   getSourcingListErrorMessage,
   updateSourcingList,
 } from "../services/sourcing-list.service";
+import { shareCsvFile } from "../services/csv-file.service";
+import { createSourcingListCsv } from "../services/sourcing-list-csv";
+import { calculateSourcingEconomics } from "../services/sourcing-economics";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
 const statuses: SourcingListStatus[] = ["active", "paused", "completed"];
@@ -30,6 +35,8 @@ export function SourcingListDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const sourcingListId = typeof params.id === "string" ? params.id : "";
   const queryClient = useQueryClient();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["sourcing-list", workspaceId, sourcingListId],
     queryFn: () => getSourcingList(workspaceId ?? "", sourcingListId),
@@ -73,6 +80,19 @@ export function SourcingListDetailScreen() {
   }
 
   const list = query.data;
+
+  async function exportList() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await shareCsvFile(`${safeFilename(list.name)}.csv`, createSourcingListCsv(list));
+    } catch {
+      setExportError("We couldn't export this sourcing list. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -115,6 +135,30 @@ export function SourcingListDetailScreen() {
           <AppText variant="bodySmall">
             {list.progress.completedProducts} of {list.progress.totalProducts} products complete
           </AppText>
+        </Card>
+
+        <Card padding="md" className="gap-3">
+          <AppText variant="label">Spreadsheet tools</AppText>
+          <View className="flex-row gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 px-2"
+              onPress={() => router.push(sourcingListImportRoute(list.id))}
+            >
+              Import CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="flex-1 px-2"
+              loading={exporting}
+              onPress={() => void exportList()}
+            >
+              Export CSV
+            </Button>
+          </View>
+          {exportError && <AppText variant="error">{exportError}</AppText>}
         </Card>
 
         <Card padding="md" className="gap-3">
@@ -163,9 +207,10 @@ export function SourcingListDetailScreen() {
             <AppText variant="bodySmall">
               Sources: {product.marketplaceIds.map(formatMarketplaceName).join(", ")}
             </AppText>
+            <SourcingEconomicsCard product={product} />
             {product.maxUnitCost !== null && (
               <AppText variant="bodySmall">
-                Target unit cost: {product.maxUnitCostCurrency ?? ""} {product.maxUnitCost}
+                Max marketplace unit cost: {product.maxUnitCostCurrency ?? ""} {product.maxUnitCost}
               </AppText>
             )}
             {product.preferredCondition && (
@@ -185,9 +230,137 @@ export function SourcingListDetailScreen() {
   );
 }
 
+function SourcingEconomicsCard({ product }: { product: ApiSourcingListProduct }) {
+  const hasEconomics = [
+    product.targetUnitCost,
+    product.estimatedShippingCost,
+    product.estimatedDutiesTaxes,
+    product.otherSourcingCost,
+    product.desiredRetailPrice,
+    product.minimumDesiredMarginPercent,
+    product.maxLandedUnitCost,
+  ].some((value) => value !== null);
+  if (!hasEconomics) return null;
+
+  const economics = calculateSourcingEconomics({
+    quantity: product.targetQuantity,
+    marketplacePrice: product.targetUnitCost,
+    marketplaceCurrency: product.targetUnitCostCurrency,
+    estimatedShippingCost: product.estimatedShippingCost,
+    estimatedShippingCurrency: product.estimatedShippingCurrency,
+    estimatedDutiesTaxes: product.estimatedDutiesTaxes,
+    estimatedDutiesTaxesCurrency: product.estimatedDutiesTaxesCurrency,
+    otherSourcingCost: product.otherSourcingCost,
+    otherSourcingCostCurrency: product.otherSourcingCostCurrency,
+    desiredRetailPrice: product.desiredRetailPrice,
+    desiredRetailPriceCurrency: product.desiredRetailPriceCurrency,
+    minimumDesiredMarginPercent: product.minimumDesiredMarginPercent,
+    maxLandedUnitCost: product.maxLandedUnitCost,
+    maxLandedUnitCostCurrency: product.maxLandedUnitCostCurrency,
+  });
+  const costCurrency = economics.currency ?? product.targetUnitCostCurrency;
+
+  return (
+    <Card padding="sm" className="gap-2 bg-surface-muted">
+      <View className="flex-row items-center justify-between gap-2">
+        <AppText variant="label">Unit economics estimate</AppText>
+        <AppText variant="caption">Manual inputs</AppText>
+      </View>
+      <AppText variant="bodySmall">
+        Marketplace price: {formatCost(product.targetUnitCost, product.targetUnitCostCurrency)} /
+        unit
+      </AppText>
+      <AppText variant="bodySmall">
+        Shipping: {formatCost(product.estimatedShippingCost, product.estimatedShippingCurrency)}{" "}
+        total
+      </AppText>
+      <AppText variant="bodySmall">
+        Duties/taxes:{" "}
+        {formatCost(product.estimatedDutiesTaxes, product.estimatedDutiesTaxesCurrency)} total
+      </AppText>
+      <AppText variant="bodySmall">
+        Other sourcing cost:{" "}
+        {formatCost(product.otherSourcingCost, product.otherSourcingCostCurrency)} total
+      </AppText>
+      {economics.costCurrencyMismatch ? (
+        <AppText variant="error">
+          Landed-cost calculations unavailable because cost components use different currencies. No
+          conversion is applied.
+        </AppText>
+      ) : economics.estimatedLandedUnitCost === null ? (
+        <AppText variant="bodySmall">
+          Landed cost unavailable: {economics.unknownComponents.join(", ").toLowerCase()} unknown.
+        </AppText>
+      ) : (
+        <>
+          <AppText variant="bodySmall">
+            Landed unit cost: {formatCost(economics.estimatedLandedUnitCost, costCurrency)}{" "}
+            (estimate)
+          </AppText>
+          <AppText variant="bodySmall">
+            Total acquisition: {formatCost(economics.estimatedTotalAcquisitionCost, costCurrency)}{" "}
+            for {product.targetQuantity} units
+          </AppText>
+        </>
+      )}
+      {economics.currencyMismatch && !economics.costCurrencyMismatch && (
+        <AppText variant="error">
+          Retail or alert thresholds use a different currency, so those comparisons are unavailable.
+          No conversion is applied.
+        </AppText>
+      )}
+      {product.desiredRetailPrice !== null && (
+        <AppText variant="bodySmall">
+          Gross margin:{" "}
+          {economics.estimatedGrossMarginPercent === null
+            ? "Unavailable — check price and currency"
+            : `${formatCost(economics.estimatedGrossMarginPerUnit, costCurrency)} / unit (${economics.estimatedGrossMarginPercent.toFixed(2)}%)`}
+        </AppText>
+      )}
+      {product.minimumDesiredMarginPercent !== null && economics.minimumMarginMet !== null && (
+        <AppText variant="bodySmall">
+          Minimum margin: {economics.minimumMarginMet ? "met" : "not met"} (
+          {product.minimumDesiredMarginPercent}%)
+        </AppText>
+      )}
+      <AppText variant="bodySmall">
+        Alert basis:{" "}
+        {product.alertCostBasis === "landed_unit_cost" ? "landed cost" : "marketplace price"}
+        {product.alertCostBasis === "landed_unit_cost" && product.maxLandedUnitCost !== null
+          ? ` · max ${formatCost(product.maxLandedUnitCost, product.maxLandedUnitCostCurrency)}`
+          : ""}
+      </AppText>
+      {product.alertCostBasis === "landed_unit_cost" && (
+        <AppText variant="bodySmall">
+          Landed-cost threshold:{" "}
+          {economics.maxLandedCostMet === null
+            ? "comparison unavailable"
+            : economics.maxLandedCostMet
+              ? "met"
+              : "not met"}
+        </AppText>
+      )}
+    </Card>
+  );
+}
+
+function formatCost(amount: number | null, currency: string | null) {
+  if (amount === null) return "Unknown";
+  return `${currency ? `${currency} ` : ""}${amount.toFixed(2)}`;
+}
+
 function formatMarketplaceName(source: string) {
   return source
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function safeFilename(name: string) {
+  return (
+    name
+      .trim()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "") || "sourcing-list"
+  );
 }

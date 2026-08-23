@@ -94,6 +94,9 @@ test("sourcing list routes use the workspace path and return sourcing progress",
     async duplicateSourcingList() {
       return list;
     },
+    async importSourcingListProducts() {
+      return { list, imported_count: 1, duplicate_import: false };
+    },
     async addSourcingListProduct() {
       return list;
     },
@@ -147,6 +150,31 @@ test("sourcing list routes use the workspace path and return sourcing progress",
     assert.equal(createResponse.status, 201);
     assert.equal(received.workspaceId, workspace().id);
     assert.equal((received.input?.name as string) ?? "", "Q4 Phone Inventory");
+
+    const importResponse = await fetch(
+      `${baseUrl}/api/v1/workspaces/${workspace().id}/sourcing-lists/${SOURCING_LIST_ID}/import`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileFingerprint: "12-deadbeef",
+          products: [
+            {
+              category: "Phones",
+              productName: "iPhone 15 Pro",
+              targetQuantity: 4,
+              marketplaceIds: [MARKETPLACE_IDS.ebay],
+            },
+          ],
+        }),
+      },
+    );
+    const importBody = (await importResponse.json()) as {
+      data: { importedCount: number; duplicateImport: boolean };
+    };
+    assert.equal(importResponse.status, 200);
+    assert.equal(importBody.data.importedCount, 1);
+    assert.equal(importBody.data.duplicateImport, false);
 
     const forbiddenWorkspaceResponse = await fetch(
       `${baseUrl}/api/v1/workspaces/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/sourcing-lists/${SOURCING_LIST_ID}`,

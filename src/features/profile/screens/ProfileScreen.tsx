@@ -1,4 +1,4 @@
-import { Alert, Linking, Pressable, ScrollView, Switch, View } from "react-native";
+import { Alert, Linking, Pressable, Switch, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { AppIcon } from "@/components/ui/Icon";
 import type { AppIconName } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { getWeeklySummary } from "@/features/analytics/services/analytics.service";
@@ -231,9 +232,11 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-6 px-5 pb-10 pt-6"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View className="gap-1">
@@ -430,7 +433,7 @@ export function ProfileScreen() {
             Delete account
           </Button>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

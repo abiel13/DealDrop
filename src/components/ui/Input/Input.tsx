@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { TextInput, View } from "react-native";
 
 import { AppText } from "@/components/ui/Text";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/ThemeProvider";
+import { KeyboardAwareFocusContext } from "../KeyboardAwareScrollView/keyboard-aware.context";
 
 import { InputProps } from "./Input.types";
 import { inputVariants } from "./Input.variants";
@@ -21,6 +22,7 @@ export function Input({
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
+  const keyboardAwareFocus = useContext(KeyboardAwareFocusContext);
 
   return (
     <View className="gap-2">
@@ -43,10 +45,12 @@ export function Input({
           placeholderTextColor={theme.colors.textTertiary}
           onBlur={(event) => {
             setIsFocused(false);
+            keyboardAwareFocus?.onBlur();
             onBlur?.(event);
           }}
           onFocus={(event) => {
             setIsFocused(true);
+            keyboardAwareFocus?.onFocus(event.nativeEvent.target);
             onFocus?.(event);
           }}
           {...props}

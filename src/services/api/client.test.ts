@@ -150,6 +150,17 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
       },
     ],
   });
+  await client.importSourcingListProducts("workspace-1", "list-1", {
+    fileFingerprint: "12-deadbeef",
+    products: [
+      {
+        category: "Phones",
+        productName: "iPhone 15 Pro",
+        targetQuantity: 4,
+        marketplaceIds: ["ebay"],
+      },
+    ],
+  });
 
   assert.equal(
     calls[0]?.input,
@@ -170,6 +181,10 @@ test("keeps Pro sourcing-list requests nested under the workspace", async () => 
       },
     ],
   });
+  assert.equal(
+    calls[2]?.input,
+    "https://api.example.test/api/v1/workspaces/workspace-1/sourcing-lists/list-1/import",
+  );
 });
 
 test("submits only structured listing problem context", async () => {

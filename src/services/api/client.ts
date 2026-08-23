@@ -18,6 +18,8 @@ import type {
   ApiSearchRequest,
   ApiSearchResult,
   ApiSourcingList,
+  ApiSourcingListImportInput,
+  ApiSourcingListImportResult,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
   ApiSourcingListUpdateInput,
@@ -155,6 +157,17 @@ export class DealDropApiClient {
     return this.request<ApiSourcingList>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/duplicate`,
       { method: "POST", body: name ? { name } : {} },
+    );
+  }
+
+  async importSourcingListProducts(
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ) {
+    return this.request<ApiSourcingListImportResult>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/import`,
+      { method: "POST", body: input },
     );
   }
 

@@ -9,6 +9,7 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiSourcingListImportInput,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
   ApiSourcingListProductUpdateInput,
@@ -35,7 +36,7 @@ const WORKSPACE_COLUMNS =
   "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
 const SOURCING_LIST_COLUMNS = "id,workspace_id,created_by,name,status,created_at,updated_at";
 const SOURCING_LIST_PRODUCT_COLUMNS =
-  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,max_unit_cost,max_unit_cost_currency,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
+  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,preferred_condition,notes,required_by,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
 
 export interface Page<T> {
   items: T[];
@@ -75,6 +76,20 @@ interface StoredPriceObservation {
   price: number;
   currency: string;
   observed_at: string;
+}
+
+interface SourcingListImportRpcRow {
+  imported_count: number;
+  duplicate_import: boolean;
+}
+
+function isSourcingListImportRpcRow(value: unknown): value is SourcingListImportRpcRow {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const row = value as Record<string, unknown>;
+  return typeof row.imported_count === "number" && typeof row.duplicate_import === "boolean";
 }
 
 interface WeeklyMatchRow {
@@ -211,6 +226,16 @@ export interface MobileApiRepositoryContract {
     sourcingListId: string,
     name?: string,
   ): Promise<RawApiSourcingList | null>;
+  importSourcingListProducts?(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ): Promise<{
+    list: RawApiSourcingList;
+    imported_count: number;
+    duplicate_import: boolean;
+  } | null>;
   addSourcingListProduct?(
     userId: string,
     workspaceId: string,
@@ -475,8 +500,22 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         keywords: product.keywords,
         targetQuantity: product.target_quantity,
         sourcedQuantity: 0,
+        targetUnitCost: toNullableNumber(product.target_unit_cost),
+        targetUnitCostCurrency: product.target_unit_cost_currency,
         maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
         maxUnitCostCurrency: product.max_unit_cost_currency,
+        estimatedShippingCost: toNullableNumber(product.estimated_shipping_cost),
+        estimatedShippingCurrency: product.estimated_shipping_currency,
+        estimatedDutiesTaxes: toNullableNumber(product.estimated_duties_taxes),
+        estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+        otherSourcingCost: toNullableNumber(product.other_sourcing_cost),
+        otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+        desiredRetailPrice: toNullableNumber(product.desired_retail_price),
+        desiredRetailPriceCurrency: product.desired_retail_price_currency,
+        minimumDesiredMarginPercent: toNullableNumber(product.minimum_desired_margin_percent),
+        maxLandedUnitCost: toNullableNumber(product.max_landed_unit_cost),
+        maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+        alertCostBasis: product.alert_cost_basis,
         preferredCondition: product.preferred_condition,
         marketplaceIds:
           product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
@@ -486,6 +525,52 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     );
 
     return this.getSourcingListForWorkspace(workspaceId, list.id, list);
+  }
+
+  async importSourcingListProducts(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ) {
+    const workspace = await this.getWorkspace(userId, workspaceId);
+    if (!workspace || !isWorkspaceEditor(workspace.role)) {
+      return null;
+    }
+
+    const list = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!list) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .rpc("import_sourcing_list_products", {
+        target_user_id: userId,
+        target_sourcing_list_id: sourcingListId,
+        target_file_fingerprint: input.fileFingerprint,
+        target_products: input.products,
+      })
+      .returns<
+        Array<{
+          imported_count: number;
+          duplicate_import: boolean;
+        }>
+      >();
+    if (error) {
+      throw error;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const refreshedList = await this.getSourcingList(userId, workspaceId, sourcingListId);
+    if (!isSourcingListImportRpcRow(result) || !refreshedList) {
+      return null;
+    }
+
+    return {
+      list: refreshedList,
+      imported_count: Number(result.imported_count),
+      duplicate_import: result.duplicate_import,
+    };
   }
 
   async addSourcingListProduct(
@@ -1486,16 +1571,69 @@ function toSourcingProductRow(
   if (input.keywords !== undefined) row.keywords = input.keywords;
   if (input.targetQuantity !== undefined) row.target_quantity = input.targetQuantity;
   if (input.sourcedQuantity !== undefined) row.sourced_quantity = input.sourcedQuantity;
+  if (input.targetUnitCost !== undefined) row.target_unit_cost = input.targetUnitCost;
+  if (input.targetUnitCostCurrency !== undefined) {
+    row.target_unit_cost_currency = input.targetUnitCostCurrency;
+  } else if (input.targetUnitCost !== undefined) {
+    row.target_unit_cost_currency = input.targetUnitCost === null ? null : defaultCurrency;
+  }
   if (input.maxUnitCost !== undefined) row.max_unit_cost = input.maxUnitCost;
   if (input.maxUnitCostCurrency !== undefined) {
     row.max_unit_cost_currency = input.maxUnitCostCurrency;
   } else if (input.maxUnitCost !== undefined && input.maxUnitCost !== null) {
     row.max_unit_cost_currency = defaultCurrency;
   }
+  if (input.estimatedShippingCost !== undefined) {
+    row.estimated_shipping_cost = input.estimatedShippingCost;
+  }
+  if (input.estimatedShippingCurrency !== undefined) {
+    row.estimated_shipping_currency = input.estimatedShippingCurrency;
+  } else if (input.estimatedShippingCost !== undefined) {
+    row.estimated_shipping_currency = input.estimatedShippingCost === null ? null : defaultCurrency;
+  }
+  if (input.estimatedDutiesTaxes !== undefined) {
+    row.estimated_duties_taxes = input.estimatedDutiesTaxes;
+  }
+  if (input.estimatedDutiesTaxesCurrency !== undefined) {
+    row.estimated_duties_taxes_currency = input.estimatedDutiesTaxesCurrency;
+  } else if (input.estimatedDutiesTaxes !== undefined) {
+    row.estimated_duties_taxes_currency =
+      input.estimatedDutiesTaxes === null ? null : defaultCurrency;
+  }
+  if (input.otherSourcingCost !== undefined) {
+    row.other_sourcing_cost = input.otherSourcingCost;
+  }
+  if (input.otherSourcingCostCurrency !== undefined) {
+    row.other_sourcing_cost_currency = input.otherSourcingCostCurrency;
+  } else if (input.otherSourcingCost !== undefined) {
+    row.other_sourcing_cost_currency = input.otherSourcingCost === null ? null : defaultCurrency;
+  }
+  if (input.desiredRetailPrice !== undefined) row.desired_retail_price = input.desiredRetailPrice;
+  if (input.desiredRetailPriceCurrency !== undefined) {
+    row.desired_retail_price_currency = input.desiredRetailPriceCurrency;
+  } else if (input.desiredRetailPrice !== undefined) {
+    row.desired_retail_price_currency = input.desiredRetailPrice === null ? null : defaultCurrency;
+  }
+  if (input.minimumDesiredMarginPercent !== undefined) {
+    row.minimum_desired_margin_percent = input.minimumDesiredMarginPercent;
+  }
+  if (input.maxLandedUnitCost !== undefined) {
+    row.max_landed_unit_cost = input.maxLandedUnitCost;
+  }
+  if (input.maxLandedUnitCostCurrency !== undefined) {
+    row.max_landed_unit_cost_currency = input.maxLandedUnitCostCurrency;
+  } else if (input.maxLandedUnitCost !== undefined) {
+    row.max_landed_unit_cost_currency = input.maxLandedUnitCost === null ? null : defaultCurrency;
+  }
+  if (input.alertCostBasis !== undefined) row.alert_cost_basis = input.alertCostBasis;
   if (input.preferredCondition !== undefined) row.preferred_condition = input.preferredCondition;
   if (input.notes !== undefined) row.notes = input.notes;
   if (input.requiredBy !== undefined) row.required_by = input.requiredBy;
   return row;
+}
+
+function toNullableNumber(value: number | string | null | undefined) {
+  return value === null || value === undefined ? null : Number(value);
 }
 
 function toPage<T>(items: T[], limit: number, cursorValue: (item: T) => string): Page<T> {

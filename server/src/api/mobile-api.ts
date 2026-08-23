@@ -29,6 +29,8 @@ import type {
   ApiNotification,
   ApiNotificationPreferences,
   ApiSearchResult,
+  ApiSourcingListImportInput,
+  ApiSourcingListImportResult,
   ApiSourcingList,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
@@ -251,6 +253,33 @@ export class MobileApiService {
       throw new ApiNotFoundError("The sourcing list was not found or cannot be duplicated.");
     }
     return toSourcingList(list);
+  }
+
+  async importSourcingListProducts(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    input: ApiSourcingListImportInput,
+  ): Promise<ApiSourcingListImportResult> {
+    const normalized = {
+      ...input,
+      products: input.products.map((product) => this.normalizeSourcingProduct(product)),
+    };
+    const result = await this.sourcingListRepository().importSourcingListProducts(
+      userId,
+      workspaceId,
+      sourcingListId,
+      normalized,
+    );
+    if (!result) {
+      throw new ApiNotFoundError("The sourcing list was not found or cannot be edited.");
+    }
+
+    return {
+      list: toSourcingList(result.list),
+      importedCount: result.imported_count,
+      duplicateImport: result.duplicate_import,
+    };
   }
 
   async addSourcingListProduct(
@@ -529,6 +558,7 @@ export class MobileApiService {
       !repository.createSourcingList ||
       !repository.updateSourcingList ||
       !repository.duplicateSourcingList ||
+      !repository.importSourcingListProducts ||
       !repository.addSourcingListProduct ||
       !repository.updateSourcingListProduct ||
       !repository.deleteSourcingListProduct
@@ -542,6 +572,7 @@ export class MobileApiService {
       createSourcingList: repository.createSourcingList.bind(repository),
       updateSourcingList: repository.updateSourcingList.bind(repository),
       duplicateSourcingList: repository.duplicateSourcingList.bind(repository),
+      importSourcingListProducts: repository.importSourcingListProducts.bind(repository),
       addSourcingListProduct: repository.addSourcingListProduct.bind(repository),
       updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
       deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),
@@ -635,8 +666,30 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
     keywords: product.keywords,
     targetQuantity: product.target_quantity,
     sourcedQuantity: product.sourced_quantity,
+    targetUnitCost: product.target_unit_cost === null ? null : Number(product.target_unit_cost),
+    targetUnitCostCurrency: product.target_unit_cost_currency,
     maxUnitCost: product.max_unit_cost === null ? null : Number(product.max_unit_cost),
     maxUnitCostCurrency: product.max_unit_cost_currency,
+    estimatedShippingCost:
+      product.estimated_shipping_cost === null ? null : Number(product.estimated_shipping_cost),
+    estimatedShippingCurrency: product.estimated_shipping_currency,
+    estimatedDutiesTaxes:
+      product.estimated_duties_taxes === null ? null : Number(product.estimated_duties_taxes),
+    estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+    otherSourcingCost:
+      product.other_sourcing_cost === null ? null : Number(product.other_sourcing_cost),
+    otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+    desiredRetailPrice:
+      product.desired_retail_price === null ? null : Number(product.desired_retail_price),
+    desiredRetailPriceCurrency: product.desired_retail_price_currency,
+    minimumDesiredMarginPercent:
+      product.minimum_desired_margin_percent === null
+        ? null
+        : Number(product.minimum_desired_margin_percent),
+    maxLandedUnitCost:
+      product.max_landed_unit_cost === null ? null : Number(product.max_landed_unit_cost),
+    maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+    alertCostBasis: product.alert_cost_basis,
     preferredCondition: product.preferred_condition,
     marketplaceIds:
       product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],

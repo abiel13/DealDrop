@@ -3,6 +3,8 @@ import { apiClient } from "@/services/api";
 import type {
   SourcingList,
   SourcingListInput,
+  SourcingListImportInput,
+  SourcingListImportResult,
   SourcingListProductInput,
   SourcingListStatus,
 } from "../types/sourcing-list.types";
@@ -43,6 +45,15 @@ export async function duplicateSourcingList(
   name?: string,
 ): Promise<SourcingList> {
   const response = await apiClient.duplicateSourcingList(workspaceId, sourcingListId, name);
+  return response.data;
+}
+
+export async function importSourcingListProducts(
+  workspaceId: string,
+  sourcingListId: string,
+  input: SourcingListImportInput,
+): Promise<SourcingListImportResult> {
+  const response = await apiClient.importSourcingListProducts(workspaceId, sourcingListId, input);
   return response.data;
 }
 

@@ -31,6 +31,10 @@ export function sourcingListFormRoute() {
 export function sourcingListRoute(sourcingListId: string) {
   return `/sourcing-list/${encodeURIComponent(sourcingListId)}` as Href;
 }
+
+export function sourcingListImportRoute(sourcingListId: string) {
+  return `/sourcing-list/${encodeURIComponent(sourcingListId)}/import` as Href;
+}
 export function listingRoute(id: string) {
   return `/listing/${encodeURIComponent(id)}` as Href;
 }

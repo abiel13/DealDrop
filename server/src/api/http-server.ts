@@ -35,6 +35,7 @@ import {
   createWorkspaceSchema,
   createSourcingListSchema,
   duplicateSourcingListSchema,
+  importSourcingListProductsSchema,
   updateSourcingListProductSchema,
   updateSourcingListSchema,
   updateWatchlistSchema,
@@ -351,6 +352,19 @@ async function routeProtectedRequest(
         await api.duplicateSourcingList(userId, workspaceId, sourcingListId, input.name),
         undefined,
         201,
+      );
+      return;
+    }
+
+    if (segments.length === 5 && segments[4] === "import" && method === "POST") {
+      const input = parseBody(
+        importSourcingListProductsSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.importSourcingListProducts(userId, workspaceId, sourcingListId, input),
       );
       return;
     }
