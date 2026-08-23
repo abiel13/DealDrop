@@ -23,6 +23,7 @@ import type {
   ApiNotification,
   ApiNotificationQuery,
   ApiNotificationPreferences,
+  ApiProEntitlement,
   ApiProductEventInput,
   ApiPushTokenRegistration,
   ApiSearchRequest,
@@ -120,6 +121,10 @@ export class DealDropApiClient {
 
   async getWorkspaces() {
     return this.request<ApiWorkspace[]>("/workspaces");
+  }
+
+  async getProEntitlement() {
+    return this.request<ApiProEntitlement>("/pro/entitlement");
   }
 
   async getWorkspace(workspaceId: string) {

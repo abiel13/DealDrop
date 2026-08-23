@@ -22,7 +22,8 @@ import {
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
-import { ApiError, ApiNotFoundError, ApiValidationError } from "./errors";
+import { ApiError, ApiNotFoundError, ApiProRequiredError, ApiValidationError } from "./errors";
+import { EMPTY_PRO_ENTITLEMENT } from "./pro";
 import { encodeApiCursor } from "./pagination";
 import type {
   MatchQueryOptions,
@@ -33,6 +34,7 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiProEntitlement,
   ApiComparisonManualGroupInput,
   ApiComparisonResult,
   ApiComparisonShortlistInput,
@@ -182,6 +184,29 @@ export class MobileApiService {
   async getWorkspaces(userId: string): Promise<ApiWorkspace[]> {
     const workspaces = await this.dependencies.repository.getWorkspaces(userId);
     return workspaces.map(toWorkspace);
+  }
+
+  async getProEntitlement(userId: string, workspaceId?: string): Promise<ApiProEntitlement> {
+    const entitlement = this.dependencies.repository.getProEntitlement;
+    if (!entitlement) {
+      return EMPTY_PRO_ENTITLEMENT;
+    }
+
+    return entitlement.call(this.dependencies.repository, userId, workspaceId);
+  }
+
+  async requireProAccess(userId: string, workspaceId?: string) {
+    if (!this.dependencies.repository.getProEntitlement) {
+      // Keeps lightweight repository fakes and older deployments compatible while
+      // the entitlement migration is rolled out. The production repository
+      // always implements this check before returning workspace data.
+      return;
+    }
+
+    const entitlement = await this.getProEntitlement(userId, workspaceId);
+    if (!entitlement.isPro) {
+      throw new ApiProRequiredError();
+    }
   }
 
   async getWorkspace(userId: string, workspaceId: string): Promise<ApiWorkspace> {

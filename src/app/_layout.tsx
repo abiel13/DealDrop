@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/features/auth/hooks/AuthProvider";
 import { PremiumGateScreen } from "@/features/premium/screens/PremiumGateScreen";
 import { PremiumUnavailableScreen } from "@/features/premium/screens/PremiumUnavailableScreen";
 import { PremiumProvider, usePremium } from "@/features/premium/hooks/PremiumProvider";
+import { ProProvider } from "@/features/pro/hooks/ProProvider";
 import { useNotificationObserver } from "@/features/notifications/hooks/useNotificationSetup";
 import { AppQueryProvider } from "@/providers/QueryProvider";
 import { ThemeProvider, useTheme } from "@/providers/ThemeProvider";
@@ -21,7 +22,9 @@ export default function RootLayout() {
       <AppQueryProvider>
         <AuthProvider>
           <PremiumProvider>
-            <RootNavigator />
+            <ProProvider>
+              <RootNavigator />
+            </ProProvider>
           </PremiumProvider>
         </AuthProvider>
       </AppQueryProvider>

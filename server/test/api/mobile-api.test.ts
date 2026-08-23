@@ -70,6 +70,59 @@ test("protected mobile API endpoints require a valid Bearer token", async () => 
   }
 });
 
+test("Pro entitlement is readable while workspace APIs reject non-Pro access", async () => {
+  const repository = createRepository({
+    async getProEntitlement(userId, workspaceId) {
+      assert.equal(userId, USER_ID);
+      assert.equal(workspaceId, undefined);
+      return {
+        isPro: false,
+        plan: "free",
+        source: null,
+        startsAt: null,
+        expiresAt: null,
+        workspaceId: null,
+        features: [],
+        limits: null,
+      };
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const entitlementResponse = await fetch(`${baseUrl}/api/v1/pro/entitlement`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const entitlementBody = (await entitlementResponse.json()) as {
+      data: { isPro: boolean; plan: string };
+    };
+    assert.equal(entitlementResponse.status, 200);
+    assert.deepEqual(entitlementBody.data, {
+      isPro: false,
+      plan: "free",
+      source: null,
+      startsAt: null,
+      expiresAt: null,
+      workspaceId: null,
+      features: [],
+      limits: null,
+    });
+
+    const workspaceResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const workspaceBody = (await workspaceResponse.json()) as { error: { code: string } };
+    assert.equal(workspaceResponse.status, 403);
+    assert.equal(workspaceBody.error.code, "pro_required");
+  } finally {
+    await close(server);
+  }
+});
+
 test("sourcing list routes use the workspace path and return sourcing progress", async () => {
   const received: { workspaceId?: string; input?: Record<string, unknown> } = {};
   const list = sourcingList();

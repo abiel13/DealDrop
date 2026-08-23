@@ -51,3 +51,19 @@ test("requires event properties that identify an action", () => {
   });
   assert.equal(pushResult.properties.platform, "android");
 });
+
+test("accepts Pro conversion and usage events without marketplace content", () => {
+  const viewed = productEventSchema.parse({
+    eventName: "pro_upgrade_viewed",
+    eventKey: "pro-upgrade:workspace",
+    properties: { surface: "workspace" },
+  });
+  const used = productEventSchema.parse({
+    eventName: "pro_feature_used",
+    eventKey: "pro-feature:workspace",
+    properties: { feature: "business_workspace" },
+  });
+
+  assert.equal(viewed.properties.surface, "workspace");
+  assert.equal(used.properties.feature, "business_workspace");
+});

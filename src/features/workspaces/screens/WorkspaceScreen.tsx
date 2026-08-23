@@ -19,6 +19,9 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
+import { ProUpgradeScreen } from "@/features/pro/screens/ProUpgradeScreen";
+import { usePro } from "@/features/pro/hooks/ProProvider";
 
 import {
   createWorkspace,
@@ -47,16 +50,33 @@ type WorkspaceFormValues = z.infer<typeof workspaceFormSchema>;
 export function WorkspaceScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pro = usePro();
   const userId = user?.id ?? "";
   const workspaceQueryKey = ["workspaces", userId] as const;
   const workspacesQuery = useQuery({
     queryKey: workspaceQueryKey,
     queryFn: getWorkspaces,
-    enabled: Boolean(userId),
+    enabled: Boolean(userId && pro.access?.isPro),
   });
+
+  useEffect(() => {
+    if (pro.access?.isPro) {
+      trackProductEventNonBlocking("pro_feature_used", { feature: "business_workspace" });
+    }
+  }, [pro.access?.isPro]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
+  }
+
+  if (pro.isLoading) {
+    return <Loading />;
+  }
+
+  if (!pro.access?.isPro) {
+    return (
+      <ProUpgradeScreen surface="workspace" onBack={() => router.back()} onRetry={pro.refresh} />
+    );
   }
 
   if (workspacesQuery.isLoading) {
