@@ -1,4 +1,5 @@
 import { apiClient } from "@/services/api";
+import type { ApiSourcingPriceHistory } from "@/services/api";
 
 import type {
   SourcingList,
@@ -63,6 +64,19 @@ export async function addSourcingListProduct(
   input: SourcingListProductInput,
 ): Promise<SourcingList> {
   const response = await apiClient.addSourcingListProduct(workspaceId, sourcingListId, input);
+  return response.data;
+}
+
+export async function getSourcingProductPriceHistory(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+): Promise<ApiSourcingPriceHistory> {
+  const response = await apiClient.getSourcingProductPriceHistory(
+    workspaceId,
+    sourcingListId,
+    productId,
+  );
   return response.data;
 }
 

@@ -5,6 +5,13 @@ import type {
 import type { ListingPersistence } from "../../database/listing-ingestion";
 import type { MarketplaceSearchCoordinator } from "../../marketplaces/search/coordinator";
 import type { MarketplaceListing, MarketplaceSource } from "../../marketplaces/shared/types";
+import type { MarketplaceComparisonOffer } from "../../marketplaces/comparison";
+import type {
+  SourcingMonitoringTarget,
+  SourcingOpportunityAlert,
+  SourcingProductAlertState,
+  SourcingProductAlertStateUpdate,
+} from "../../sourcing/alerts";
 import type {
   NotificationDeliverySummary,
   NotificationQueueHealth,
@@ -26,6 +33,19 @@ export interface WatchlistMonitoringRepository extends ListingPersistence {
   markWatchlistChecked(watchlistId: string): Promise<void>;
   processNotificationQueue(): Promise<NotificationDeliverySummary>;
   getNotificationQueueHealth?(): Promise<NotificationQueueHealth>;
+  getActiveSourcingTargets?(
+    availableSources: readonly MarketplaceSource[],
+  ): Promise<SourcingMonitoringTarget[]>;
+  getSourcingProductAlertStates?(
+    workspaceId: string,
+    productId: string,
+  ): Promise<SourcingProductAlertState[]>;
+  persistSourcingProductMonitoring?(
+    target: SourcingMonitoringTarget,
+    offers: readonly MarketplaceComparisonOffer[],
+    stateUpdates: readonly SourcingProductAlertStateUpdate[],
+    alerts: readonly SourcingOpportunityAlert[],
+  ): Promise<void>;
 }
 
 export interface WatchlistMonitoringWorkerConfig {

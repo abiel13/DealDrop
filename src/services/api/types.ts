@@ -313,6 +313,13 @@ export interface ApiSourcingListProduct {
   maxLandedUnitCost: number | null;
   maxLandedUnitCostCurrency: string | null;
   alertCostBasis: ApiSourcingAlertCostBasis;
+  alertEnabled: boolean;
+  alertTargetPriceReached: boolean;
+  alertNewCheaperSource: boolean;
+  alertPriceDropped: boolean;
+  alertQuantityAvailable: boolean;
+  alertBackInStock: boolean;
+  alertCooldownMinutes: number;
   preferredCondition: string | null;
   marketplaceIds: MarketplaceSource[];
   notes: string | null;
@@ -366,6 +373,13 @@ export interface ApiSourcingListProductInput {
   maxLandedUnitCost?: number | null;
   maxLandedUnitCostCurrency?: string | null;
   alertCostBasis?: ApiSourcingAlertCostBasis;
+  alertEnabled?: boolean;
+  alertTargetPriceReached?: boolean;
+  alertNewCheaperSource?: boolean;
+  alertPriceDropped?: boolean;
+  alertQuantityAvailable?: boolean;
+  alertBackInStock?: boolean;
+  alertCooldownMinutes?: number;
   preferredCondition?: string | null;
   marketplaceIds: MarketplaceSource[];
   notes?: string | null;
@@ -471,6 +485,55 @@ export interface ApiSourcingListImportResult {
   list: ApiSourcingList;
   importedCount: number;
   duplicateImport: boolean;
+}
+
+export type ApiSourcingPriceMovement = "up" | "down" | "stable" | "unknown";
+
+export interface ApiSourcingPriceObservation {
+  id: string;
+  source: MarketplaceSource;
+  externalId: string;
+  listingId: string | null;
+  title: string;
+  sellerName: string | null;
+  url: string;
+  observedPrice: number | null;
+  currency: string | null;
+  availableQuantity: number | null;
+  shippingCost: number | null;
+  shippingCurrency: string | null;
+  landedUnitCost: number | null;
+  landedUnitCostCurrency: string | null;
+  availability: string | null;
+  observedAt: string;
+}
+
+export interface ApiSourcingPriceSourceSummary {
+  source: MarketplaceSource;
+  currentObservedPrice: number | null;
+  currentObservedCurrency: string | null;
+  currentObservedAt: string | null;
+  recentLow: number | null;
+  recentHigh: number | null;
+  averageObservedPrice: number | null;
+  currency: string | null;
+  observationCount: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  movement: ApiSourcingPriceMovement;
+  targetReached: boolean | null;
+}
+
+export interface ApiSourcingPriceHistory {
+  sourcingListProductId: string;
+  targetPrice: number | null;
+  targetPriceCurrency: string | null;
+  targetCostBasis: ApiSourcingAlertCostBasis;
+  totalObservationCount: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  sources: ApiSourcingPriceSourceSummary[];
+  observations: ApiSourcingPriceObservation[];
 }
 
 export interface ApiMatch {

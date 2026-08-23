@@ -49,6 +49,7 @@ import type {
   ApiSourcingListProductInput,
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
+  ApiSourcingPriceHistory,
   ApiWatchlist,
   ApiWeeklySummary,
   ApiWorkspace,
@@ -351,6 +352,28 @@ export class MobileApiService {
     if (!deleted) {
       throw new ApiNotFoundError("The sourcing list product was not found or cannot be deleted.");
     }
+  }
+
+  async getSourcingProductPriceHistory(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+  ): Promise<ApiSourcingPriceHistory> {
+    const repository = this.sourcingListRepository();
+    if (!repository.getSourcingProductPriceHistory) {
+      throw new ApiError(503, "api_unavailable", "Sourcing price history is not configured.");
+    }
+    const history = await repository.getSourcingProductPriceHistory(
+      userId,
+      workspaceId,
+      sourcingListId,
+      productId,
+    );
+    if (!history) {
+      throw new ApiNotFoundError("The sourcing product was not found in this workspace.");
+    }
+    return history;
   }
 
   async compareSourcingListProduct(
@@ -721,6 +744,7 @@ export class MobileApiService {
       addSourcingListProduct: repository.addSourcingListProduct.bind(repository),
       updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
       deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),
+      getSourcingProductPriceHistory: repository.getSourcingProductPriceHistory?.bind(repository),
     };
   }
 
@@ -856,6 +880,13 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
       product.max_landed_unit_cost === null ? null : Number(product.max_landed_unit_cost),
     maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
     alertCostBasis: product.alert_cost_basis,
+    alertEnabled: product.alert_enabled,
+    alertTargetPriceReached: product.alert_target_price_reached,
+    alertNewCheaperSource: product.alert_new_cheaper_source,
+    alertPriceDropped: product.alert_price_dropped,
+    alertQuantityAvailable: product.alert_quantity_available,
+    alertBackInStock: product.alert_back_in_stock,
+    alertCooldownMinutes: product.alert_cooldown_minutes,
     preferredCondition: product.preferred_condition,
     marketplaceIds:
       product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],

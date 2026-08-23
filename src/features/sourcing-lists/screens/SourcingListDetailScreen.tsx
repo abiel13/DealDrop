@@ -14,6 +14,7 @@ import {
   authRoutes,
   sourcingListImportRoute,
   sourcingListProductComparisonRoute,
+  sourcingListProductHistoryRoute,
   sourcingListRoute,
 } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
@@ -228,13 +229,24 @@ export function SourcingListDetailScreen() {
               <AppText variant="bodySmall">Keywords: {product.keywords.join(", ")}</AppText>
             )}
             {product.notes && <AppText variant="bodySmall">{product.notes}</AppText>}
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={() => router.push(sourcingListProductComparisonRoute(list.id, product.id))}
-            >
-              Compare sources
-            </Button>
+            <View className="flex-row gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 px-2"
+                onPress={() => router.push(sourcingListProductHistoryRoute(list.id, product.id))}
+              >
+                Price history
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 px-2"
+                onPress={() => router.push(sourcingListProductComparisonRoute(list.id, product.id))}
+              >
+                Compare sources
+              </Button>
+            </View>
           </Card>
         ))}
       </ScrollView>

@@ -11,6 +11,13 @@ import { deduplicateIngestionListings } from "./listing-ingestion";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
+import type { MarketplaceComparisonOffer } from "../marketplaces/comparison";
+import type {
+  SourcingMonitoringTarget,
+  SourcingOpportunityAlert,
+  SourcingProductAlertState,
+  SourcingProductAlertStateUpdate,
+} from "../sourcing/alerts";
 import type {
   MarketplaceWatchlist,
   WatchlistFilters,
@@ -36,6 +43,59 @@ interface StoredWatchlist {
   completed_at?: string | null;
   watchlist_marketplaces?: Array<{ marketplace_id: string }>;
 }
+
+interface StoredSourcingTargetRow {
+  id: string;
+  sourcing_list_id: string;
+  category: string;
+  product_name: string;
+  upc: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  keywords: string[];
+  target_quantity: number;
+  target_unit_cost: number | string | null;
+  target_unit_cost_currency: string | null;
+  max_unit_cost: number | string | null;
+  max_unit_cost_currency: string | null;
+  estimated_shipping_cost: number | string | null;
+  estimated_shipping_currency: string | null;
+  estimated_duties_taxes: number | string | null;
+  estimated_duties_taxes_currency: string | null;
+  other_sourcing_cost: number | string | null;
+  other_sourcing_cost_currency: string | null;
+  max_landed_unit_cost: number | string | null;
+  max_landed_unit_cost_currency: string | null;
+  alert_cost_basis: "marketplace_price" | "landed_unit_cost";
+  preferred_condition: string | null;
+  alert_enabled: boolean;
+  alert_target_price_reached: boolean;
+  alert_new_cheaper_source: boolean;
+  alert_price_dropped: boolean;
+  alert_quantity_available: boolean;
+  alert_back_in_stock: boolean;
+  alert_cooldown_minutes: number;
+  sourcing_lists:
+    | {
+        id: string;
+        workspace_id: string;
+        name: string;
+        status: "active" | "paused" | "completed";
+      }
+    | Array<{
+        id: string;
+        workspace_id: string;
+        name: string;
+        status: "active" | "paused" | "completed";
+      }>;
+  sourcing_list_product_marketplaces?: Array<{ marketplace_id: MarketplaceSource }>;
+}
+
+const SOURCING_TARGET_COLUMNS =
+  "id,sourcing_list_id,category,product_name,upc,gtin,mpn,keywords,target_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,preferred_condition,alert_enabled,alert_target_price_reached,alert_new_cheaper_source,alert_price_dropped,alert_quantity_available,alert_back_in_stock,alert_cooldown_minutes,sourcing_lists!inner(id,workspace_id,name,status),sourcing_list_product_marketplaces(marketplace_id)";
+
+const SOURCING_ALERT_STATE_COLUMNS =
+  "workspace_id,sourcing_list_product_id,marketplace_id,external_id,price,currency,landed_unit_cost,landed_unit_cost_currency,available_quantity,availability,observed_at,target_reached,last_notified_at,last_notified_type";
 
 export interface StoredListing {
   id: string;
@@ -74,6 +134,279 @@ export class ListingRepository {
     return watchlists
       .map((watchlist) => toMarketplaceWatchlist(watchlist, availableSources))
       .filter((watchlist) => watchlist.marketplaceIds.length > 0);
+  }
+
+  async getActiveSourcingTargets(
+    availableSources: readonly MarketplaceSource[],
+  ): Promise<SourcingMonitoringTarget[]> {
+    const { data, error } = await this.client
+      .from("sourcing_list_products")
+      .select(SOURCING_TARGET_COLUMNS)
+      .eq("sourcing_lists.status", "active")
+      .returns<StoredSourcingTargetRow[]>();
+    if (error) {
+      throw error;
+    }
+
+    const rows = data ?? [];
+    const workspaceIds = [
+      ...new Set(
+        rows
+          .map((row) => unwrap(row.sourcing_lists)?.workspace_id)
+          .filter((workspaceId): workspaceId is string => Boolean(workspaceId)),
+      ),
+    ];
+    if (workspaceIds.length === 0) {
+      return [];
+    }
+
+    const { data: members, error: memberError } = await this.client
+      .from("workspace_members")
+      .select("workspace_id,user_id")
+      .in("workspace_id", workspaceIds)
+      .returns<Array<{ workspace_id: string; user_id: string }>>();
+    if (memberError) {
+      throw memberError;
+    }
+
+    const memberIds = new Map<string, string[]>();
+    for (const member of members ?? []) {
+      const existing = memberIds.get(member.workspace_id) ?? [];
+      existing.push(member.user_id);
+      memberIds.set(member.workspace_id, existing);
+    }
+
+    const available = new Set(availableSources);
+    return rows.flatMap((row) => {
+      const list = unwrap(row.sourcing_lists);
+      if (!list || list.status !== "active") return [];
+
+      const marketplaceIds = (row.sourcing_list_product_marketplaces ?? [])
+        .map((item) => item.marketplace_id)
+        .filter((source): source is MarketplaceSource => available.has(source));
+      const recipients = memberIds.get(list.workspace_id) ?? [];
+      if (marketplaceIds.length === 0 || recipients.length === 0) return [];
+
+      return [
+        {
+          workspaceId: list.workspace_id,
+          sourcingListId: list.id,
+          sourcingListName: list.name,
+          productId: row.id,
+          productName: row.product_name,
+          upc: row.upc,
+          gtin: row.gtin,
+          mpn: row.mpn,
+          keywords: row.keywords ?? [],
+          targetQuantity: row.target_quantity,
+          targetUnitCost: toNumber(row.target_unit_cost),
+          targetUnitCostCurrency: row.target_unit_cost_currency,
+          maxUnitCost: toNumber(row.max_unit_cost),
+          maxUnitCostCurrency: row.max_unit_cost_currency,
+          estimatedShippingCost: toNumber(row.estimated_shipping_cost),
+          estimatedShippingCurrency: row.estimated_shipping_currency,
+          estimatedDutiesTaxes: toNumber(row.estimated_duties_taxes),
+          estimatedDutiesTaxesCurrency: row.estimated_duties_taxes_currency,
+          otherSourcingCost: toNumber(row.other_sourcing_cost),
+          otherSourcingCostCurrency: row.other_sourcing_cost_currency,
+          maxLandedUnitCost: toNumber(row.max_landed_unit_cost),
+          maxLandedUnitCostCurrency: row.max_landed_unit_cost_currency,
+          alertCostBasis: row.alert_cost_basis,
+          preferredCondition: row.preferred_condition,
+          marketplaceIds: [...new Set(marketplaceIds)],
+          alertEnabled: row.alert_enabled,
+          alertTargetPriceReached: row.alert_target_price_reached,
+          alertNewCheaperSource: row.alert_new_cheaper_source,
+          alertPriceDropped: row.alert_price_dropped,
+          alertQuantityAvailable: row.alert_quantity_available,
+          alertBackInStock: row.alert_back_in_stock,
+          alertCooldownMinutes: row.alert_cooldown_minutes,
+          memberUserIds: [...new Set(recipients)],
+        },
+      ];
+    });
+  }
+
+  async getSourcingProductAlertStates(
+    workspaceId: string,
+    productId: string,
+  ): Promise<SourcingProductAlertState[]> {
+    const { data, error } = await this.client
+      .from("sourcing_product_alert_states")
+      .select(SOURCING_ALERT_STATE_COLUMNS)
+      .eq("workspace_id", workspaceId)
+      .eq("sourcing_list_product_id", productId)
+      .returns<
+        Array<{
+          marketplace_id: MarketplaceSource;
+          external_id: string;
+          price: number | string | null;
+          currency: string | null;
+          landed_unit_cost: number | string | null;
+          landed_unit_cost_currency: string | null;
+          available_quantity: number | null;
+          availability: string | null;
+          observed_at: string;
+          target_reached: boolean | null;
+          last_notified_at: string | null;
+          last_notified_type: SourcingProductAlertState["lastNotifiedType"];
+        }>
+      >();
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map((state) => ({
+      source: state.marketplace_id,
+      externalId: state.external_id,
+      price: toNumber(state.price),
+      currency: state.currency,
+      landedUnitCost: toNumber(state.landed_unit_cost),
+      landedUnitCostCurrency: state.landed_unit_cost_currency,
+      availableQuantity: state.available_quantity,
+      availability: state.availability,
+      observedAt: state.observed_at,
+      targetReached: state.target_reached,
+      lastNotifiedAt: state.last_notified_at,
+      lastNotifiedType: state.last_notified_type,
+    }));
+  }
+
+  async persistSourcingProductMonitoring(
+    target: SourcingMonitoringTarget,
+    offers: readonly MarketplaceComparisonOffer[],
+    stateUpdates: readonly SourcingProductAlertStateUpdate[],
+    alerts: readonly SourcingOpportunityAlert[],
+  ) {
+    const observedAt = stateUpdates[0]?.observedAt ?? new Date().toISOString();
+    const observationRows = offers.map((offer) => ({
+      workspace_id: target.workspaceId,
+      sourcing_list_product_id: target.productId,
+      listing_id: offer.listingId,
+      marketplace_id: offer.source,
+      external_id: offer.externalId,
+      title: offer.title,
+      seller_name: offer.sellerName,
+      url: offer.url,
+      observed_at: observedAt,
+      observed_price: offer.price,
+      currency: offer.currency,
+      available_quantity: offer.availableQuantity,
+      shipping_cost: offer.shippingCost,
+      shipping_currency: offer.shippingCurrency,
+      landed_unit_cost: offer.landedUnitCost,
+      landed_unit_cost_currency: offer.landedUnitCostCurrency,
+      availability: offer.availability,
+    }));
+
+    if (observationRows.length > 0) {
+      const { error } = await this.client
+        .from("sourcing_product_price_observations")
+        .upsert(observationRows, {
+          onConflict:
+            "workspace_id,sourcing_list_product_id,marketplace_id,external_id,observed_at",
+        });
+      if (error) throw error;
+    }
+
+    if (stateUpdates.length > 0) {
+      const stateRows = stateUpdates.map((state) => ({
+        workspace_id: target.workspaceId,
+        sourcing_list_product_id: target.productId,
+        marketplace_id: state.source,
+        external_id: state.externalId,
+        price: state.price,
+        currency: state.currency,
+        landed_unit_cost: state.landedUnitCost,
+        landed_unit_cost_currency: state.landedUnitCostCurrency,
+        available_quantity: state.availableQuantity,
+        availability: state.availability,
+        observed_at: state.observedAt,
+        target_reached: state.targetReached,
+        last_notified_at: state.lastNotifiedAt,
+        last_notified_type: state.lastNotifiedType,
+      }));
+      const { error } = await this.client.from("sourcing_product_alert_states").upsert(stateRows, {
+        onConflict: "workspace_id,sourcing_list_product_id,marketplace_id,external_id",
+      });
+      if (error) throw error;
+    }
+
+    if (alerts.length > 0 && target.memberUserIds.length > 0) {
+      await this.enqueueSourcingAlerts(target, alerts);
+    }
+  }
+
+  private async enqueueSourcingAlerts(
+    target: SourcingMonitoringTarget,
+    alerts: readonly SourcingOpportunityAlert[],
+  ) {
+    const notificationRows = alerts.flatMap((alert) =>
+      target.memberUserIds.map((userId) => ({
+        user_id: userId,
+        match_id: null,
+        type: alert.type,
+        title: alert.title,
+        body: alert.body,
+        data: {
+          url: `/sourcing-list/${target.sourcingListId}/product/${target.productId}/history`,
+          alert_type: alert.type,
+          workspace_id: target.workspaceId,
+          sourcing_list_id: target.sourcingListId,
+          sourcing_list_product_id: target.productId,
+          listing_id: alert.offer.listingId,
+          marketplace_source: alert.offer.source,
+          external_listing_id: alert.offer.externalId,
+          price: alert.offer.price,
+          currency: alert.offer.currency,
+          alert_mode: "instant",
+        },
+      })),
+    );
+    const { data: notifications, error: notificationError } = await this.client
+      .from("notifications")
+      .insert(notificationRows)
+      .select("id,user_id")
+      .returns<Array<{ id: string; user_id: string }>>();
+    if (notificationError) throw notificationError;
+
+    const { data: pushTokens, error: tokenError } = await this.client
+      .from("push_tokens")
+      .select("id,user_id")
+      .in("user_id", target.memberUserIds)
+      .eq("is_active", true)
+      .returns<Array<{ id: string; user_id: string }>>();
+    if (tokenError) throw tokenError;
+
+    const { data: preferences, error: preferencesError } = await this.client
+      .from("notification_preferences")
+      .select("user_id,push_enabled")
+      .in("user_id", target.memberUserIds)
+      .returns<Array<{ user_id: string; push_enabled: boolean }>>();
+    if (preferencesError) throw preferencesError;
+
+    const pushEnabledByUser = new Map(
+      (preferences ?? []).map((preference) => [preference.user_id, preference.push_enabled]),
+    );
+    const queueRows = (notifications ?? []).flatMap((notification) =>
+      (pushTokens ?? [])
+        .filter(
+          (token) =>
+            token.user_id === notification.user_id &&
+            pushEnabledByUser.get(token.user_id) !== false,
+        )
+        .map((token) => ({
+          notification_id: notification.id,
+          user_id: notification.user_id,
+          push_token_id: token.id,
+        })),
+    );
+    if (queueRows.length === 0) return;
+
+    const { error: queueError } = await this.client
+      .from("notification_queue")
+      .upsert(queueRows, { onConflict: "notification_id,push_token_id", ignoreDuplicates: true });
+    if (queueError) throw queueError;
   }
 
   async setWatchlistMarketplaceSelection(
@@ -395,4 +728,14 @@ function extractImageUrls(stored: StoredListing) {
 function normalizeCurrency(currency: string | null) {
   const normalized = currency?.trim().toUpperCase();
   return normalized || null;
+}
+
+function toNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function unwrap<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
