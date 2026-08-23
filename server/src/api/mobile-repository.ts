@@ -7,6 +7,7 @@ import type { MarketplaceComparisonOffer } from "../marketplaces/comparison/type
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
 import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
 import { summarizeSourcingPriceHistory } from "../sourcing/price-history";
+import { PRO_FEATURES, PRO_LIMITS } from "./pro";
 import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiComparisonManualGroupInput,
@@ -16,6 +17,7 @@ import type {
   ApiSupplierUpdateInput,
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiProEntitlement,
   ApiSourcingListImportInput,
   ApiSourcingListInput,
   ApiSourcingListProductInput,
@@ -151,6 +153,7 @@ export interface MobileApiRepositoryContract {
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
   recordProductEvent(userId: string, input: ProductEventInput): Promise<void>;
+  getProEntitlement?(userId: string, workspaceId?: string): Promise<ApiProEntitlement>;
   createListingProblemReport(
     userId: string,
     requestId: string,
@@ -377,6 +380,79 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
   constructor(private readonly client: SupabaseClient) {
     this.listingRepository = new ListingRepository(client);
+  }
+
+  async getProEntitlement(userId: string, workspaceId?: string): Promise<ApiProEntitlement> {
+    const now = new Date().toISOString();
+    const { data, error } = await this.client
+      .from("pro_entitlements")
+      .select("id,user_id,workspace_id,plan,source,starts_at,expires_at,revoked_at")
+      .eq("plan", "pro")
+      .is("revoked_at", null)
+      .lte("starts_at", now)
+      .order("expires_at", { ascending: true, nullsFirst: false })
+      .returns<
+        Array<{
+          id: string;
+          user_id: string | null;
+          workspace_id: string | null;
+          plan: "pro";
+          source: ApiProEntitlement["source"];
+          starts_at: string;
+          expires_at: string | null;
+          revoked_at: string | null;
+        }>
+      >();
+
+    if (error) {
+      throw error;
+    }
+
+    let memberWorkspaceIds: string[] = [];
+    if (!workspaceId) {
+      const { data: memberships, error: membershipsError } = await this.client
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", userId)
+        .returns<Array<{ workspace_id: string }>>();
+      if (membershipsError) {
+        throw membershipsError;
+      }
+      memberWorkspaceIds = (memberships ?? []).map((membership) => membership.workspace_id);
+    }
+
+    const entitlement = (data ?? []).find(
+      (candidate) =>
+        (!candidate.expires_at || candidate.expires_at > now) &&
+        (candidate.user_id === userId || candidate.user_id === null) &&
+        (workspaceId
+          ? candidate.workspace_id === workspaceId || candidate.workspace_id === null
+          : candidate.workspace_id === null || memberWorkspaceIds.includes(candidate.workspace_id)),
+    );
+
+    if (!entitlement) {
+      return {
+        isPro: false,
+        plan: "free",
+        source: null,
+        startsAt: null,
+        expiresAt: null,
+        workspaceId: null,
+        features: [],
+        limits: null,
+      };
+    }
+
+    return {
+      isPro: true,
+      plan: "pro",
+      source: entitlement.source,
+      startsAt: entitlement.starts_at,
+      expiresAt: entitlement.expires_at,
+      workspaceId: entitlement.workspace_id,
+      features: [...PRO_FEATURES],
+      limits: PRO_LIMITS,
+    };
   }
 
   async getWorkspaces(userId: string): Promise<StoredWorkspace[]> {

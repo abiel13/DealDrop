@@ -55,6 +55,15 @@ export class ApiNotFoundError extends ApiError {
   }
 }
 
+export class ApiProRequiredError extends ApiError {
+  constructor() {
+    super(403, "pro_required", "DealDrop Pro access is required for business sourcing features.", {
+      plan: "pro",
+    });
+    this.name = "ApiProRequiredError";
+  }
+}
+
 export class ApiValidationError extends ApiError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(400, "invalid_request", message, details);

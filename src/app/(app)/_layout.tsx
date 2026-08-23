@@ -14,6 +14,7 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="workspace" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="pro" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="sourcing-lists" options={{ animation: "slide_from_right" }} />
       <Stack.Screen name="suppliers" options={{ animation: "slide_from_right" }} />
       <Stack.Screen

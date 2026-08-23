@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { findNodeHandle, FlatList, KeyboardAvoidingView, Platform, View } from "react-native";
+import { FlatList, KeyboardAvoidingView, Platform, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -54,10 +54,16 @@ export function SourcingListImportScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<FlatList<SourcingCsvRow>>(null);
-  const focusHandlers = useKeyboardAwareFocus(
-    () => findNodeHandle(listRef.current),
-    (offset) => listRef.current?.scrollToOffset({ offset, animated: true }),
-  );
+  const focusHandlers = useKeyboardAwareFocus((target) => {
+    const scrollResponder = listRef.current?.getScrollResponder() as {
+      scrollResponderScrollNativeHandleToKeyboard?: (
+        nodeHandle: number,
+        additionalOffset?: number,
+        preventNegativeScrollOffset?: boolean,
+      ) => void;
+    } | null;
+    scrollResponder?.scrollResponderScrollNativeHandleToKeyboard?.(target, 32, true);
+  });
   const listQuery = useQuery({
     queryKey: ["sourcing-list", workspaceId, sourcingListId],
     queryFn: () => getSourcingList(workspaceId ?? "", sourcingListId),
@@ -298,7 +304,6 @@ export function SourcingListImportScreen() {
               keyExtractor={(row) => `${report.fileFingerprint}-${row.rowNumber}`}
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
               keyboardShouldPersistTaps="handled"
-              onLayout={focusHandlers.onLayout}
               renderItem={({ item }) => (
                 <ImportRowCard row={item} onChange={updateRow} onToggle={toggleRow} />
               )}

@@ -9,6 +9,7 @@ export const authRoutes = {
   notifications: "/notifications" as Href,
   profile: "/profile" as Href,
   workspace: "/workspace" as Href,
+  proUpgrade: "/pro" as Href,
   sourcingLists: "/sourcing-lists" as Href,
   suppliers: "/suppliers" as Href,
   sourcingListForm: "/sourcing-list-form" as Href,

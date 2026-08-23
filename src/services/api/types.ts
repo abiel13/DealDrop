@@ -283,6 +283,34 @@ export interface ApiWorkspaceInput {
   countryRegion: string;
 }
 
+export type ApiProFeature =
+  | "business_workspace"
+  | "sourcing_lists"
+  | "bulk_import"
+  | "higher_search_watch_limits"
+  | "professional_cost_criteria"
+  | "price_history"
+  | "sourcing_opportunity_alerts"
+  | "supplier_management"
+  | "exports"
+  | "team_collaboration";
+
+export type ApiProEntitlementSource = "subscription" | "pilot" | "admin";
+
+export interface ApiProEntitlement {
+  isPro: boolean;
+  plan: "free" | "pro";
+  source: ApiProEntitlementSource | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  workspaceId: string | null;
+  features: ApiProFeature[];
+  limits: {
+    maxWatchlists: number;
+    maxSearchesPerDay: number;
+  } | null;
+}
+
 export interface ApiWorkspaceMember {
   userId: string;
   email: string | null;
@@ -747,7 +775,10 @@ export type ApiProductEventName =
   | "match_opened"
   | "watchlist_paused"
   | "watchlist_resumed"
-  | "watchlist_completed";
+  | "watchlist_completed"
+  | "pro_upgrade_viewed"
+  | "pro_upgrade_cta_tapped"
+  | "pro_feature_used";
 
 export interface ApiProductEventInput {
   eventName: ApiProductEventName;

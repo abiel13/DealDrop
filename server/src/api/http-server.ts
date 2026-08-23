@@ -229,6 +229,11 @@ async function routeProtectedRequest(
 ) {
   const [resource, resourceId, action] = segments;
 
+  if (method === "GET" && resource === "pro" && resourceId === "entitlement" && !action) {
+    sendSuccess(response, requestId, await api.getProEntitlement(userId));
+    return;
+  }
+
   if (method === "GET" && resource === "search" && !resourceId) {
     const input = parseSearchQuery(url);
     input.pagination = {
@@ -284,6 +289,7 @@ async function routeProtectedRequest(
   }
 
   if (resource === "workspaces" && !resourceId) {
+    await api.requireProAccess(userId);
     if (method === "GET") {
       sendSuccess(response, requestId, await api.getWorkspaces(userId));
       return;
@@ -294,6 +300,10 @@ async function routeProtectedRequest(
       sendSuccess(response, requestId, await api.createWorkspace(userId, input), undefined, 201);
       return;
     }
+  }
+
+  if (resource === "workspaces" && resourceId) {
+    await api.requireProAccess(userId, resourceId);
   }
 
   if (resource === "workspaces" && resourceId && action === "sourcing-lists") {

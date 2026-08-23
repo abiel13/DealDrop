@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -19,6 +19,9 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
+import { ProUpgradeScreen } from "@/features/pro/screens/ProUpgradeScreen";
+import { usePro } from "@/features/pro/hooks/ProProvider";
 
 import {
   createWorkspace,
@@ -47,16 +50,33 @@ type WorkspaceFormValues = z.infer<typeof workspaceFormSchema>;
 export function WorkspaceScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const pro = usePro();
   const userId = user?.id ?? "";
   const workspaceQueryKey = ["workspaces", userId] as const;
   const workspacesQuery = useQuery({
     queryKey: workspaceQueryKey,
     queryFn: getWorkspaces,
-    enabled: Boolean(userId),
+    enabled: Boolean(userId && pro.access?.isPro),
   });
+
+  useEffect(() => {
+    if (pro.access?.isPro) {
+      trackProductEventNonBlocking("pro_feature_used", { feature: "business_workspace" });
+    }
+  }, [pro.access?.isPro]);
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
+  }
+
+  if (pro.isLoading) {
+    return <Loading />;
+  }
+
+  if (!pro.access?.isPro) {
+    return (
+      <ProUpgradeScreen surface="workspace" onBack={() => router.back()} onRetry={pro.refresh} />
+    );
   }
 
   if (workspacesQuery.isLoading) {
@@ -390,6 +410,7 @@ function WorkspaceOverview({
 function WorkspaceTeamCard({ workspaceId, role }: { workspaceId: string; role: ApiWorkspaceRole }) {
   const [email, setEmail] = useState("");
   const [memberRole, setMemberRole] = useState<Exclude<ApiWorkspaceRole, "owner">>("buyer");
+  const { colors } = useTheme();
   const membersQuery = useQuery({
     queryKey: ["workspace-members", workspaceId],
     queryFn: () => getWorkspaceMembers(workspaceId),
@@ -441,15 +462,27 @@ function WorkspaceTeamCard({ workspaceId, role }: { workspaceId: string; role: A
           />
           <View className="flex-row gap-2">
             {(["buyer", "viewer"] as const).map((option) => (
-              <Button
+              <Pressable
                 key={option}
-                size="sm"
-                variant={memberRole === option ? "primary" : "outline"}
-                className="flex-1"
+                accessibilityRole="radio"
+                accessibilityState={{ selected: memberRole === option }}
+                style={[
+                  workspaceRoleStyles.option,
+                  {
+                    backgroundColor: memberRole === option ? colors.primary : colors.surfaceMuted,
+                  },
+                ]}
                 onPress={() => setMemberRole(option)}
               >
-                {option}
-              </Button>
+                <Text
+                  style={[
+                    workspaceRoleStyles.optionText,
+                    { color: memberRole === option ? "#FFFFFF" : colors.text },
+                  ]}
+                >
+                  {option}
+                </Text>
+              </Pressable>
             ))}
           </View>
           <Button
@@ -470,6 +503,22 @@ function WorkspaceTeamCard({ workspaceId, role }: { workspaceId: string; role: A
     </Card>
   );
 }
+
+const workspaceRoleStyles = StyleSheet.create({
+  option: {
+    minHeight: 40,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+  },
+  optionText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+});
 
 function WorkspaceDetail({ label, value }: { label: string; value: string }) {
   return (
