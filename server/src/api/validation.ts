@@ -14,6 +14,53 @@ import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
 
+const productCaptureText = (maxLength: number) =>
+  z.string().trim().min(1).max(maxLength).nullable().optional();
+
+export const productCaptureSchema = z
+  .object({
+    captureSource: z.enum([
+      "pasted_url",
+      "share_sheet",
+      "browser_extension",
+      "barcode",
+      "screenshot",
+      "product_photo",
+    ]),
+    url: z
+      .string()
+      .trim()
+      .url()
+      .max(2_048)
+      .refine((value) => /^https?:\/\//i.test(value), "url must use HTTP or HTTPS.")
+      .nullable()
+      .optional(),
+    rawText: productCaptureText(10_000),
+    barcode: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9 -]{2,63}$/)
+      .nullable()
+      .optional(),
+    imageReference: productCaptureText(2_048),
+    country: z.string().trim().min(2).max(100),
+    preferredCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .transform((currency) => currency.toUpperCase()),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (!input.url && !input.rawText && !input.barcode && !input.imageReference) {
+      context.addIssue({
+        code: "custom",
+        message: "At least one product capture input is required.",
+        path: ["captureSource"],
+      });
+    }
+  });
+
 export const createWorkspaceSchema = z
   .object({
     name: z.string().trim().min(2).max(120),

@@ -55,6 +55,7 @@ import {
   updateSupplierSchema,
   inviteWorkspaceMemberSchema,
   createSourcingNoteSchema,
+  productCaptureSchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
@@ -253,6 +254,18 @@ async function routeProtectedRequest(
     const input = parseBody(productEventSchema, await readJsonBody(request, maxBodyBytes));
     await api.recordProductEvent(userId, input);
     sendSuccess(response, requestId, { recorded: true });
+    return;
+  }
+
+  if (method === "POST" && resource === "product-captures" && !resourceId) {
+    const input = parseBody(productCaptureSchema, await readJsonBody(request, maxBodyBytes));
+    sendSuccess(response, requestId, await api.createProductCapture(userId, input), undefined, 201);
+    return;
+  }
+
+  if (method === "GET" && resource === "product-captures" && resourceId && !action) {
+    assertResourceId(resourceId);
+    sendSuccess(response, requestId, await api.getProductCapture(userId, resourceId));
     return;
   }
 

@@ -33,6 +33,53 @@ export interface ApiMeta {
   pagination?: ApiPagination;
 }
 
+export type ApiProductCaptureSource =
+  "pasted_url" | "share_sheet" | "browser_extension" | "barcode" | "screenshot" | "product_photo";
+
+export type ApiProductCaptureStatus = "processing" | "identified" | "needs_confirmation" | "failed";
+
+export interface ApiProductCaptureInput {
+  captureSource: ApiProductCaptureSource;
+  url?: string | null;
+  rawText?: string | null;
+  barcode?: string | null;
+  imageReference?: string | null;
+  country: string;
+  preferredCurrency: string;
+}
+
+export interface ApiCapturedProductIdentifier {
+  type: "upc" | "ean" | "barcode";
+  value: string;
+}
+
+export interface ApiNormalizedCapturedProduct {
+  title: string | null;
+  canonicalUrl: string | null;
+  sourceDomain: string | null;
+  identifiers: ApiCapturedProductIdentifier[];
+  imageReference: string | null;
+  product: ApiProductMetadata | null;
+}
+
+export interface ApiProductCapture {
+  id: string;
+  captureSource: ApiProductCaptureSource;
+  url: string | null;
+  rawText: string | null;
+  barcode: string | null;
+  imageReference: string | null;
+  country: string;
+  preferredCurrency: string;
+  status: ApiProductCaptureStatus;
+  normalizedProduct: ApiNormalizedCapturedProduct | null;
+  missingFields: string[];
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  processedAt: string | null;
+}
+
 export interface ApiEnvelope<T> {
   data: T;
   meta: ApiMeta;

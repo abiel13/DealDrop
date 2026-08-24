@@ -22,6 +22,7 @@ import {
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
+import { identifyProductCapture } from "../product-capture/identify";
 import { ApiError, ApiNotFoundError, ApiProRequiredError, ApiValidationError } from "./errors";
 import { EMPTY_PRO_ENTITLEMENT } from "./pro";
 import { encodeApiCursor } from "./pagination";
@@ -34,6 +35,8 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiProductCapture,
+  ApiProductCaptureInput,
   ApiProEntitlement,
   ApiComparisonManualGroupInput,
   ApiComparisonResult,
@@ -72,6 +75,7 @@ import type {
   RawApiWorkspaceMember,
   RawApiSourcingActivity,
   RawApiSourcingNote,
+  RawApiProductCapture,
   RawApiWatchlist,
 } from "./types";
 
@@ -158,6 +162,101 @@ export class MobileApiService {
 
   async recordProductEvent(userId: string, input: ProductEventInput) {
     await this.dependencies.repository.recordProductEvent(userId, input);
+  }
+
+  async createProductCapture(
+    userId: string,
+    input: ApiProductCaptureInput,
+  ): Promise<ApiProductCapture> {
+    const repository = this.dependencies.repository;
+    if (!repository.createProductCapture || !repository.updateProductCapture) {
+      throw new ApiError(
+        503,
+        "capture_unavailable",
+        "Product capture is not available on this server yet.",
+      );
+    }
+
+    const created = await repository.createProductCapture.call(repository, userId, input);
+
+    try {
+      const identification = identifyProductCapture(input);
+      const updated = await repository.updateProductCapture.call(repository, userId, created.id, {
+        ...identification,
+        processedAt: new Date().toISOString(),
+      });
+
+      if (!updated) {
+        throw new ApiNotFoundError("The product capture could not be updated.");
+      }
+
+      this.dependencies.logger.info("Product capture processed", {
+        captureId: created.id,
+        captureSource: input.captureSource,
+        status: identification.status,
+      });
+      return toApiProductCapture(updated);
+    } catch (error) {
+      const failed = await this.finalizeProductCaptureFailure(userId, created.id, input, error);
+      if (failed) {
+        return toApiProductCapture(failed);
+      }
+
+      throw error;
+    }
+  }
+
+  async getProductCapture(userId: string, captureId: string): Promise<ApiProductCapture> {
+    const getCapture = this.dependencies.repository.getProductCapture;
+    if (!getCapture) {
+      throw new ApiError(
+        503,
+        "capture_unavailable",
+        "Product capture is not available on this server yet.",
+      );
+    }
+
+    const capture = await getCapture.call(this.dependencies.repository, userId, captureId);
+    if (!capture) {
+      throw new ApiNotFoundError("The product capture was not found.");
+    }
+
+    return toApiProductCapture(capture);
+  }
+
+  private async finalizeProductCaptureFailure(
+    userId: string,
+    captureId: string,
+    input: ApiProductCaptureInput,
+    error: unknown,
+  ): Promise<RawApiProductCapture | null> {
+    this.dependencies.logger.error("Product capture processing failed", {
+      captureId,
+      captureSource: input.captureSource,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+
+    const updateCapture = this.dependencies.repository.updateProductCapture;
+    if (!updateCapture) {
+      return null;
+    }
+
+    try {
+      return await updateCapture.call(this.dependencies.repository, userId, captureId, {
+        status: "failed",
+        normalizedProduct: null,
+        missingFields: [],
+        failureReason: "The product capture could not be processed.",
+        processedAt: new Date().toISOString(),
+      });
+    } catch (finalizationError) {
+      this.dependencies.logger.error("Product capture failure state could not be saved", {
+        captureId,
+        captureSource: input.captureSource,
+        error: finalizationError instanceof Error ? finalizationError.message : "unknown_error",
+      });
+      return null;
+    }
   }
 
   async createListingProblemReport(
@@ -1034,6 +1133,26 @@ function toWatchlist(watchlist: RawApiWatchlist): ApiWatchlist {
     lastCheckedAt: watchlist.last_checked_at,
     createdAt: watchlist.created_at,
     updatedAt: watchlist.updated_at,
+  };
+}
+
+function toApiProductCapture(capture: RawApiProductCapture): ApiProductCapture {
+  return {
+    id: capture.id,
+    captureSource: capture.capture_source,
+    url: capture.url,
+    rawText: capture.raw_text,
+    barcode: capture.barcode,
+    imageReference: capture.image_reference,
+    country: capture.country,
+    preferredCurrency: capture.preferred_currency,
+    status: capture.status,
+    normalizedProduct: capture.normalized_product,
+    missingFields: capture.missing_fields,
+    failureReason: capture.failure_reason,
+    createdAt: capture.created_at,
+    updatedAt: capture.updated_at,
+    processedAt: capture.processed_at,
   };
 }
 

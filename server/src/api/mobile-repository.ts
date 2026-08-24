@@ -17,6 +17,8 @@ import type {
   ApiSupplierUpdateInput,
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiProductCaptureInput,
+  ApiProductCaptureStatusUpdate,
   ApiProEntitlement,
   ApiSourcingListImportInput,
   ApiSourcingListInput,
@@ -38,6 +40,7 @@ import type {
   RawApiSourcingList,
   RawApiSourcingActivity,
   RawApiSourcingNote,
+  RawApiProductCapture,
   RawApiSourcingPriceObservation,
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
@@ -67,6 +70,8 @@ const SUPPLIER_COLUMNS =
   "id,workspace_id,name,marketplace_id,marketplace_seller_id,supplier_url,notes,tags,status,internal_contact_info,typical_lead_time_days,minimum_order_quantity,created_by,created_at,updated_at";
 const SUPPLIER_HISTORY_COLUMNS =
   "id,workspace_id,supplier_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,first_shortlisted_at,last_shortlisted_at,last_shortlisted_by";
+const PRODUCT_CAPTURE_COLUMNS =
+  "id,user_id,capture_source,url,raw_text,barcode,image_reference,country,preferred_currency,status,normalized_product,missing_fields,failure_reason,created_at,updated_at,processed_at";
 
 export interface Page<T> {
   items: T[];
@@ -153,6 +158,16 @@ export interface MobileApiRepositoryContract {
   getListingForUser(userId: string, listingId: string): Promise<StoredListingAccess | null>;
   setListingFavorite(userId: string, listingId: string, isFavorite: boolean): Promise<boolean>;
   recordProductEvent(userId: string, input: ProductEventInput): Promise<void>;
+  createProductCapture?(
+    userId: string,
+    input: ApiProductCaptureInput,
+  ): Promise<RawApiProductCapture>;
+  updateProductCapture?(
+    userId: string,
+    captureId: string,
+    input: ApiProductCaptureStatusUpdate,
+  ): Promise<RawApiProductCapture | null>;
+  getProductCapture?(userId: string, captureId: string): Promise<RawApiProductCapture | null>;
   getProEntitlement?(userId: string, workspaceId?: string): Promise<ApiProEntitlement>;
   createListingProblemReport(
     userId: string,
@@ -1696,6 +1711,71 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     if (error) {
       throw error;
     }
+  }
+
+  async createProductCapture(
+    userId: string,
+    input: ApiProductCaptureInput,
+  ): Promise<RawApiProductCapture> {
+    const { data, error } = await this.client
+      .from("product_captures")
+      .insert({
+        user_id: userId,
+        capture_source: input.captureSource,
+        url: input.url ?? null,
+        raw_text: input.rawText ?? null,
+        barcode: input.barcode ?? null,
+        image_reference: input.imageReference ?? null,
+        country: input.country,
+        preferred_currency: input.preferredCurrency,
+        status: "processing",
+      })
+      .select(PRODUCT_CAPTURE_COLUMNS)
+      .single<RawApiProductCapture>();
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateProductCapture(
+    userId: string,
+    captureId: string,
+    input: ApiProductCaptureStatusUpdate,
+  ): Promise<RawApiProductCapture | null> {
+    const { data, error } = await this.client
+      .from("product_captures")
+      .update({
+        status: input.status,
+        normalized_product: input.normalizedProduct,
+        missing_fields: input.missingFields,
+        failure_reason: input.failureReason,
+        processed_at: input.processedAt,
+      })
+      .eq("id", captureId)
+      .eq("user_id", userId)
+      .select(PRODUCT_CAPTURE_COLUMNS)
+      .maybeSingle<RawApiProductCapture>();
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  async getProductCapture(userId: string, captureId: string): Promise<RawApiProductCapture | null> {
+    const { data, error } = await this.client
+      .from("product_captures")
+      .select(PRODUCT_CAPTURE_COLUMNS)
+      .eq("id", captureId)
+      .eq("user_id", userId)
+      .maybeSingle<RawApiProductCapture>();
+    if (error) {
+      throw error;
+    }
+
+    return data;
   }
 
   async createListingProblemReport(

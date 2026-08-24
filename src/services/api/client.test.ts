@@ -50,6 +50,43 @@ test("attaches the current session and parses the API envelope", async () => {
   });
 });
 
+test("uses one product-capture endpoint for every capture source", async () => {
+  const calls: FetchCall[] = [];
+  const client = new DealDropApiClient({
+    baseUrl: "https://api.example.test/api/v1",
+    getAccessToken: async () => "access-token",
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return response(
+        201,
+        envelope({
+          id: "capture-1",
+          captureSource: "barcode",
+          status: "identified",
+        }),
+      );
+    },
+  });
+
+  await client.createProductCapture({
+    captureSource: "barcode",
+    barcode: "012345678905",
+    country: "NG",
+    preferredCurrency: "NGN",
+  });
+  await client.getProductCapture("capture-1");
+
+  assert.equal(calls[0]?.input, "https://api.example.test/api/v1/product-captures");
+  assert.equal(calls[0]?.init?.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0]?.init?.body as string), {
+    captureSource: "barcode",
+    barcode: "012345678905",
+    country: "NG",
+    preferredCurrency: "NGN",
+  });
+  assert.equal(calls[1]?.input, "https://api.example.test/api/v1/product-captures/capture-1");
+});
+
 test("sends the unified search cursor when loading the next result page", async () => {
   let requestBody: unknown;
   const client = new DealDropApiClient({

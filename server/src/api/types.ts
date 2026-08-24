@@ -21,6 +21,13 @@ import type {
   WatchlistLifecycleState,
   WatchlistMarketplaceScope,
 } from "../types/backend";
+import type {
+  NormalizedCapturedProduct,
+  ProductCaptureRequest,
+  ProductCaptureSource,
+  ProductCaptureStatus,
+  ProductCaptureStatusUpdate,
+} from "../product-capture/types";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -36,6 +43,30 @@ export interface ApiMeta {
 export interface ApiSuccess<T> {
   data: T;
   meta: ApiMeta;
+}
+
+export type ApiProductCaptureSource = ProductCaptureSource;
+export type ApiProductCaptureStatus = ProductCaptureStatus;
+export type ApiProductCaptureInput = ProductCaptureRequest;
+export type ApiProductCaptureStatusUpdate = ProductCaptureStatusUpdate;
+export type ApiNormalizedCapturedProduct = NormalizedCapturedProduct;
+
+export interface ApiProductCapture {
+  id: string;
+  captureSource: ApiProductCaptureSource;
+  url: string | null;
+  rawText: string | null;
+  barcode: string | null;
+  imageReference: string | null;
+  country: string;
+  preferredCurrency: string;
+  status: ApiProductCaptureStatus;
+  normalizedProduct: ApiNormalizedCapturedProduct | null;
+  missingFields: string[];
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  processedAt: string | null;
 }
 
 export type ListingProblemReportCategory =

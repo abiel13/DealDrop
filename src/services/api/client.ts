@@ -23,6 +23,8 @@ import type {
   ApiNotification,
   ApiNotificationQuery,
   ApiNotificationPreferences,
+  ApiProductCapture,
+  ApiProductCaptureInput,
   ApiProEntitlement,
   ApiProductEventInput,
   ApiPushTokenRegistration,
@@ -91,6 +93,17 @@ export class DealDropApiClient {
 
   async getListing(listingId: string) {
     return this.request<ApiListing>(`/listings/${encodeURIComponent(listingId)}`);
+  }
+
+  async createProductCapture(input: ApiProductCaptureInput) {
+    return this.request<ApiProductCapture>("/product-captures", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async getProductCapture(captureId: string) {
+    return this.request<ApiProductCapture>(`/product-captures/${encodeURIComponent(captureId)}`);
   }
 
   async setListingFavorite(listingId: string, isFavorite: boolean) {
