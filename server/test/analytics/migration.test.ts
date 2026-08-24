@@ -6,6 +6,10 @@ const migration = readFileSync(
   "supabase/migrations/20260819000000_add_product_events_and_weekly_summary.sql",
   "utf8",
 );
+const captureEventsMigration = readFileSync(
+  "supabase/migrations/20260905000000_add_product_capture_analytics_events.sql",
+  "utf8",
+);
 
 test("analytics migration stores deduplicated privacy-conscious events", () => {
   assert.match(migration, /create table if not exists public\.product_events/);
@@ -28,4 +32,16 @@ test("analytics migration captures first-use and lifecycle events", () => {
   ]) {
     assert.match(migration, new RegExp(`'${eventName}'`));
   }
+});
+
+test("URL capture analytics extends the existing event constraint", () => {
+  for (const eventName of [
+    "url_pasted",
+    "product_identified",
+    "tracking_created",
+    "capture_failed",
+  ]) {
+    assert.match(captureEventsMigration, new RegExp(`'${eventName}'`));
+  }
+  assert.match(captureEventsMigration, /drop constraint if exists product_events_name_valid/);
 });

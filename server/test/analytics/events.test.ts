@@ -67,3 +67,24 @@ test("accepts Pro conversion and usage events without marketplace content", () =
   assert.equal(viewed.properties.surface, "workspace");
   assert.equal(used.properties.feature, "business_workspace");
 });
+
+test("accepts URL capture events without recording product content", () => {
+  const pasted = productEventSchema.parse({
+    eventName: "url_pasted",
+    eventKey: "url-pasted:1",
+    properties: { captureSource: "pasted_url" },
+  });
+  const identified = productEventSchema.parse({
+    eventName: "product_identified",
+    eventKey: "product-identified:1",
+    properties: {
+      captureSource: "pasted_url",
+      hasPrice: true,
+      hasIdentifier: false,
+      needsConfirmation: true,
+    },
+  });
+
+  assert.equal(pasted.properties.captureSource, "pasted_url");
+  assert.equal(identified.properties.needsConfirmation, true);
+});

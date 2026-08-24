@@ -1,11 +1,12 @@
-import type { MarketplaceProductMetadata } from "../marketplaces/shared/types";
+import type { MarketplaceProductMetadata, MarketplaceSource } from "../marketplaces/shared/types";
 
 export type ProductCaptureSource =
   "pasted_url" | "share_sheet" | "browser_extension" | "barcode" | "screenshot" | "product_photo";
 
 export type ProductCaptureStatus = "processing" | "identified" | "needs_confirmation" | "failed";
 
-export type ProductCaptureIdentifierType = "upc" | "ean" | "barcode";
+export type ProductCaptureIdentifierType =
+  "upc" | "ean" | "gtin" | "asin" | "mpn" | "sku" | "isbn" | "barcode";
 
 export interface ProductCaptureRequest {
   captureSource: ProductCaptureSource;
@@ -28,6 +29,15 @@ export interface NormalizedCapturedProduct {
   sourceDomain: string | null;
   identifiers: ProductCaptureIdentifier[];
   imageReference: string | null;
+  imageUrls: string[];
+  price: number | null;
+  currency: string | null;
+  variant: string | null;
+  condition: string | null;
+  merchant: string | null;
+  marketplaceSource: MarketplaceSource | null;
+  availability: string | null;
+  deliveryInformation: string | null;
   product: MarketplaceProductMetadata | null;
 }
 
