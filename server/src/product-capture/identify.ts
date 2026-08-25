@@ -2,6 +2,7 @@ import { normalizeText } from "../marketplaces/shared/normalizer";
 import type {
   NormalizedCapturedProduct,
   ProductCaptureIdentification,
+  ProductCaptureBarcodeFormat,
   ProductCaptureIdentifier,
   ProductCaptureRequest,
 } from "./types";
@@ -72,18 +73,28 @@ function titleFromUrl(url: URL | null): string | null {
   return title && /[a-z]/i.test(title) ? title.slice(0, 300) : null;
 }
 
-function normalizeBarcode(value: string | null | undefined): ProductCaptureIdentifier | null {
+export function normalizeProductCaptureBarcode(
+  value: string | null | undefined,
+  format?: ProductCaptureBarcodeFormat | null,
+): ProductCaptureIdentifier | null {
   const normalized = (value ?? "").replace(/[\s-]/g, "");
-  if (!normalized) {
+  if (!normalized || !/^\d+$/.test(normalized)) {
     return null;
   }
 
-  const type =
-    normalized.length === 12
+  const type = format
+    ? format === "upc_a" || format === "upc_e"
       ? "upc"
-      : normalized.length === 8 || normalized.length === 13 || normalized.length === 14
-        ? "ean"
-        : "barcode";
+      : format === "itf14"
+        ? "gtin"
+        : "ean"
+    : normalized.length === 12
+      ? "upc"
+      : normalized.length === 14
+        ? "gtin"
+        : normalized.length === 8 || normalized.length === 13
+          ? "ean"
+          : "barcode";
 
   return { type, value: normalized };
 }
@@ -104,12 +115,13 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
     return {
       status: "failed",
       normalizedProduct: null,
+      candidateProducts: [],
       missingFields: ["product_url"],
       failureReason: "The captured URL is not a supported HTTP or HTTPS URL.",
     };
   }
 
-  const barcodeIdentifier = normalizeBarcode(input.barcode);
+  const barcodeIdentifier = normalizeProductCaptureBarcode(input.barcode, input.barcodeFormat);
   const pageMetadata = input.pageMetadata;
   const canonicalUrl = parseHttpUrl(pageMetadata?.canonicalUrl ?? null) ?? parsedUrl;
   const identifiers = uniqueIdentifiers([
@@ -145,6 +157,7 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
     return {
       status: "failed",
       normalizedProduct: null,
+      candidateProducts: [],
       missingFields: fields,
       failureReason: "The capture did not include a usable URL, product name, barcode, or image.",
     };
@@ -157,6 +170,7 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
   return {
     status: hasConfirmableIdentity ? "identified" : "needs_confirmation",
     normalizedProduct: product,
+    candidateProducts: [],
     missingFields: fields,
     failureReason: null,
   };

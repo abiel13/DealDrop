@@ -2,6 +2,7 @@ import type { ApiWeeklySummary } from "@/services/api";
 
 export type AnalyticsPropertyValue = string | number | boolean | null;
 export type AnalyticsProperties = Record<string, AnalyticsPropertyValue>;
+export type ProductCaptureAnalyticsSource = "pasted_url" | "barcode";
 
 /**
  * Product event contract. Properties intentionally contain only stable IDs,
@@ -30,13 +31,16 @@ export type AnalyticsEventProperties = {
   pro_feature_used: AnalyticsProperties & { feature: string };
   url_pasted: AnalyticsProperties & { captureSource: "pasted_url" };
   product_identified: AnalyticsProperties & {
-    captureSource: "pasted_url";
+    captureSource: ProductCaptureAnalyticsSource;
     hasPrice: boolean;
     hasIdentifier: boolean;
     needsConfirmation: boolean;
   };
   tracking_created: AnalyticsProperties & { watchlistId: string };
-  capture_failed: AnalyticsProperties & { captureSource: "pasted_url"; reason: string };
+  capture_failed: AnalyticsProperties & {
+    captureSource: ProductCaptureAnalyticsSource;
+    reason: string;
+  };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventProperties;

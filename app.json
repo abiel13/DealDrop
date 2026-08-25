@@ -30,6 +30,13 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DealDrop to scan product barcodes.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#F5F4F8",

@@ -38,6 +38,10 @@ export default function AppLayout() {
         name="paste-product"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="scan-barcode"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
       <Stack.Screen name="listing/[id]" options={{ animation: "slide_from_right" }} />
     </Stack>
   );

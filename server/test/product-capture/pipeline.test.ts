@@ -252,3 +252,122 @@ test("routes known marketplace URLs through an enabled adapter when available", 
   assert.equal(result.normalizedProduct?.price, 899);
   assert.equal(result.normalizedProduct?.merchant, "Camera Seller");
 });
+
+test("searches enabled identifier-capable sources and returns barcode candidates", async () => {
+  let searchedWith: string | null = null;
+  let searchedIdentifiers: unknown = null;
+  const adapter: MarketplaceAdapter = {
+    source: "amazon_business",
+    capabilities: {
+      supportsPriceFiltering: true,
+      supportsLocation: false,
+      supportsRadius: false,
+      supportsCondition: false,
+      supportsPagination: true,
+      supportsProductIdentifiers: true,
+    },
+    async search(request) {
+      searchedWith = request.searchQuery;
+      searchedIdentifiers = request.productIdentifiers;
+      return {
+        listings: [
+          {
+            source: "amazon_business",
+            externalId: "B000000001",
+            title: "Sony Alpha Camera Body",
+            description: null,
+            price: 1299,
+            currency: "USD",
+            url: "https://business.example/products/B000000001",
+            imageUrls: ["https://business.example/images/camera.jpg"],
+            sellerName: "Business Seller",
+            location: null,
+            category: "Cameras",
+            condition: "new",
+            latitude: null,
+            longitude: null,
+            postedAt: null,
+          },
+          {
+            source: "amazon_business",
+            externalId: "B000000002",
+            title: "Sony Alpha Camera Kit",
+            description: null,
+            price: 1399,
+            currency: "USD",
+            url: "https://business.example/products/B000000002",
+            imageUrls: [],
+            sellerName: "Another Seller",
+            location: null,
+            category: "Cameras",
+            condition: "new",
+            latitude: null,
+            longitude: null,
+            postedAt: null,
+          },
+        ],
+      };
+    },
+  };
+
+  const resolver = createProductCaptureResolver({
+    adapters: { amazon_business: adapter },
+    logger: { warn() {} },
+  });
+  const result = await resolver.resolve(
+    {
+      ...baseInput,
+      captureSource: "barcode",
+      barcode: "012345678905",
+      barcodeFormat: "upc_a",
+    },
+    identifyProductCapture({
+      ...baseInput,
+      captureSource: "barcode",
+      barcode: "012345678905",
+      barcodeFormat: "upc_a",
+    }),
+  );
+
+  assert.equal(searchedWith, "012345678905");
+  assert.deepEqual(searchedIdentifiers, [{ type: "upc", value: "012345678905" }]);
+  assert.equal(result.status, "needs_confirmation");
+  assert.equal(result.candidateProducts.length, 2);
+  assert.equal(result.candidateProducts[0]?.title, "Sony Alpha Camera Body");
+  assert.deepEqual(result.normalizedProduct?.identifiers, [{ type: "upc", value: "012345678905" }]);
+});
+
+test("keeps barcode lookup failures isolated and reports an unknown barcode", async () => {
+  const warnings: string[] = [];
+  const adapter: MarketplaceAdapter = {
+    source: "amazon_business",
+    capabilities: {
+      supportsPriceFiltering: true,
+      supportsLocation: false,
+      supportsRadius: false,
+      supportsCondition: false,
+      supportsPagination: true,
+      supportsProductIdentifiers: true,
+    },
+    async search() {
+      throw new Error("provider unavailable");
+    },
+  };
+  const input = {
+    ...baseInput,
+    captureSource: "barcode" as const,
+    barcode: "012345678905",
+    barcodeFormat: "upc_a" as const,
+  };
+  const resolver = createProductCaptureResolver({
+    adapters: { amazon_business: adapter },
+    logger: { warn: (message) => warnings.push(message) },
+  });
+
+  const result = await resolver.resolve(input, identifyProductCapture(input));
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.candidateProducts.length, 0);
+  assert.match(result.failureReason ?? "", /couldn't find a product/i);
+  assert.deepEqual(warnings, ["Barcode product source lookup failed"]);
+});

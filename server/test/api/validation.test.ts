@@ -117,6 +117,34 @@ test("validates all supported product capture request shapes", () => {
   );
 });
 
+test("validates scanned barcode formats and GTIN search identifiers", () => {
+  const barcode = parseBody(productCaptureSchema, {
+    captureSource: "barcode",
+    barcode: "012345678905",
+    barcodeFormat: "upc_a",
+    country: "NG",
+    preferredCurrency: "NGN",
+  });
+  assert.equal(barcode.barcodeFormat, "upc_a");
+
+  const search = parseBody(searchBodySchema, {
+    productIdentifiers: [{ type: "gtin", value: "00012345600012" }],
+  });
+  assert.deepEqual(search.productIdentifiers, [{ type: "gtin", value: "00012345600012" }]);
+
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "barcode",
+        barcode: "012345678905",
+        barcodeFormat: "ean13",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
+});
+
 test("normalizes filter terms and currency while preserving a complete distance filter", () => {
   const filters = parseBody(watchlistFiltersSchema, {
     aliases: [" ILCE-7M3 "],

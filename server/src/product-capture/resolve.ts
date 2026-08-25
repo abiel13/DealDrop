@@ -46,7 +46,15 @@ export async function resolveProductCapture(
   options: ProductCaptureResolverOptions,
 ): Promise<ProductCaptureIdentification> {
   const product = identification.normalizedProduct;
-  if (!product?.canonicalUrl || identification.status === "failed") {
+  if (!product || identification.status === "failed") {
+    return identification;
+  }
+
+  if (input.captureSource === "barcode") {
+    return resolveBarcodeCapture(product, identification, options);
+  }
+
+  if (!product.canonicalUrl) {
     return identification;
   }
 
@@ -67,6 +75,7 @@ export async function resolveProductCapture(
     return {
       status: "failed",
       normalizedProduct: null,
+      candidateProducts: [],
       missingFields: ["product_url"],
       failureReason: pageResult.reason,
     };
@@ -87,6 +96,7 @@ export async function resolveProductCapture(
     return {
       status: "needs_confirmation",
       normalizedProduct: mergedProduct,
+      candidateProducts: [],
       missingFields: missingFields(mergedProduct),
       failureReason:
         pageResult.kind === "resolved"
@@ -98,9 +108,105 @@ export async function resolveProductCapture(
   return {
     status: mergedProduct.title ? "identified" : "needs_confirmation",
     normalizedProduct: mergedProduct,
+    candidateProducts: [],
     missingFields: missingFields(mergedProduct),
     failureReason: mergedProduct.title ? null : "Confirm the product name before tracking.",
   };
+}
+
+async function resolveBarcodeCapture(
+  product: NormalizedCapturedProduct,
+  identification: ProductCaptureIdentification,
+  options: ProductCaptureResolverOptions,
+): Promise<ProductCaptureIdentification> {
+  const identifier = product.identifiers.find(({ type }) => ["upc", "ean", "gtin"].includes(type));
+  const marketplaceIdentifier = identifier ? toMarketplaceIdentifier(identifier) : null;
+
+  if (!marketplaceIdentifier) {
+    return {
+      status: "failed",
+      normalizedProduct: null,
+      candidateProducts: [],
+      missingFields: ["product_identifier"],
+      failureReason: "This barcode format is not supported by the enabled product sources.",
+    };
+  }
+
+  const listings = await searchBarcodeCandidates(marketplaceIdentifier, options);
+  if (listings.length === 0) {
+    return {
+      status: "failed",
+      normalizedProduct: null,
+      candidateProducts: [],
+      missingFields: ["product_name", "product_url"],
+      failureReason:
+        "We couldn't find a product for this barcode in the enabled DealDrop sources. Try scanning again or use a product link.",
+    };
+  }
+
+  const candidates = listings.map((listing) =>
+    mergeProductMetadata(product, null, listing, listing.source),
+  );
+  if (candidates.length === 1) {
+    const candidate = candidates[0]!;
+    return {
+      status: "identified",
+      normalizedProduct: candidate,
+      candidateProducts: [],
+      missingFields: missingFields(candidate),
+      failureReason: null,
+    };
+  }
+
+  return {
+    status: "needs_confirmation",
+    normalizedProduct: product,
+    candidateProducts: candidates,
+    missingFields: missingFields(product),
+    failureReason: `We found ${candidates.length} products for this barcode. Choose the one you want to track.`,
+  };
+}
+
+async function searchBarcodeCandidates(
+  identifier: MarketplaceProductIdentifier,
+  options: ProductCaptureResolverOptions,
+) {
+  const adapters = Object.values(options.adapters).filter(
+    (adapter): adapter is NonNullable<(typeof options.adapters)[string]> =>
+      Boolean(adapter?.capabilities.supportsProductIdentifiers),
+  );
+  if (adapters.length === 0) return [];
+
+  const outcomes = await Promise.allSettled(
+    adapters.map((adapter) =>
+      adapter.search({
+        searchQuery: identifier.value,
+        filters: {},
+        productIdentifiers: [identifier],
+        pagination: { limit: 8 },
+      }),
+    ),
+  );
+  const listings = outcomes.flatMap((outcome, index) => {
+    const adapter = adapters[index];
+    if (!adapter) return [];
+    if (outcome.status === "rejected") {
+      options.logger.warn("Barcode product source lookup failed", {
+        source: adapter.source,
+        error: outcome.reason instanceof Error ? outcome.reason.message : "unknown_error",
+      });
+      return [];
+    }
+
+    return outcome.value.listings;
+  });
+  const seen = new Set<string>();
+  return listings.filter((listing) => {
+    const key = `${listing.source}:${listing.externalId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function toPageMetadata(
@@ -252,6 +358,8 @@ function toMarketplaceIdentifier(
       return { type: "upc", value: identifier.value } as const;
     case "ean":
       return { type: "ean", value: identifier.value } as const;
+    case "gtin":
+      return { type: "gtin", value: identifier.value } as const;
     case "isbn":
       return { type: "isbn", value: identifier.value } as const;
     case "sku":

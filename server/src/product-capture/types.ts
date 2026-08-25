@@ -5,6 +5,8 @@ export type ProductCaptureSource =
 
 export type ProductCaptureStatus = "processing" | "identified" | "needs_confirmation" | "failed";
 
+export type ProductCaptureBarcodeFormat = "ean13" | "ean8" | "upc_a" | "upc_e" | "itf14";
+
 export type ProductCaptureIdentifierType =
   "upc" | "ean" | "gtin" | "asin" | "mpn" | "sku" | "isbn" | "barcode";
 
@@ -13,6 +15,7 @@ export interface ProductCaptureRequest {
   url?: string | null;
   rawText?: string | null;
   barcode?: string | null;
+  barcodeFormat?: ProductCaptureBarcodeFormat | null;
   imageReference?: string | null;
   pageMetadata?: ProductCapturePageMetadata | null;
   country: string;
@@ -62,6 +65,7 @@ export interface NormalizedCapturedProduct {
 export interface ProductCaptureIdentification {
   status: Exclude<ProductCaptureStatus, "processing">;
   normalizedProduct: NormalizedCapturedProduct | null;
+  candidateProducts: NormalizedCapturedProduct[];
   missingFields: string[];
   failureReason: string | null;
 }

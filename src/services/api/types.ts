@@ -38,11 +38,14 @@ export type ApiProductCaptureSource =
 
 export type ApiProductCaptureStatus = "processing" | "identified" | "needs_confirmation" | "failed";
 
+export type ApiProductCaptureBarcodeFormat = "ean13" | "ean8" | "upc_a" | "upc_e" | "itf14";
+
 export interface ApiProductCaptureInput {
   captureSource: ApiProductCaptureSource;
   url?: string | null;
   rawText?: string | null;
   barcode?: string | null;
+  barcodeFormat?: ApiProductCaptureBarcodeFormat | null;
   imageReference?: string | null;
   pageMetadata?: ApiProductCapturePageMetadata | null;
   country: string;
@@ -90,11 +93,13 @@ export interface ApiProductCapture {
   url: string | null;
   rawText: string | null;
   barcode: string | null;
+  barcodeFormat?: ApiProductCaptureBarcodeFormat | null;
   imageReference: string | null;
   country: string;
   preferredCurrency: string;
   status: ApiProductCaptureStatus;
   normalizedProduct: ApiNormalizedCapturedProduct | null;
+  candidateProducts: ApiNormalizedCapturedProduct[];
   missingFields: string[];
   failureReason: string | null;
   createdAt: string;

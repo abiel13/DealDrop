@@ -57,11 +57,13 @@ export interface ApiProductCapture {
   url: string | null;
   rawText: string | null;
   barcode: string | null;
+  barcodeFormat: ProductCaptureRequest["barcodeFormat"];
   imageReference: string | null;
   country: string;
   preferredCurrency: string;
   status: ApiProductCaptureStatus;
   normalizedProduct: ApiNormalizedCapturedProduct | null;
+  candidateProducts: ApiNormalizedCapturedProduct[];
   missingFields: string[];
   failureReason: string | null;
   createdAt: string;

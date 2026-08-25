@@ -321,6 +321,14 @@ export function WatchlistsScreen() {
               Paste a product link
             </Button>
 
+            <Button
+              size="md"
+              variant="outline"
+              onPress={() => router.push(authRoutes.barcodeCapture)}
+            >
+              Scan a barcode
+            </Button>
+
             <SearchBar
               accessibilityLabel="Search watchlists"
               leftIcon={<AppIcon name="search" size={19} color={theme.colors.textTertiary} />}
@@ -350,6 +358,9 @@ export function WatchlistsScreen() {
                 </Button>
                 <Button variant="outline" onPress={() => router.push(authRoutes.productCapture)}>
                   Paste a product link
+                </Button>
+                <Button variant="outline" onPress={() => router.push(authRoutes.barcodeCapture)}>
+                  Scan a barcode
                 </Button>
               </View>
             )}

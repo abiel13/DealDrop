@@ -279,6 +279,7 @@ function identifierQueryKey(identifier: MarketplaceProductIdentifier) {
   switch (identifier.type) {
     case "upc":
     case "ean":
+    case "gtin":
     case "isbn":
     case "sku":
       return identifier.type;
