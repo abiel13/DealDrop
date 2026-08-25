@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useRouter, type Href } from "expo-router";
+import { Link, useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Pressable, View } from "react-native";
@@ -32,6 +32,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmationMessage, setConfirmationMessage] = useState<string | null>(null);
   const {
@@ -42,6 +43,7 @@ export function RegisterScreen() {
     resolver: zodResolver(registerSchema),
     defaultValues: { fullName: "", email: "", password: "", confirmPassword: "" },
   });
+  const returnTo = getSafeReturnPath(params.returnTo);
 
   async function onSubmit({ fullName, email, password }: RegisterFormValues) {
     setFormError(null);
@@ -76,7 +78,7 @@ export function RegisterScreen() {
 
       trackProductEventNonBlocking("account_activated", {}, `account-activated:${data.user.id}`);
 
-      router.replace("/watchlist-form?onboarding=true" as Href);
+      router.replace(returnTo ?? ("/watchlist-form?onboarding=true" as Href));
       return;
     }
 
@@ -175,7 +177,7 @@ export function RegisterScreen() {
 
         <View className="mt-4 flex-row items-center justify-center gap-1">
           <AppText variant="bodySmall">Already have an account?</AppText>
-          <Link href={authRoutes.login} asChild>
+          <Link href={getAuthRouteWithReturn(authRoutes.login, returnTo)} asChild>
             <Pressable hitSlop={8}>
               <AppText variant="bodySmall" className="font-semibold text-primary">
                 Sign in
@@ -186,4 +188,14 @@ export function RegisterScreen() {
       </View>
     </AuthShell>
   );
+}
+
+function getSafeReturnPath(value: string | string[] | undefined): Href | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) return null;
+  return candidate as Href;
+}
+
+function getAuthRouteWithReturn(route: Href, returnTo: Href | null) {
+  return returnTo ? (`${route}?returnTo=${encodeURIComponent(String(returnTo))}` as Href) : route;
 }

@@ -20,6 +20,7 @@ export const authRoutes = {
   history: "/history" as Href,
   watchlistForm: "/watchlist-form" as Href,
   productCapture: "/paste-product" as Href,
+  shareProduct: "/share-product" as Href,
   listing: "/listing" as Href,
 };
 
