@@ -40,18 +40,22 @@ import { findSharedProductDuplicate } from "../services/share-intent.service";
 export interface ProductCaptureScreenProps {
   captureSource?: "pasted_url" | "share_sheet";
   initialCaptureInput?: ApiProductCaptureInput | null;
+  initialUrl?: string | null;
+  autoCapture?: boolean;
   onCancel?: () => void;
 }
 
 export function ProductCaptureScreen({
   captureSource = "pasted_url",
   initialCaptureInput = null,
+  initialUrl = null,
+  autoCapture = false,
   onCancel,
 }: ProductCaptureScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [url, setUrl] = useState(initialCaptureInput?.url ?? "");
+  const [url, setUrl] = useState(initialCaptureInput?.url ?? initialUrl ?? "");
   const [capture, setCapture] = useState<ApiProductCapture | null>(null);
   const [title, setTitle] = useState("");
   const [variant, setVariant] = useState("");
@@ -123,13 +127,19 @@ export function ProductCaptureScreen({
   const captureProduct = captureMutation.mutate;
 
   useEffect(() => {
-    if (captureSource !== "share_sheet" || !initialCaptureInput) return;
+    const input =
+      initialCaptureInput ??
+      (autoCapture && captureSource === "pasted_url" && initialUrl
+        ? {
+            captureSource: "pasted_url" as const,
+            url: initialUrl,
+            country: defaults.country,
+            preferredCurrency: defaults.currency,
+          }
+        : null);
+    if (!input) return;
 
-    const captureKey = [
-      initialCaptureInput.url,
-      initialCaptureInput.rawText,
-      initialCaptureInput.barcode,
-    ]
+    const captureKey = [input.captureSource, input.url, input.rawText, input.barcode]
       .map((value) => value ?? "")
       .join("|");
     if (autoCaptureKeyRef.current === captureKey) return;
@@ -137,8 +147,8 @@ export function ProductCaptureScreen({
     autoCaptureKeyRef.current = captureKey;
     setFormError(null);
     setCapture(null);
-    captureProduct(initialCaptureInput);
-  }, [captureProduct, captureSource, initialCaptureInput]);
+    captureProduct(input);
+  }, [autoCapture, captureProduct, captureSource, defaults, initialCaptureInput, initialUrl]);
 
   const trackingMutation = useMutation({
     mutationFn: async ({

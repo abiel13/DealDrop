@@ -14,8 +14,26 @@ export interface ProductCaptureRequest {
   rawText?: string | null;
   barcode?: string | null;
   imageReference?: string | null;
+  pageMetadata?: ProductCapturePageMetadata | null;
   country: string;
   preferredCurrency: string;
+}
+
+/**
+ * Metadata read from the active page by a trusted DealDrop client. It is only
+ * a hint: the server validates it and may replace it with server-observed
+ * metadata before the product is shown to the user.
+ */
+export interface ProductCapturePageMetadata {
+  title?: string | null;
+  canonicalUrl?: string | null;
+  imageUrls?: string[];
+  price?: number | null;
+  currency?: string | null;
+  identifiers?: ProductCaptureIdentifier[];
+  variant?: string | null;
+  condition?: string | null;
+  merchant?: string | null;
 }
 
 export interface ProductCaptureIdentifier {

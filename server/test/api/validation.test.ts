@@ -58,6 +58,23 @@ test("validates all supported product capture request shapes", () => {
     assert.equal(input.preferredCurrency, "NGN");
   }
 
+  const browserMetadata = parseBody(productCaptureSchema, {
+    captureSource: "browser_extension",
+    url: "https://shop.test/product",
+    pageMetadata: {
+      title: "Sony Alpha Camera",
+      canonicalUrl: "https://shop.test/product?canonical=1",
+      imageUrls: ["https://shop.test/images/camera.jpg"],
+      price: 1299,
+      currency: "usd",
+      identifiers: [{ type: "mpn", value: "CAM-123" }],
+    },
+    country: "NG",
+    preferredCurrency: "ngn",
+  });
+  assert.equal(browserMetadata.pageMetadata?.currency, "USD");
+  assert.equal(browserMetadata.pageMetadata?.identifiers?.[0]?.value, "CAM-123");
+
   assert.throws(
     () =>
       parseBody(productCaptureSchema, {
@@ -72,6 +89,27 @@ test("validates all supported product capture request shapes", () => {
       parseBody(productCaptureSchema, {
         captureSource: "pasted_url",
         url: "ftp://shop.test/product",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "browser_extension",
+        url: "https://user:password@shop.test/product",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "browser_extension",
+        url: "https://shop.test/product",
+        pageMetadata: { imageUrls: ["javascript:alert(1)"] },
         country: "NG",
         preferredCurrency: "NGN",
       }),

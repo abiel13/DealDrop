@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DealDrop</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand-header">
+        <div class="brand-mark" aria-hidden="true">D</div>
+        <div>
+          <p class="eyebrow">DEALDROP</p>
+          <h1>Track with DealDrop</h1>
+        </div>
+      </header>
+
+      <section id="configuration-state" class="state-card" hidden>
+        <h2>Extension setup needed</h2>
+        <p id="configuration-message">
+          Add the public DealDrop extension configuration before using this extension.
+        </p>
+      </section>
+
+      <section id="signed-out-state" class="state-card" hidden>
+        <h2>Sign in to track products</h2>
+        <p>
+          Use your existing DealDrop account. Your password is used only for sign-in and is never
+          stored by the extension.
+        </p>
+        <form id="sign-in-form" class="form-stack">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+          <label for="password">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <button id="sign-in-button" class="primary-button" type="submit">Sign in</button>
+        </form>
+        <p id="sign-in-message" class="message" role="status" hidden></p>
+        <button id="open-app-from-sign-in" class="text-button" type="button">Open DealDrop</button>
+      </section>
+
+      <section id="ready-state" class="state-card" hidden>
+        <p class="eyebrow">READY</p>
+        <h2>Capture the page you are viewing</h2>
+        <p>
+          DealDrop reads safe product metadata from the active page, then lets you confirm what to
+          track.
+        </p>
+        <button id="capture-button" class="primary-button" type="button">
+          Capture current page
+        </button>
+        <button id="sign-out-button" class="text-button" type="button">Sign out</button>
+      </section>
+
+      <section id="capture-state" class="state-card" hidden>
+        <div class="loading-row">
+          <span class="spinner" aria-hidden="true"></span><span>Finding product details…</span>
+        </div>
+        <p class="muted">This can take a few seconds.</p>
+      </section>
+
+      <section id="review-state" class="state-card" hidden>
+        <p class="eyebrow">PRODUCT DETECTED</p>
+        <div class="product-preview">
+          <img id="product-image" alt="" hidden />
+          <div class="product-copy">
+            <p id="product-source" class="muted"></p>
+            <label for="product-title">Product name</label>
+            <input id="product-title" type="text" maxlength="200" />
+            <p id="product-price" class="price" hidden></p>
+          </div>
+        </div>
+        <label for="target-price">Target price <span class="muted">(optional)</span></label>
+        <input
+          id="target-price"
+          type="number"
+          min="0"
+          step="0.01"
+          inputmode="decimal"
+          placeholder="Save without a target"
+        />
+        <p id="review-message" class="message" role="status" hidden></p>
+        <button id="save-button" class="primary-button" type="button">Save to DealDrop</button>
+        <button id="open-product-button" class="secondary-button" type="button">
+          Open product in DealDrop
+        </button>
+        <button id="cancel-review-button" class="text-button" type="button">Cancel</button>
+      </section>
+
+      <section id="success-state" class="state-card" hidden>
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <p class="eyebrow">TRACKING STARTED</p>
+        <h2 id="success-title">Product saved</h2>
+        <p>DealDrop will monitor this product using your saved preferences.</p>
+        <button id="open-product-success-button" class="primary-button" type="button">
+          Open in DealDrop
+        </button>
+        <button id="capture-another-button" class="text-button" type="button">
+          Capture another page
+        </button>
+      </section>
+
+      <section id="error-state" class="state-card" hidden>
+        <p class="eyebrow">NOT AVAILABLE</p>
+        <h2 id="error-title">Product not detected</h2>
+        <p id="error-message">This page does not expose enough product information for DealDrop.</p>
+        <button id="retry-button" class="primary-button" type="button">Try again</button>
+        <button id="error-sign-out-button" class="text-button" type="button">Sign out</button>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

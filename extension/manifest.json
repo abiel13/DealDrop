@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "DealDrop — Track products faster",
+  "version": "0.1.0",
+  "description": "Capture a product from the page you are viewing and track it with DealDrop.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_title": "Track with DealDrop",
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

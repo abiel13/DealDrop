@@ -163,6 +163,35 @@ test("does not follow a redirect into a private address", async () => {
   assert.match(result.reason, /unsafe destination/i);
 });
 
+test("keeps safe browser metadata when the page blocks server-side lookup", async () => {
+  const adapterResolver = createProductCaptureResolver({
+    adapters: {},
+    logger: { warn() {} },
+    fetchImpl: async () => new Response("Sign in", { status: 403 }),
+  });
+  const input = {
+    ...baseInput,
+    captureSource: "browser_extension",
+    url: "https://shop.test/products/camera",
+    pageMetadata: {
+      title: "Sony Alpha Camera",
+      canonicalUrl: "https://shop.test/products/camera?variant=black",
+      imageUrls: ["https://shop.test/images/camera.jpg"],
+      price: 1299,
+      currency: "USD",
+      identifiers: [{ type: "mpn", value: "CAM-123" }],
+    },
+  } satisfies ProductCaptureRequest;
+
+  const result = await adapterResolver.resolve(input, identifyProductCapture(input));
+
+  assert.equal(result.status, "needs_confirmation");
+  assert.equal(result.normalizedProduct?.title, "Sony Alpha Camera");
+  assert.equal(result.normalizedProduct?.price, 1299);
+  assert.equal(result.normalizedProduct?.imageUrls[0], "https://shop.test/images/camera.jpg");
+  assert.deepEqual(result.normalizedProduct?.identifiers, [{ type: "mpn", value: "CAM-123" }]);
+});
+
 test("routes known marketplace URLs through an enabled adapter when available", async () => {
   let searchedWith: string | null = null;
   const adapter: MarketplaceAdapter = {
