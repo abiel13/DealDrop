@@ -26,6 +26,7 @@ export class EbayMarketplaceAdapter implements MarketplaceAdapter {
     private readonly logger: WorkerLogger,
   ) {
     this.capabilities = {
+      country: config.marketplaceCountry,
       supportsPriceFiltering: true,
       supportsLocation: Boolean(config.marketplaceCountry),
       supportsRadius: false,

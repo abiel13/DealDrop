@@ -20,6 +20,29 @@ export function formatListingPrice(listing: Pick<Listing, "price" | "currency">)
   }
 }
 
+export function formatConvertedListingPrice(
+  listing: Pick<
+    Listing,
+    "converted_price" | "converted_currency" | "source_currency" | "currency" | "conversion_status"
+  >,
+) {
+  const sourceCurrency = listing.source_currency ?? listing.currency;
+  if (
+    listing.conversion_status !== "converted" ||
+    listing.converted_price === null ||
+    listing.converted_price === undefined ||
+    !listing.converted_currency ||
+    listing.converted_currency === sourceCurrency
+  ) {
+    return null;
+  }
+
+  return formatListingPrice({
+    price: listing.converted_price,
+    currency: listing.converted_currency,
+  });
+}
+
 export function formatListingDate(value: string | null) {
   if (!value) {
     return "Date unavailable";

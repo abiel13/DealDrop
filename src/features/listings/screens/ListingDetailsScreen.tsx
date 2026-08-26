@@ -33,6 +33,7 @@ import {
 import { submitListingProblemReport } from "../services/listing-problem-report.service";
 import type { Listing } from "../types/listing.types";
 import {
+  formatConvertedListingPrice,
   formatListingDate,
   formatListingPrice,
   formatListingRecency,
@@ -271,6 +272,13 @@ export function ListingDetailsScreen() {
           <AppText variant="display" className="text-primary">
             {formatListingPrice(listing)}
           </AppText>
+
+          {formatConvertedListingPrice(listing) && (
+            <AppText variant="bodySmall" className="text-text-secondary">
+              ≈ {formatConvertedListingPrice(listing)} in your preferred currency. Source price
+              remains {listing.source_currency ?? listing.currency ?? "the original currency"}.
+            </AppText>
+          )}
 
           <AppText variant="heading">{listing.title || "Untitled listing"}</AppText>
 

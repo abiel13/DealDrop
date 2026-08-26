@@ -44,6 +44,14 @@ function toListing(
     feedback: match?.feedback ?? null,
     product: listing.product,
     relevance: listing.relevance,
+    source_price: listing.sourcePrice,
+    source_currency: listing.sourceCurrency,
+    converted_price: listing.convertedPrice,
+    converted_currency: listing.convertedCurrency,
+    exchange_rate: listing.exchangeRate,
+    exchange_rate_as_of: listing.exchangeRateAsOf,
+    exchange_rate_source: listing.exchangeRateSource,
+    conversion_status: listing.conversionStatus,
   };
 }
 

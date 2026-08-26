@@ -10,6 +10,10 @@ import {
   type MarketplaceSource,
 } from "../marketplaces/shared/types";
 import { isValidClockTime, isValidTimeZone } from "../notifications/scheduling";
+import {
+  SUPPORTED_SHOPPING_COUNTRIES,
+  SUPPORTED_SHOPPING_CURRENCIES,
+} from "../preferences/shopping";
 import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
@@ -597,6 +601,22 @@ export const notificationPreferencesSchema = z
       }
     }
   });
+
+export const shoppingPreferencesSchema = z
+  .object({
+    country: z.enum(SUPPORTED_SHOPPING_COUNTRIES),
+    preferredCurrency: z.enum(SUPPORTED_SHOPPING_CURRENCIES),
+    preferredMarketplaces: z
+      .array(z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]))
+      .max(Object.values(MARKETPLACE_IDS).length)
+      .refine((marketplaces) => new Set(marketplaces).size === marketplaces.length, {
+        message: "preferredMarketplaces must not contain duplicates.",
+      }),
+    willingToBuyInternationally: z.boolean(),
+    updatedAt: z.string().datetime().nullable().optional(),
+  })
+  .strict()
+  .transform(({ updatedAt: _updatedAt, ...preferences }) => preferences);
 
 export const pushTokenSchema = z
   .object({

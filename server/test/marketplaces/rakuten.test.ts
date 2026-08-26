@@ -194,6 +194,7 @@ test("adapter exposes honest capabilities and rejects unsupported DealDrop filte
   );
 
   assert.deepEqual(adapter.capabilities, {
+    country: "JP",
     supportsPriceFiltering: true,
     supportsLocation: false,
     supportsRadius: false,

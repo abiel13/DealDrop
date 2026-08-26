@@ -46,6 +46,7 @@ import {
   listingProblemReportSchema,
   productEventSchema,
   notificationPreferencesSchema,
+  shoppingPreferencesSchema,
   pushTokenSchema,
   searchBodySchema,
   comparisonSearchSchema,
@@ -241,7 +242,7 @@ async function routeProtectedRequest(
       ...input.pagination,
       cursor: decodeApiCursor(input.pagination?.cursor),
     };
-    const result = await api.search(input);
+    const result = await api.search(input, userId);
     sendSuccess(response, requestId, result, {
       nextCursor: result.pagination.nextCursor,
       hasMore: result.pagination.hasMore,
@@ -292,7 +293,7 @@ async function routeProtectedRequest(
       ...input.pagination,
       cursor: decodeApiCursor(input.pagination?.cursor),
     };
-    const result = await api.search(input);
+    const result = await api.search(input, userId);
     sendSuccess(response, requestId, result, {
       nextCursor: result.pagination.nextCursor,
       hasMore: result.pagination.hasMore,
@@ -808,6 +809,19 @@ async function routeProtectedRequest(
     );
     sendSuccess(response, requestId, page.items, page.pagination);
     return;
+  }
+
+  if (resource === "preferences" && resourceId === "shopping" && !action) {
+    if (method === "GET") {
+      sendSuccess(response, requestId, await api.getShoppingPreferences(userId));
+      return;
+    }
+
+    if (method === "PATCH") {
+      const input = parseBody(shoppingPreferencesSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(response, requestId, await api.updateShoppingPreferences(userId, input));
+      return;
+    }
   }
 
   if (resource === "notifications" && resourceId === "preferences") {

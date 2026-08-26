@@ -13,6 +13,7 @@ import {
 } from "../marketplaces/comparison";
 import {
   MARKETPLACE_IDS,
+  type MarketplaceListing,
   type MarketplaceProductIdentifier,
   type MarketplaceSource,
 } from "../marketplaces/shared/types";
@@ -22,6 +23,15 @@ import {
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
+import {
+  createEnvironmentExchangeRateProvider,
+  type ExchangeRateProvider,
+} from "../pricing/currency";
+import {
+  DEFAULT_SHOPPING_PREFERENCES,
+  normalizeShoppingPreferences,
+  type ShoppingPreferences,
+} from "../preferences/shopping";
 import { identifyProductCapture } from "../product-capture/identify";
 import {
   createProductCaptureResolver,
@@ -55,6 +65,9 @@ import type {
   ListingProblemReportInput,
   ApiNotification,
   ApiNotificationPreferences,
+  ApiShoppingPreferences,
+  ApiShoppingPreferencesInput,
+  ApiListing,
   ApiSearchResult,
   ApiSourcingListImportInput,
   ApiSourcingListImportResult,
@@ -81,6 +94,7 @@ import type {
   RawApiSourcingNote,
   RawApiProductCapture,
   RawApiWatchlist,
+  RawApiListing,
 } from "./types";
 
 export interface MobileApiDependencies {
@@ -93,6 +107,7 @@ export interface MobileApiDependencies {
   };
   coordinator?: MarketplaceSearchCoordinator;
   productCaptureResolver?: ProductCaptureResolver;
+  exchangeRateProvider?: ExchangeRateProvider;
 }
 
 export interface SearchInput extends MarketplaceSearchCoordinatorRequest {}
@@ -100,6 +115,7 @@ export interface SearchInput extends MarketplaceSearchCoordinatorRequest {}
 export class MobileApiService {
   private readonly coordinator: MarketplaceSearchCoordinator;
   private readonly productCaptureResolver: ProductCaptureResolver;
+  private readonly exchangeRateProvider?: ExchangeRateProvider;
 
   constructor(private readonly dependencies: MobileApiDependencies) {
     this.coordinator =
@@ -111,14 +127,19 @@ export class MobileApiService {
         adapters: dependencies.adapters,
         logger: dependencies.logger,
       });
+    this.exchangeRateProvider =
+      dependencies.exchangeRateProvider ?? createEnvironmentExchangeRateProvider();
   }
 
   getMarketplaces(): ApiMarketplace[] {
     return getMarketplaceCatalog(this.dependencies.adapters);
   }
 
-  async search(input: SearchInput): Promise<ApiSearchResult> {
-    const response = await this.coordinator.search(input);
+  async search(input: SearchInput, userId?: string): Promise<ApiSearchResult> {
+    const preferences = await this.loadShoppingPreferences(userId);
+    const response = await this.coordinator.search(
+      this.applyShoppingPreferences(input, preferences),
+    );
     const storedListings = await this.dependencies.repository.persistListings(response.listings);
     const storedListingsByIdentity = new Map(
       storedListings.map((listing) => [
@@ -127,17 +148,20 @@ export class MobileApiService {
       ]),
     );
 
+    const rankedListings = this.rankListingsForPreferences(response.listings, preferences);
     return {
-      listings: response.listings.map((listing) => ({
-        ...toApiListing(listing, {
-          id:
-            storedListingsByIdentity.get(listingIdentity(listing.source, listing.externalId))?.id ??
-            null,
-          productIdentityData: storedListingsByIdentity.get(
+      listings: await Promise.all(
+        rankedListings.map(async (listing) => {
+          const stored = storedListingsByIdentity.get(
             listingIdentity(listing.source, listing.externalId),
-          )?.product_identity_data,
+          );
+          return toApiListing(listing, {
+            id: stored?.id ?? null,
+            productIdentityData: stored?.product_identity_data,
+            ...(await this.getListingPriceOptions(listing, preferences)),
+          });
         }),
-      })),
+      ),
       intent: response.intent,
       filteredCount: response.filteredCount,
       sources: response.sources,
@@ -152,18 +176,200 @@ export class MobileApiService {
     };
   }
 
+  async getShoppingPreferences(userId: string): Promise<ApiShoppingPreferences> {
+    const getPreferences = this.dependencies.repository.getShoppingPreferences;
+    if (!getPreferences) {
+      return DEFAULT_SHOPPING_PREFERENCES;
+    }
+
+    return normalizeShoppingPreferences(
+      await getPreferences.call(this.dependencies.repository, userId),
+    );
+  }
+
+  async updateShoppingPreferences(
+    userId: string,
+    input: ApiShoppingPreferencesInput,
+  ): Promise<ApiShoppingPreferences> {
+    const updatePreferences = this.dependencies.repository.updateShoppingPreferences;
+    if (!updatePreferences) {
+      throw new ApiError(
+        503,
+        "preferences_unavailable",
+        "Shopping preferences are not available on this server yet.",
+      );
+    }
+
+    return normalizeShoppingPreferences(
+      await updatePreferences.call(this.dependencies.repository, userId, input),
+    );
+  }
+
+  private async loadShoppingPreferences(userId: string | undefined) {
+    return userId ? this.getShoppingPreferences(userId) : null;
+  }
+
+  private applyShoppingPreferences(input: SearchInput, preferences: ShoppingPreferences | null) {
+    if (
+      !preferences ||
+      input.sources !== undefined ||
+      preferences.preferredMarketplaces.length === 0
+    ) {
+      return input;
+    }
+
+    const enabledSources = new Set(getEnabledMarketplaceSources(this.dependencies.adapters));
+    const preferredSources = preferences.preferredMarketplaces.filter((source) =>
+      enabledSources.has(source),
+    );
+    if (preferredSources.length === 0) {
+      return input;
+    }
+
+    const sources = preferences.willingToBuyInternationally
+      ? preferredSources
+      : this.keepLocalOrUnknownSources(preferredSources, preferences.country);
+
+    return { ...input, sources: sources.length > 0 ? sources : preferredSources };
+  }
+
+  private keepLocalOrUnknownSources(sources: MarketplaceSource[], country: string) {
+    const catalog = new Map(
+      this.getMarketplaces().map((marketplace) => [marketplace.source, marketplace]),
+    );
+    const localOrUnknown = sources.filter((source) => {
+      const sourceCountry = catalog.get(source)?.capabilities?.country?.toUpperCase();
+      return !sourceCountry || sourceCountry === country;
+    });
+    return localOrUnknown.length > 0 ? localOrUnknown : sources;
+  }
+
+  private rankListingsForPreferences(
+    listings: MarketplaceListing[],
+    preferences: ShoppingPreferences | null,
+  ) {
+    if (!preferences) {
+      return listings;
+    }
+
+    const preferredOrder = new Map(
+      preferences.preferredMarketplaces.map((source, index) => [source, index]),
+    );
+    const catalog = new Map(
+      this.getMarketplaces().map((marketplace) => [marketplace.source, marketplace]),
+    );
+
+    return [...listings].sort((left, right) => {
+      const leftPreferred = preferredOrder.get(left.source) ?? Number.MAX_SAFE_INTEGER;
+      const rightPreferred = preferredOrder.get(right.source) ?? Number.MAX_SAFE_INTEGER;
+      if (leftPreferred !== rightPreferred) {
+        return leftPreferred - rightPreferred;
+      }
+
+      if (!preferences.willingToBuyInternationally) {
+        const leftCountry = catalog.get(left.source)?.capabilities?.country?.toUpperCase();
+        const rightCountry = catalog.get(right.source)?.capabilities?.country?.toUpperCase();
+        const leftLocality = !leftCountry ? 1 : leftCountry === preferences.country ? 0 : 2;
+        const rightLocality = !rightCountry ? 1 : rightCountry === preferences.country ? 0 : 2;
+        if (leftLocality !== rightLocality) {
+          return leftLocality - rightLocality;
+        }
+      }
+
+      return 0;
+    });
+  }
+
+  private async getListingPriceOptions(
+    listing: MarketplaceListing | RawApiListing,
+    preferences: ShoppingPreferences | null,
+  ): Promise<
+    Pick<
+      ApiListing,
+      | "sourcePrice"
+      | "sourceCurrency"
+      | "convertedPrice"
+      | "convertedCurrency"
+      | "exchangeRate"
+      | "exchangeRateAsOf"
+      | "exchangeRateSource"
+      | "conversionStatus"
+    >
+  > {
+    const sourcePrice = listing.price;
+    const sourceCurrency = listing.currency?.toUpperCase() ?? null;
+    if (!preferences) {
+      return { sourcePrice, sourceCurrency };
+    }
+
+    const convertedCurrency = preferences.preferredCurrency;
+    if (sourcePrice === null || !sourceCurrency) {
+      return {
+        sourcePrice,
+        sourceCurrency,
+        convertedCurrency,
+        conversionStatus: "unavailable",
+      };
+    }
+
+    if (sourceCurrency === convertedCurrency) {
+      return {
+        sourcePrice,
+        sourceCurrency,
+        convertedPrice: sourcePrice,
+        convertedCurrency,
+        exchangeRate: 1,
+        exchangeRateAsOf: null,
+        exchangeRateSource: "same_currency",
+        conversionStatus: "not_needed",
+      };
+    }
+
+    if (!/^[A-Z]{3}$/.test(sourceCurrency) || !this.exchangeRateProvider) {
+      return {
+        sourcePrice,
+        sourceCurrency,
+        convertedCurrency,
+        conversionStatus: !/^[A-Z]{3}$/.test(sourceCurrency) ? "unsupported" : "unavailable",
+      };
+    }
+
+    const rate = await this.exchangeRateProvider.getRate(sourceCurrency, convertedCurrency);
+    if (!rate) {
+      return {
+        sourcePrice,
+        sourceCurrency,
+        convertedCurrency,
+        conversionStatus: "unavailable",
+      };
+    }
+
+    return {
+      sourcePrice,
+      sourceCurrency,
+      convertedPrice: Math.round(sourcePrice * rate.rate * 100) / 100,
+      convertedCurrency,
+      exchangeRate: rate.rate,
+      exchangeRateAsOf: rate.observedAt,
+      exchangeRateSource: rate.source,
+      conversionStatus: "converted",
+    };
+  }
+
   async getListing(userId: string, listingId: string) {
     const result = await this.dependencies.repository.getListingForUser(userId, listingId);
     if (!result) {
       throw new ApiNotFoundError("The listing was not found.");
     }
 
+    const preferences = await this.loadShoppingPreferences(userId);
     return toApiListing(result.listing, {
       id: result.listing.id,
       matchedAt: result.matchedAt,
       isFavorite: result.isFavorite,
       priceHistory: result.priceHistory,
       priceTarget: result.priceTarget,
+      ...(await this.getListingPriceOptions(result.listing, preferences)),
     });
   }
 
@@ -938,8 +1144,17 @@ export class MobileApiService {
       includeDismissed,
       options,
     );
+    const preferences = await this.loadShoppingPreferences(userId);
     return {
-      items: page.items.map(toMatch),
+      items: await Promise.all(
+        page.items.map(async (match) => {
+          const listing = unwrap(match.listing);
+          return toMatch(
+            match,
+            listing ? await this.getListingPriceOptions(listing, preferences) : undefined,
+          );
+        }),
+      ),
       pagination: {
         nextCursor: page.nextCursor ? encodeApiCursor(page.nextCursor) : null,
         hasMore: page.hasMore,
@@ -950,15 +1165,19 @@ export class MobileApiService {
 
   async getFavoriteListings(userId: string, cursor: string | null, limit: number) {
     const page = await this.dependencies.repository.getFavoriteListings(userId, cursor, limit);
+    const preferences = await this.loadShoppingPreferences(userId);
     return {
-      items: page.items.map((item) =>
-        toApiListing(item.listing, {
-          id: item.listing.id,
-          matchedAt: item.matchedAt,
-          isFavorite: true,
-          priceHistory: item.priceHistory,
-          priceTarget: item.priceTarget,
-        }),
+      items: await Promise.all(
+        page.items.map(async (item) =>
+          toApiListing(item.listing, {
+            id: item.listing.id,
+            matchedAt: item.matchedAt,
+            isFavorite: true,
+            priceHistory: item.priceHistory,
+            priceTarget: item.priceTarget,
+            ...(await this.getListingPriceOptions(item.listing, preferences)),
+          }),
+        ),
       ),
       pagination: {
         nextCursor: page.nextCursor ? encodeApiCursor(page.nextCursor) : null,
@@ -1440,7 +1659,19 @@ function toApiComparisonManualGroup(
   };
 }
 
-function toMatch(match: StoredMatch): ApiMatch {
+type ApiListingPriceOptions = Pick<
+  ApiListing,
+  | "sourcePrice"
+  | "sourceCurrency"
+  | "convertedPrice"
+  | "convertedCurrency"
+  | "exchangeRate"
+  | "exchangeRateAsOf"
+  | "exchangeRateSource"
+  | "conversionStatus"
+>;
+
+function toMatch(match: StoredMatch, priceOptions?: ApiListingPriceOptions): ApiMatch {
   const listing = unwrap(match.listing);
   const watchlist = unwrap(match.watchlist);
   if (!listing || !watchlist) {
@@ -1457,6 +1688,7 @@ function toMatch(match: StoredMatch): ApiMatch {
       id: listing.id,
       matchedAt: match.matched_at,
       isFavorite: match.favorite,
+      ...priceOptions,
     }),
   };
 }
