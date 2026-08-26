@@ -666,6 +666,82 @@ export const searchBodySchema = z
     "searchQuery or productIdentifiers is required",
   );
 
+const deliveredCostMoneySchema = z
+  .object({
+    amount: finiteNumber.nonnegative(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/),
+  })
+  .strict();
+
+const deliveredCostComponentSchema = z
+  .object({
+    amount: finiteNumber.nonnegative().nullable(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    state: z.enum(["known", "estimated", "unknown"]),
+    source: z.enum(["marketplace", "provider", "user", "unknown"]),
+    convertedAmount: finiteNumber.nonnegative().nullable(),
+    convertedCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+  })
+  .strict();
+
+const deliveredCostSchema = z
+  .object({
+    sourcePrice: deliveredCostComponentSchema,
+    sourcePriceInCalculationCurrency: deliveredCostMoneySchema.nullable(),
+    calculationCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .nullable(),
+    components: z
+      .object({
+        shipping: deliveredCostComponentSchema,
+        buyerFees: deliveredCostComponentSchema,
+        taxes: deliveredCostComponentSchema,
+        duties: deliveredCostComponentSchema,
+        otherCosts: deliveredCostComponentSchema,
+      })
+      .strict(),
+    knownAdditionalCost: deliveredCostMoneySchema.nullable(),
+    estimatedDeliveredCost: deliveredCostMoneySchema.nullable(),
+    estimatedDeliveredUnitCost: deliveredCostMoneySchema.nullable(),
+    completeness: z.enum(["complete", "partial", "currency_mismatch", "unavailable"]),
+    missingComponents: z.array(z.string().trim().min(1).max(100)).max(10),
+    isEstimate: z.boolean(),
+    conversions: z
+      .array(
+        z
+          .object({
+            fromCurrency: z
+              .string()
+              .trim()
+              .regex(/^[A-Za-z]{3}$/),
+            toCurrency: z
+              .string()
+              .trim()
+              .regex(/^[A-Za-z]{3}$/),
+            rate: finiteNumber.positive(),
+            observedAt: z.string().datetime(),
+            source: z.string().trim().min(1).max(100),
+          })
+          .strict(),
+      )
+      .max(10),
+    providerDeliveredCost: deliveredCostComponentSchema.nullable(),
+  })
+  .strict();
+
 const comparisonOfferSchema = z
   .object({
     source: z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]),
@@ -696,6 +772,7 @@ const comparisonOfferSchema = z
       .trim()
       .regex(/^[A-Za-z]{3}$/)
       .nullable(),
+    cost: deliveredCostSchema.optional(),
     condition: z.string().trim().max(100).nullable(),
     deliveryInformation: z.string().trim().max(500).nullable(),
     availability: z.string().trim().max(200).nullable(),

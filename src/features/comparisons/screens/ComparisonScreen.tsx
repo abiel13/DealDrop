@@ -21,6 +21,7 @@ import {
 } from "@/features/sourcing-lists/services/sourcing-list.service";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import type {
+  ApiDeliveredCostComponent,
   ApiComparisonOffer,
   ApiComparisonShortlist,
   ApiProductComparison,
@@ -336,9 +337,9 @@ function ComparisonGroupCard({
 
             <View className="flex-row flex-wrap gap-2">
               {isRawWinner && <Badge label="Cheapest price" />}
-              {isLandedWinner && <Badge label="Cheapest landed" />}
+              {isLandedWinner && <Badge label={landedWinnerLabel(offer, false)} />}
               {isQualifyingWinner && <Badge label="Best qualifying price" />}
-              {isQualifyingLandedWinner && <Badge label="Best qualifying landed" />}
+              {isQualifyingLandedWinner && <Badge label={landedWinnerLabel(offer, true)} />}
               {offer.qualification === "qualifies" && <Badge label="Qualifies" />}
               {offer.qualification === "unknown" && <Badge label="Criteria unknown" muted />}
               {offer.isShortlisted && <Badge label="Shortlisted" />}
@@ -351,13 +352,61 @@ function ComparisonGroupCard({
             </View>
 
             <View className="gap-1">
-              <AppText variant="bodySmall">
-                Shipping: {formatMoney(offer.shippingCost, offer.shippingCurrency)}
-              </AppText>
-              <AppText variant="bodySmall">
-                Estimated landed cost:{" "}
-                {formatMoney(offer.landedUnitCost, offer.landedUnitCostCurrency)}
-              </AppText>
+              {offer.cost ? (
+                <>
+                  <AppText variant="bodySmall">
+                    Marketplace price:{" "}
+                    {formatMoney(offer.cost.sourcePrice.amount, offer.cost.sourcePrice.currency)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Shipping: {formatCostComponent(offer.cost.components.shipping)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Marketplace fees: {formatCostComponent(offer.cost.components.buyerFees)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Taxes: {formatCostComponent(offer.cost.components.taxes)} · Duties:{" "}
+                    {formatCostComponent(offer.cost.components.duties)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Known additional cost:{" "}
+                    {formatMoney(
+                      offer.cost.knownAdditionalCost?.amount ?? null,
+                      offer.cost.knownAdditionalCost?.currency ?? null,
+                    )}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Estimated delivered unit cost:{" "}
+                    {formatMoney(
+                      offer.cost.estimatedDeliveredUnitCost?.amount ?? null,
+                      offer.cost.estimatedDeliveredUnitCost?.currency ?? null,
+                    )}
+                    {costCompletenessLabel(offer.cost)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Estimated delivered total:{" "}
+                    {formatMoney(
+                      offer.cost.estimatedDeliveredCost?.amount ?? null,
+                      offer.cost.estimatedDeliveredCost?.currency ?? null,
+                    )}
+                  </AppText>
+                  {offer.cost.missingComponents.length > 0 && (
+                    <AppText variant="caption">
+                      Not included: {offer.cost.missingComponents.join(", ")}.
+                    </AppText>
+                  )}
+                </>
+              ) : (
+                <>
+                  <AppText variant="bodySmall">
+                    Shipping: {formatMoney(offer.shippingCost, offer.shippingCurrency)}
+                  </AppText>
+                  <AppText variant="bodySmall">
+                    Estimated landed cost:{" "}
+                    {formatMoney(offer.landedUnitCost, offer.landedUnitCostCurrency)}
+                  </AppText>
+                </>
+              )}
               <AppText variant="bodySmall">
                 Quantity: {offer.availableQuantity === null ? "Unknown" : offer.availableQuantity}
                 {offer.condition ? ` · ${offer.condition}` : " · Condition unknown"}
@@ -515,6 +564,31 @@ function shortlistIdForOffer(shortlisted: ApiComparisonShortlist[], offerId: str
 function formatMoney(amount: number | null, currency: string | null) {
   if (amount === null) return "Unknown";
   return `${currency ? `${currency} ` : ""}${amount.toFixed(2)}`;
+}
+
+function formatCostComponent(component: ApiDeliveredCostComponent) {
+  if (component.amount === null) return "Unknown";
+  const original = formatMoney(component.amount, component.currency);
+  const converted =
+    component.convertedAmount !== null && component.convertedCurrency !== component.currency
+      ? ` → ${formatMoney(component.convertedAmount, component.convertedCurrency)}`
+      : "";
+  const estimate = component.state === "estimated" ? " (estimate)" : "";
+  return `${original}${converted}${estimate}`;
+}
+
+function costCompletenessLabel(cost: NonNullable<ApiComparisonOffer["cost"]>) {
+  if (cost.completeness === "complete") {
+    return cost.isEstimate ? " · complete using estimates" : " · complete";
+  }
+  if (cost.completeness === "currency_mismatch") return " · currency conversion unavailable";
+  if (cost.completeness === "unavailable") return " · unavailable";
+  return " · partial estimate";
+}
+
+function landedWinnerLabel(offer: ApiComparisonOffer, qualifying: boolean) {
+  if (offer.cost?.completeness === "partial") return "Lowest partial estimate";
+  return qualifying ? "Best qualifying landed" : "Cheapest landed";
 }
 
 function formatMarketplaceName(source: string) {

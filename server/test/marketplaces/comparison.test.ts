@@ -62,6 +62,39 @@ test("does not compare offers across different currencies", () => {
   assert.deepEqual(result.comparisons[0]?.currenciesCompared, ["EUR", "USD"]);
 });
 
+test("uses an explicit preferred-currency rate for delivered-cost ranking", () => {
+  const result = buildMarketplaceComparison(
+    [
+      listing("ebay", "ebay-1", "Camera", 100, { upc: "123" }, "USD"),
+      listing("etsy", "etsy-1", "Camera", 90, { upc: "123" }, "EUR"),
+    ],
+    criteria,
+    {
+      targetCurrency: "USD",
+      exchangeRates: new Map([
+        [
+          "EUR:USD",
+          {
+            fromCurrency: "EUR",
+            toCurrency: "USD",
+            rate: 1.2,
+            observedAt: "2026-08-26T00:00:00.000Z",
+            source: "test-rate-provider",
+          },
+        ],
+      ]),
+    },
+  );
+
+  assert.equal(result.comparisons[0]?.cheapestLandedOfferId, "ebay:ebay-1");
+  assert.equal(result.comparisons[0]?.cheapestLandedCurrency, "USD");
+  assert.deepEqual(
+    result.comparisons[0]?.offers.find((offer) => offer.source === "etsy")?.cost
+      ?.estimatedDeliveredUnitCost,
+    { amount: 108, currency: "USD" },
+  );
+});
+
 test("uses conservative model and title matching and honors manual grouping", () => {
   const result = buildMarketplaceComparison(
     [

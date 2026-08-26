@@ -25,6 +25,7 @@ import {
 import type { ProductEventInput } from "../analytics/events";
 import {
   createEnvironmentExchangeRateProvider,
+  type ExchangeRate,
   type ExchangeRateProvider,
 } from "../pricing/currency";
 import {
@@ -880,21 +881,26 @@ export class MobileApiService {
     const suppliers = this.dependencies.repository.getSuppliers
       ? await this.dependencies.repository.getSuppliers(userId, workspaceId)
       : [];
-
-    const comparison = buildMarketplaceComparison(
+    const comparisonCriteria = toComparisonCriteria(product);
+    const shoppingPreferences = await this.loadShoppingPreferences(userId);
+    const exchangeRates = await this.loadComparisonExchangeRates(
       response.listings,
-      toComparisonCriteria(product),
-      {
-        listingIds,
-        shortlistedKeys: new Set(
-          comparisonState.shortlists.map((item) => `${item.marketplace_id}:${item.external_id}`),
-        ),
-        manualGroups: comparisonState.manualGroups.map<ComparisonManualGroup>((group) => ({
-          id: group.id,
-          members: group.member_refs,
-        })),
-      },
+      comparisonCriteria,
+      shoppingPreferences,
     );
+
+    const comparison = buildMarketplaceComparison(response.listings, comparisonCriteria, {
+      listingIds,
+      targetCurrency: shoppingPreferences?.preferredCurrency,
+      exchangeRates,
+      shortlistedKeys: new Set(
+        comparisonState.shortlists.map((item) => `${item.marketplace_id}:${item.external_id}`),
+      ),
+      manualGroups: comparisonState.manualGroups.map<ComparisonManualGroup>((group) => ({
+        id: group.id,
+        members: group.member_refs,
+      })),
+    });
 
     return {
       sourcingListProduct: toSourcingList(list).products.find(
@@ -913,6 +919,47 @@ export class MobileApiService {
       shortlisted: comparisonState.shortlists.map(toApiComparisonShortlist),
       manualGroups: comparisonState.manualGroups.map(toApiComparisonManualGroup),
     };
+  }
+
+  private async loadComparisonExchangeRates(
+    listings: MarketplaceListing[],
+    criteria: ComparisonCriteria,
+    preferences: ShoppingPreferences | null,
+  ) {
+    if (!preferences || !this.exchangeRateProvider) return undefined;
+
+    const currencies = new Set<string>();
+    for (const listing of listings) {
+      addCurrency(currencies, listing.currency);
+      for (const component of Object.values(listing.cost ?? {})) {
+        if (component) addCurrency(currencies, component.currency);
+      }
+    }
+    addCurrency(currencies, criteria.maxUnitCostCurrency);
+    addCurrency(currencies, criteria.estimatedShippingCurrency);
+    addCurrency(currencies, criteria.estimatedDutiesTaxesCurrency);
+    addCurrency(currencies, criteria.otherSourcingCostCurrency);
+    currencies.delete(preferences.preferredCurrency);
+
+    const rates = new Map<string, ExchangeRate>();
+    await Promise.all(
+      [...currencies].map(async (currency) => {
+        try {
+          const rate = await this.exchangeRateProvider!.getRate(
+            currency,
+            preferences.preferredCurrency,
+          );
+          if (rate) rates.set(`${currency}:${preferences.preferredCurrency}`, rate);
+        } catch (error) {
+          this.dependencies.logger.warn("Comparison currency conversion failed", {
+            currency,
+            targetCurrency: preferences.preferredCurrency,
+            error: error instanceof Error ? error.message : "unknown_error",
+          });
+        }
+      }),
+    );
+    return rates;
   }
 
   async getSuppliers(userId: string, workspaceId: string, filters: ApiSupplierFilters = {}) {
@@ -1577,6 +1624,12 @@ function numericOrNull(value: number | string | null) {
   if (value === null) return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function addCurrency(currencies: Set<string>, value: string | null | undefined) {
+  if (typeof value !== "string") return;
+  const currency = value.trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(currency)) currencies.add(currency);
 }
 
 function toApiComparisonShortlist(

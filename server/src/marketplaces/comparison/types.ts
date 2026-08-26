@@ -1,4 +1,6 @@
 import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
+import type { ExchangeRate } from "../../pricing/currency";
+import type { DeliveredCostResult } from "../../pricing/delivered-cost";
 
 export interface MarketplaceListingReference {
   source: MarketplaceSource;
@@ -50,6 +52,7 @@ export interface MarketplaceComparisonOffer extends MarketplaceListingReference 
   shippingCurrency: string | null;
   landedUnitCost: number | null;
   landedUnitCostCurrency: string | null;
+  cost?: DeliveredCostResult;
   condition: string | null;
   deliveryInformation: string | null;
   availability: string | null;
@@ -84,6 +87,8 @@ export interface MarketplaceComparisonBuildOptions {
   listingIds?: ReadonlyMap<string, string>;
   shortlistedKeys?: ReadonlySet<string>;
   manualGroups?: ComparisonManualGroup[];
+  targetCurrency?: string | null;
+  exchangeRates?: ReadonlyMap<string, ExchangeRate>;
 }
 
 export type MarketplaceComparisonListing = MarketplaceListing;

@@ -1,8 +1,17 @@
 import { createHash } from "node:crypto";
 
 import { normalizeText } from "../shared/normalizer";
-import type { MarketplaceListing } from "../shared/types";
+import type {
+  MarketplaceCostComponent,
+  MarketplaceDeliveredCost,
+  MarketplaceListing,
+} from "../shared/types";
 import { compareProductIdentities, productIdentityFromListing } from "../../product-identity";
+import {
+  calculateDeliveredCost,
+  type DeliveredCostComponentInput,
+  type DeliveredCostResult,
+} from "../../pricing/delivered-cost";
 import type {
   ComparisonCriteria,
   ComparisonManualGroup,
@@ -79,14 +88,13 @@ function createComparison(
     .map((listing) => createOffer(listing, criteria, options))
     .sort(compareOffers);
   const cheapestRaw = findCheapest(offers, "price");
-  const cheapestLanded = findCheapest(offers, "landedUnitCost");
+  const cheapestLanded = findCheapestLanded(offers);
   const cheapestQualifying = findCheapest(
     offers.filter((offer) => offer.qualification === "qualifies"),
     "price",
   );
-  const cheapestQualifyingLanded = findCheapest(
+  const cheapestQualifyingLanded = findCheapestLanded(
     offers.filter((offer) => offer.qualification === "qualifies"),
-    "landedUnitCost",
   );
   const currenciesCompared = [
     ...new Set(
@@ -108,7 +116,10 @@ function createComparison(
     cheapestQualifyingOfferId: cheapestQualifying?.offerId ?? null,
     cheapestQualifyingLandedOfferId: cheapestQualifyingLanded?.offerId ?? null,
     cheapestRawCurrency: cheapestRaw?.currency ?? null,
-    cheapestLandedCurrency: cheapestLanded?.currency ?? null,
+    cheapestLandedCurrency:
+      cheapestLanded?.cost?.estimatedDeliveredUnitCost?.currency ??
+      cheapestLanded?.landedUnitCostCurrency ??
+      null,
     currenciesCompared,
     rawAndLandedWinnersDiffer: Boolean(
       cheapestRaw && cheapestLanded && cheapestRaw.offerId !== cheapestLanded.offerId,
@@ -122,15 +133,6 @@ function createOffer(
   options: MarketplaceComparisonBuildOptions,
 ): MarketplaceComparisonOffer {
   const metadata = listing.metadata ?? {};
-  const marketplaceShipping = readMoney(
-    metadata,
-    ["shippingCost", "shipping", "estimatedShippingCost"],
-    listing.currency,
-  );
-  const shipping =
-    marketplaceShipping.amount !== null
-      ? marketplaceShipping
-      : toMoney(criteria.estimatedShippingCost, criteria.estimatedShippingCurrency);
   const availableQuantity = readInteger(metadata, [
     "availableQuantity",
     "quantity",
@@ -151,8 +153,10 @@ function createOffer(
     "shopId",
     "shop_id",
   ]);
-  const landed = calculateLandedUnitCost(listing, shipping, criteria);
-  const qualification = qualifyOffer(listing, availableQuantity, availability, landed, criteria);
+  const cost = calculateListingDeliveredCost(listing, criteria, options);
+  const shipping = toMoney(cost.components.shipping.amount, cost.components.shipping.currency);
+  const landed = cost.completeness === "complete" ? cost.estimatedDeliveredUnitCost : null;
+  const qualification = qualifyOffer(listing, availableQuantity, availability, cost, criteria);
   const reference = toReference(listing);
 
   return {
@@ -169,8 +173,9 @@ function createOffer(
     availableQuantity,
     shippingCost: shipping.amount,
     shippingCurrency: shipping.currency,
-    landedUnitCost: landed.amount,
-    landedUnitCostCurrency: landed.currency,
+    landedUnitCost: landed?.amount ?? null,
+    landedUnitCostCurrency: landed?.currency ?? null,
+    cost,
     condition: listing.condition,
     deliveryInformation,
     availability,
@@ -181,50 +186,76 @@ function createOffer(
   };
 }
 
-function calculateLandedUnitCost(
+function calculateListingDeliveredCost(
   listing: MarketplaceListing,
-  shipping: MoneyValue,
   criteria: ComparisonCriteria,
-) {
-  const priceCurrency = normalizedCurrency(listing.currency);
-  if (listing.price === null || !priceCurrency || shipping.amount === null) {
-    return { amount: null, currency: priceCurrency };
-  }
+  options: MarketplaceComparisonBuildOptions,
+): DeliveredCostResult {
+  const listingCost = listing.cost;
+  const metadata = listing.metadata ?? {};
+  const shipping =
+    fromMarketplaceCost(listingCost?.shipping) ??
+    readCostComponent(
+      metadata,
+      ["shippingCost", "shipping", "estimatedShippingCost"],
+      listing.currency,
+    ) ??
+    toEstimatedCost(criteria.estimatedShippingCost, criteria.estimatedShippingCurrency);
+  const buyerFees =
+    fromMarketplaceCost(listingCost?.buyerFees) ??
+    readCostComponent(
+      metadata,
+      ["buyerFees", "buyerFee", "marketplaceFees", "marketplaceFee"],
+      listing.currency,
+    );
+  const taxes =
+    fromMarketplaceCost(listingCost?.taxes) ??
+    readCostComponent(metadata, ["taxes", "tax", "estimatedTaxes"], listing.currency) ??
+    toEstimatedCost(criteria.estimatedDutiesTaxes, criteria.estimatedDutiesTaxesCurrency);
+  const duties =
+    fromMarketplaceCost(listingCost?.duties) ??
+    readCostComponent(metadata, ["duties", "duty", "estimatedDuties"], listing.currency);
+  const otherCosts =
+    fromMarketplaceCost(listingCost?.otherCosts) ??
+    toEstimatedCost(criteria.otherSourcingCost, criteria.otherSourcingCostCurrency);
 
-  const costs = [
+  return calculateDeliveredCost({
+    sourcePrice: {
+      amount: listing.price,
+      currency: listing.currency,
+      source: "marketplace",
+    },
     shipping,
-    toMoney(criteria.estimatedDutiesTaxes, criteria.estimatedDutiesTaxesCurrency),
-    toMoney(criteria.otherSourcingCost, criteria.otherSourcingCostCurrency),
-  ];
-  if (costs.some((cost) => cost.amount === null || cost.currency !== priceCurrency)) {
-    return { amount: null, currency: priceCurrency };
-  }
-
-  const totalAdditionalCost = costs.reduce((sum, cost) => sum + (cost.amount ?? 0), 0);
-  return {
-    amount: listing.price + totalAdditionalCost / Math.max(1, criteria.targetQuantity),
-    currency: priceCurrency,
-  };
+    buyerFees,
+    taxes,
+    duties,
+    otherCosts,
+    quantity: criteria.targetQuantity,
+    targetCurrency: options.targetCurrency,
+    exchangeRates: options.exchangeRates,
+    providerDeliveredCost: toProviderDeliveredCost(listingCost?.delivered),
+  });
 }
 
 function qualifyOffer(
   listing: MarketplaceListing,
   availableQuantity: number | null,
   availability: string | null,
-  landed: MoneyValue,
+  cost: DeliveredCostResult,
   criteria: ComparisonCriteria,
 ) {
   const reasons: string[] = [];
   let unknown = false;
 
-  if (listing.price === null || !normalizedCurrency(listing.currency)) {
+  const price = cost.sourcePriceInCalculationCurrency;
+  if (price === null) {
     unknown = true;
     reasons.push("Price or currency is unavailable.");
   } else if (criteria.maxUnitCost !== null) {
-    if (normalizedCurrency(criteria.maxUnitCostCurrency) !== normalizedCurrency(listing.currency)) {
+    if (normalizedCurrency(criteria.maxUnitCostCurrency) !== price.currency) {
       unknown = true;
       reasons.push("Maximum unit cost uses a different or unknown currency.");
-    } else if (listing.price > criteria.maxUnitCost) {
+    } else if (price.amount > criteria.maxUnitCost) {
       return { status: "does_not_qualify" as const, reasons: ["Above the maximum unit cost."] };
     }
   }
@@ -255,8 +286,10 @@ function qualifyOffer(
   }
 
   if (criteria.maxLandedUnitCost !== null) {
+    const landed = cost.estimatedDeliveredUnitCost;
     if (
-      landed.amount === null ||
+      landed === null ||
+      cost.completeness !== "complete" ||
       normalizedCurrency(criteria.maxLandedUnitCostCurrency) !== landed.currency
     ) {
       unknown = true;
@@ -341,10 +374,100 @@ function findCheapest(offers: MarketplaceComparisonOffer[], field: "price" | "la
   );
 }
 
+function findCheapestLanded(offers: MarketplaceComparisonOffer[]) {
+  const candidates = offers.filter((offer) => deliveredCostForComparison(offer) !== null);
+  const currencies = new Set(
+    candidates
+      .map((offer) => deliveredCostForComparison(offer)?.currency ?? null)
+      .filter((currency): currency is string => Boolean(currency)),
+  );
+  if (currencies.size !== 1) return null;
+
+  const bestCompleteness = Math.min(...candidates.map(landedCompletenessRank));
+  return candidates
+    .filter((offer) => landedCompletenessRank(offer) === bestCompleteness)
+    .reduce((best, offer) =>
+      (deliveredCostForComparison(offer)?.amount ?? Number.POSITIVE_INFINITY) <
+      (deliveredCostForComparison(best)?.amount ?? Number.POSITIVE_INFINITY)
+        ? offer
+        : best,
+    );
+}
+
+function deliveredCostForComparison(offer: MarketplaceComparisonOffer) {
+  return (
+    offer.cost?.estimatedDeliveredUnitCost ??
+    (offer.landedUnitCost !== null && offer.landedUnitCostCurrency
+      ? { amount: offer.landedUnitCost, currency: offer.landedUnitCostCurrency }
+      : null)
+  );
+}
+
+function landedCompletenessRank(offer: MarketplaceComparisonOffer) {
+  if (offer.cost?.completeness === "complete") return 0;
+  if (offer.cost?.completeness === "partial") return 1;
+  return 2;
+}
+
 function readText(metadata: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = metadata[key];
     if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function fromMarketplaceCost(value: MarketplaceCostComponent | null | undefined) {
+  if (!value || !Number.isFinite(value.amount)) return null;
+  return {
+    amount: value.amount,
+    currency: value.currency,
+    state: value.state,
+    source: "marketplace" as const,
+  } satisfies DeliveredCostComponentInput;
+}
+
+function toProviderDeliveredCost(value: MarketplaceDeliveredCost | null | undefined) {
+  if (!value || typeof value !== "object" || !Number.isFinite(value.amount)) return null;
+  return {
+    amount: value.amount,
+    currency: value.currency,
+    state: value.state,
+    source: "provider" as const,
+    includes: value.includes,
+  };
+}
+
+function toEstimatedCost(amount: number | null, currency: string | null) {
+  return amount !== null && Number.isFinite(amount)
+    ? {
+        amount,
+        currency,
+        state: "estimated" as const,
+        source: "user" as const,
+      }
+    : null;
+}
+
+function readCostComponent(
+  metadata: Record<string, unknown>,
+  keys: string[],
+  fallbackCurrency: string | null,
+) {
+  for (const key of keys) {
+    const value = metadata[key];
+    const money = readMoney(metadata, [key], fallbackCurrency);
+    if (money.amount === null) continue;
+    const object =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    return {
+      amount: money.amount,
+      currency: money.currency,
+      state: object?.state === "estimated" ? ("estimated" as const) : ("known" as const),
+      source: "marketplace" as const,
+    } satisfies DeliveredCostComponentInput;
   }
   return null;
 }
