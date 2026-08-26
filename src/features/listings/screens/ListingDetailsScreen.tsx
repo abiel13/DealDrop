@@ -431,6 +431,16 @@ function PriceContext({ listing }: { listing: Listing }) {
             </AppText>
           )}
 
+          {history.currentObservedPrice !== null && history.currentObservedCurrency && (
+            <DetailRow
+              label="Current observed"
+              value={formatListingPrice({
+                price: history.currentObservedPrice,
+                currency: history.currentObservedCurrency,
+              })}
+            />
+          )}
+
           {history.lowestPrice !== null && history.highestPrice !== null && history.currency && (
             <DetailRow
               label={
@@ -450,6 +460,50 @@ function PriceContext({ listing }: { listing: Listing }) {
             />
           )}
 
+          {history.medianPrice !== null && history.currency && history.status === "available" && (
+            <DetailRow
+              label="Observed median"
+              value={formatListingPrice({
+                price: history.medianPrice,
+                currency: history.currency,
+              })}
+            />
+          )}
+
+          {(history.marketplaces?.length ?? 0) > 1 && (
+            <View className="gap-2 rounded-2xl bg-background-muted p-3">
+              <AppText variant="label">By marketplace</AppText>
+              {history.marketplaces.map((marketplace) => (
+                <View key={marketplace.marketplace} className="gap-1">
+                  <AppText variant="bodySmall">
+                    {formatMarketplaceName(marketplace.marketplace)} ·{" "}
+                    {marketplace.observationCount} observation
+                    {marketplace.observationCount === 1 ? "" : "s"}
+                  </AppText>
+                  {marketplace.status === "available" &&
+                  marketplace.lowestPrice !== null &&
+                  marketplace.highestPrice !== null &&
+                  marketplace.currency ? (
+                    <AppText variant="caption" className="text-text-secondary">
+                      {formatPriceRange(
+                        marketplace.lowestPrice,
+                        marketplace.highestPrice,
+                        marketplace.currency,
+                      )}
+                      {marketplace.medianPrice !== null
+                        ? ` · median ${formatListingPrice({ price: marketplace.medianPrice, currency: marketplace.currency })}`
+                        : ""}
+                    </AppText>
+                  ) : (
+                    <AppText variant="caption" className="text-text-secondary">
+                      {marketplace.explanation}
+                    </AppText>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
           <AppText variant="caption">
             {history.observationCount > 0
               ? history.observationCount +
@@ -461,8 +515,13 @@ function PriceContext({ listing }: { listing: Listing }) {
                   : "date unavailable") +
                 "."
               : "No observed price data is available yet."}{" "}
-            History is limited to {formatMarketplaceName(listing.marketplace_id)} and the same
-            currency; no conversion is used.
+            {history.marketplaces?.length
+              ? `History reflects actual observations from ${history.marketplaces
+                  .map((marketplace) => formatMarketplaceName(marketplace.marketplace))
+                  .join(
+                    ", ",
+                  )} in ${history.currency ?? "the observed currency"}; no conversion is used.`
+              : `History is limited to ${formatMarketplaceName(listing.marketplace_id)} and the same currency; no conversion is used.`}
           </AppText>
         </Card>
       )}

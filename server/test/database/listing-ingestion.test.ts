@@ -7,7 +7,10 @@ import {
   ListingIngestionPipeline,
   type ListingPersistence,
 } from "../../src/database/listing-ingestion";
-import { ListingRepository } from "../../src/database/listing-repository";
+import {
+  buildProductPriceObservationRows,
+  ListingRepository,
+} from "../../src/database/listing-repository";
 import type { MarketplaceListing, MarketplaceSource } from "../../src/marketplaces/shared/adapter";
 import { MARKETPLACE_IDS } from "../../src/marketplaces/shared/types";
 import type { WorkerLogger } from "../../src/types/backend";
@@ -135,6 +138,50 @@ test("repository upsert preserves normalized values, null currency, raw metadata
     onConflict: "marketplace_id,external_id",
     ignoreDuplicates: false,
   });
+});
+
+test("builds deduplicable product observations only for identified variants", () => {
+  const observedAt = "2026-08-14T12:00:00.000Z";
+  const rows = buildProductPriceObservationRows(
+    [
+      listing(MARKETPLACE_IDS.ebay, "item-1", { condition: "new" }),
+      listing(MARKETPLACE_IDS.etsy, "item-2", { price: null }),
+    ],
+    [
+      {
+        id: "stored-1",
+        marketplace_id: MARKETPLACE_IDS.ebay,
+        external_id: "item-1",
+        product_identity_id: "product-1",
+        product_variant_id: "variant-1",
+      },
+      {
+        id: "stored-2",
+        marketplace_id: MARKETPLACE_IDS.etsy,
+        external_id: "item-2",
+        product_identity_id: null,
+        product_variant_id: null,
+      },
+    ],
+    observedAt,
+  );
+
+  assert.deepEqual(rows, [
+    {
+      product_identity_id: "product-1",
+      product_variant_id: "variant-1",
+      listing_id: "stored-1",
+      marketplace_id: MARKETPLACE_IDS.ebay,
+      external_id: "item-1",
+      condition: "new",
+      price: 20,
+      shipping_price: null,
+      shipping_currency: null,
+      currency: "USD",
+      observed_at: observedAt,
+    },
+  ]);
+  assert.deepEqual(buildProductPriceObservationRows([], [], observedAt), []);
 });
 
 test("repository stores one same-timestamp normalized price observation identity", async () => {

@@ -139,6 +139,63 @@ export type StoredListingReference = Pick<
   | "product_identity_data"
 >;
 
+export interface ProductPriceObservationRow {
+  product_identity_id: string;
+  product_variant_id: string;
+  listing_id: string;
+  marketplace_id: MarketplaceSource;
+  external_id: string;
+  condition: string | null;
+  price: number;
+  shipping_price: null;
+  shipping_currency: null;
+  currency: string;
+  observed_at: string;
+}
+
+export function buildProductPriceObservationRows(
+  listings: readonly MarketplaceListing[],
+  storedListings: readonly StoredListingReference[],
+  observedAt: string,
+): ProductPriceObservationRow[] {
+  const storedByIdentity = new Map(
+    storedListings.map((listing) => [
+      listingIdentity(listing.marketplace_id, listing.external_id),
+      listing,
+    ]),
+  );
+
+  return listings.flatMap((listing) => {
+    const stored = storedByIdentity.get(listingIdentity(listing.source, listing.externalId));
+    const currency = normalizeCurrency(listing.currency);
+    if (
+      !stored?.id ||
+      !stored.product_identity_id ||
+      !stored.product_variant_id ||
+      listing.price === null ||
+      !currency
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        product_identity_id: stored.product_identity_id,
+        product_variant_id: stored.product_variant_id,
+        listing_id: stored.id,
+        marketplace_id: listing.source,
+        external_id: listing.externalId,
+        condition: listing.condition,
+        price: listing.price,
+        shipping_price: null,
+        shipping_currency: null,
+        currency,
+        observed_at: observedAt,
+      },
+    ];
+  });
+}
+
 export interface ActiveStoredListing {
   stored: StoredListing;
   listing: MarketplaceListing;
@@ -561,6 +618,24 @@ export class ListingRepository {
 
       if (observationError) {
         throw observationError;
+      }
+    }
+
+    const productObservations = buildProductPriceObservationRows(
+      uniqueListings,
+      storedListings,
+      observedAt,
+    );
+    if (productObservations.length > 0) {
+      const { error: productObservationError } = await this.client
+        .from("product_price_observations")
+        .upsert(productObservations, {
+          onConflict: "product_variant_id,marketplace_id,external_id,observed_at,price,currency",
+          ignoreDuplicates: true,
+        });
+
+      if (productObservationError) {
+        throw productObservationError;
       }
     }
 
