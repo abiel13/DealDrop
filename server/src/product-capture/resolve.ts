@@ -9,12 +9,18 @@ import {
   type ProductPageFetch,
   type ProductPageMetadata,
 } from "./metadata";
+import {
+  createConfiguredProductImageRecognitionProvider,
+  type ProductImageRecognitionProvider,
+} from "./image-recognition";
 import type {
   NormalizedCapturedProduct,
   ProductCaptureIdentification,
   ProductCapturePageMetadata,
   ProductCaptureIdentifier,
   ProductCaptureRequest,
+  ProductRecognitionCandidate,
+  ProductRecognitionResult,
 } from "./types";
 
 export interface ProductCaptureResolver {
@@ -30,13 +36,19 @@ export interface ProductCaptureResolverOptions {
     warn(message: string, context?: Record<string, unknown>): void;
   };
   fetchImpl?: ProductPageFetch;
+  imageRecognition?: ProductImageRecognitionProvider;
 }
 
 export function createProductCaptureResolver(
   options: ProductCaptureResolverOptions,
 ): ProductCaptureResolver {
+  const resolvedOptions = {
+    ...options,
+    imageRecognition: options.imageRecognition ?? createConfiguredProductImageRecognitionProvider(),
+  };
   return {
-    resolve: (input, identification) => resolveProductCapture(input, identification, options),
+    resolve: (input, identification) =>
+      resolveProductCapture(input, identification, resolvedOptions),
   };
 }
 
@@ -48,6 +60,10 @@ export async function resolveProductCapture(
   const product = identification.normalizedProduct;
   if (!product || identification.status === "failed") {
     return identification;
+  }
+
+  if (input.captureSource === "screenshot" || input.captureSource === "product_photo") {
+    return resolveImageCapture(input, product, identification, options);
   }
 
   if (input.captureSource === "barcode") {
@@ -132,7 +148,7 @@ async function resolveBarcodeCapture(
     };
   }
 
-  const listings = await searchBarcodeCandidates(marketplaceIdentifier, options);
+  const listings = await searchIdentifierCandidates([marketplaceIdentifier], options);
   if (listings.length === 0) {
     return {
       status: "failed",
@@ -167,10 +183,113 @@ async function resolveBarcodeCapture(
   };
 }
 
-async function searchBarcodeCandidates(
-  identifier: MarketplaceProductIdentifier,
+async function resolveImageCapture(
+  input: ProductCaptureRequest,
+  product: NormalizedCapturedProduct,
+  identification: ProductCaptureIdentification,
   options: ProductCaptureResolverOptions,
 ) {
+  const imageData = input.imageData;
+  if (!imageData) {
+    return {
+      ...identification,
+      status: "needs_confirmation" as const,
+      failureReason:
+        "We could not read the uploaded image. Enter the product details manually before tracking.",
+    };
+  }
+
+  if (!options.imageRecognition) {
+    return {
+      ...identification,
+      status: "needs_confirmation" as const,
+      failureReason:
+        "Image recognition is not configured yet. Confirm the product details manually before tracking.",
+    };
+  }
+
+  let recognition: ProductRecognitionResult;
+  try {
+    recognition = await options.imageRecognition.recognize({
+      imageData,
+      mimeType: input.imageMimeType ?? "image/jpeg",
+    });
+  } catch (error) {
+    options.logger.warn("Product image recognition failed", {
+      captureSource: input.captureSource,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return {
+      ...identification,
+      status: "needs_confirmation" as const,
+      failureReason:
+        "We could not confidently read this image. Enter or correct the product details manually.",
+    };
+  }
+
+  const recognizedProduct = mergeImageRecognition(product, recognition);
+  const identifiers = recognizedProduct.identifiers
+    .map(toMarketplaceIdentifier)
+    .filter((value): value is MarketplaceProductIdentifier => Boolean(value));
+  const listings =
+    identifiers.length > 0
+      ? await searchIdentifierCandidates(identifiers, options, "Image product source lookup failed")
+      : [];
+  const sourceCandidates = listings.map((listing) =>
+    mergeProductMetadata(recognizedProduct, null, listing, listing.source),
+  );
+  const recognitionCandidates = recognition.candidates.map((candidate) =>
+    mergeRecognitionCandidate(recognizedProduct, candidate),
+  );
+  const candidates = dedupeProducts([...sourceCandidates, ...recognitionCandidates]);
+  const confidenceIsSufficient = recognition.overallConfidence >= 0.82;
+
+  if (candidates.length > 0 && (!confidenceIsSufficient || candidates.length > 1)) {
+    return {
+      status: "needs_confirmation" as const,
+      normalizedProduct: recognizedProduct,
+      candidateProducts: candidates,
+      missingFields: missingFields(recognizedProduct),
+      failureReason:
+        candidates.length > 1
+          ? "We found multiple likely products. Choose the correct match before tracking."
+          : "The image match is uncertain. Confirm the product details before tracking.",
+    };
+  }
+
+  if (candidates.length === 1) {
+    const candidate = candidates[0]!;
+    return {
+      status: "identified" as const,
+      normalizedProduct: candidate,
+      candidateProducts: [],
+      missingFields: missingFields(candidate),
+      failureReason: null,
+    };
+  }
+
+  return {
+    status:
+      confidenceIsSufficient && recognizedProduct.title
+        ? ("identified" as const)
+        : ("needs_confirmation" as const),
+    normalizedProduct: recognizedProduct,
+    candidateProducts: [],
+    missingFields: missingFields(recognizedProduct),
+    failureReason: confidenceIsSufficient
+      ? null
+      : "Review the recognized details before tracking this product.",
+  };
+}
+
+async function searchIdentifierCandidates(
+  identifiers: MarketplaceProductIdentifier[],
+  options: ProductCaptureResolverOptions,
+  failureMessage = "Barcode product source lookup failed",
+) {
+  const identifier = identifiers[0];
+  if (!identifier) return [];
+
   const adapters = Object.values(options.adapters).filter(
     (adapter): adapter is NonNullable<(typeof options.adapters)[string]> =>
       Boolean(adapter?.capabilities.supportsProductIdentifiers),
@@ -182,7 +301,7 @@ async function searchBarcodeCandidates(
       adapter.search({
         searchQuery: identifier.value,
         filters: {},
-        productIdentifiers: [identifier],
+        productIdentifiers: identifiers,
         pagination: { limit: 8 },
       }),
     ),
@@ -191,7 +310,7 @@ async function searchBarcodeCandidates(
     const adapter = adapters[index];
     if (!adapter) return [];
     if (outcome.status === "rejected") {
-      options.logger.warn("Barcode product source lookup failed", {
+      options.logger.warn(failureMessage, {
         source: adapter.source,
         error: outcome.reason instanceof Error ? outcome.reason.message : "unknown_error",
       });
@@ -203,6 +322,61 @@ async function searchBarcodeCandidates(
   const seen = new Set<string>();
   return listings.filter((listing) => {
     const key = `${listing.source}:${listing.externalId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeImageRecognition(
+  base: NormalizedCapturedProduct,
+  recognition: ProductRecognitionResult,
+): NormalizedCapturedProduct {
+  const title =
+    recognition.productName?.value ??
+    ([recognition.brand?.value, recognition.model?.value].filter(Boolean).join(" ") || base.title);
+  return {
+    ...base,
+    title,
+    identifiers: uniqueIdentifiers([
+      ...base.identifiers,
+      ...recognition.identifiers.map(({ type, value }) => ({ type, value })),
+    ]),
+    variant: recognition.variant?.value ?? base.variant,
+    color: recognition.color?.value ?? base.color ?? null,
+    size: recognition.size?.value ?? base.size ?? null,
+    condition: recognition.condition?.value ?? base.condition,
+    price: recognition.price?.value ?? base.price,
+    currency: recognition.currency?.value ?? base.currency,
+    recognition,
+  };
+}
+
+function mergeRecognitionCandidate(
+  base: NormalizedCapturedProduct,
+  candidate: ProductRecognitionCandidate,
+): NormalizedCapturedProduct {
+  return {
+    ...base,
+    title: candidate.title,
+    identifiers: uniqueIdentifiers([
+      ...base.identifiers,
+      ...candidate.identifiers.map(({ type, value }) => ({ type, value })),
+    ]),
+    variant: candidate.variant ?? base.variant,
+    color: candidate.color ?? base.color ?? null,
+    size: candidate.size ?? base.size ?? null,
+    recognition: base.recognition ?? null,
+  };
+}
+
+function dedupeProducts(products: NormalizedCapturedProduct[]) {
+  const seen = new Set<string>();
+  return products.filter((product) => {
+    const identifier = product.identifiers[0];
+    const key = identifier
+      ? `${identifier.type}:${identifier.value.toLowerCase()}`
+      : (product.canonicalUrl ?? product.title ?? "unknown");
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

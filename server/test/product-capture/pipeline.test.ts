@@ -371,3 +371,119 @@ test("keeps barcode lookup failures isolated and reports an unknown barcode", as
   assert.match(result.failureReason ?? "", /couldn't find a product/i);
   assert.deepEqual(warnings, ["Barcode product source lookup failed"]);
 });
+
+test("recognizes an image, searches recognized identifiers, and returns a confirmed product", async () => {
+  let searchIdentifiers: unknown = null;
+  const adapter: MarketplaceAdapter = {
+    source: "amazon_business",
+    capabilities: {
+      supportsPriceFiltering: true,
+      supportsLocation: false,
+      supportsRadius: false,
+      supportsCondition: false,
+      supportsPagination: true,
+      supportsProductIdentifiers: true,
+    },
+    async search(request) {
+      searchIdentifiers = request.productIdentifiers;
+      return {
+        listings: [
+          {
+            source: "amazon_business",
+            externalId: "B000000003",
+            title: "Sony Alpha A7 IV Camera Body",
+            description: null,
+            price: 1899,
+            currency: "USD",
+            url: "https://business.example/products/B000000003",
+            imageUrls: ["https://business.example/images/a7iv.jpg"],
+            sellerName: "Business Seller",
+            location: null,
+            category: "Cameras",
+            condition: "new",
+            latitude: null,
+            longitude: null,
+            postedAt: null,
+          },
+        ],
+      };
+    },
+  };
+  const resolver = createProductCaptureResolver({
+    adapters: { amazon_business: adapter },
+    logger: { warn() {} },
+    imageRecognition: {
+      async recognize() {
+        return {
+          provider: "test-vision",
+          overallConfidence: 0.94,
+          brand: { value: "Sony", confidence: 0.98 },
+          productName: { value: "Alpha", confidence: 0.9 },
+          model: { value: "A7 IV", confidence: 0.96 },
+          variant: null,
+          color: { value: "black", confidence: 0.88 },
+          size: null,
+          price: { value: 1899, confidence: 0.86 },
+          currency: { value: "USD", confidence: 0.99 },
+          condition: { value: "new", confidence: 0.8 },
+          identifiers: [{ type: "mpn", value: "ILCE7M4/B", confidence: 0.92 }],
+          candidates: [],
+        };
+      },
+    },
+  });
+  const input: ProductCaptureRequest = {
+    ...baseInput,
+    captureSource: "product_photo",
+    imageReference: "capture://image-3",
+    imageData: "aGVsbG8=",
+    imageMimeType: "image/jpeg",
+  };
+
+  const result = await resolver.resolve(input, identifyProductCapture(input));
+
+  assert.deepEqual(searchIdentifiers, [{ type: "part_number", value: "ILCE7M4/B" }]);
+  assert.equal(result.status, "identified");
+  assert.equal(result.normalizedProduct?.title, "Sony Alpha A7 IV Camera Body");
+  assert.equal(result.normalizedProduct?.color, "black");
+  assert.equal(result.normalizedProduct?.recognition?.overallConfidence, 0.94);
+});
+
+test("keeps low-confidence image recognition in confirmation state", async () => {
+  const resolver = createProductCaptureResolver({
+    adapters: {},
+    logger: { warn() {} },
+    imageRecognition: {
+      async recognize() {
+        return {
+          provider: "test-vision",
+          overallConfidence: 0.41,
+          brand: null,
+          productName: { value: "Camera", confidence: 0.4 },
+          model: null,
+          variant: null,
+          color: null,
+          size: null,
+          price: null,
+          currency: null,
+          condition: null,
+          identifiers: [],
+          candidates: [],
+        };
+      },
+    },
+  });
+  const input: ProductCaptureRequest = {
+    ...baseInput,
+    captureSource: "screenshot",
+    imageReference: "capture://image-4",
+    imageData: "aGVsbG8=",
+    imageMimeType: "image/png",
+  };
+
+  const result = await resolver.resolve(input, identifyProductCapture(input));
+
+  assert.equal(result.status, "needs_confirmation");
+  assert.match(result.failureReason ?? "", /confirm|review/i);
+  assert.equal(result.normalizedProduct?.recognition?.brand, null);
+});

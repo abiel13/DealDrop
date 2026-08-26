@@ -21,6 +21,7 @@ export const authRoutes = {
   watchlistForm: "/watchlist-form" as Href,
   productCapture: "/paste-product" as Href,
   barcodeCapture: "/scan-barcode" as Href,
+  imageCapture: "/capture-image" as Href,
   shareProduct: "/share-product" as Href,
   listing: "/listing" as Href,
 };

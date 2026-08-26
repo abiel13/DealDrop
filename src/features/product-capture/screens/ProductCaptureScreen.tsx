@@ -25,6 +25,7 @@ import { AppHeader } from "@/features/navigation/components";
 import type {
   ApiProductCapture,
   ApiProductCaptureInput,
+  ApiProductCaptureSource,
   ApiNormalizedCapturedProduct,
   ApiSearchFilters,
   MarketplaceSource,
@@ -39,9 +40,10 @@ import {
 import { findSharedProductDuplicate } from "../services/share-intent.service";
 
 export interface ProductCaptureScreenProps {
-  captureSource?: "pasted_url" | "share_sheet" | "barcode";
+  captureSource?: "pasted_url" | "share_sheet" | "barcode" | "screenshot" | "product_photo";
   initialCaptureInput?: ApiProductCaptureInput | null;
   initialCapture?: ApiProductCapture | null;
+  initialImageUri?: string | null;
   initialUrl?: string | null;
   autoCapture?: boolean;
   onCancel?: () => void;
@@ -52,6 +54,7 @@ export function ProductCaptureScreen({
   captureSource = "pasted_url",
   initialCaptureInput = null,
   initialCapture = null,
+  initialImageUri = null,
   initialUrl = null,
   autoCapture = false,
   onCancel,
@@ -110,7 +113,7 @@ export function ProductCaptureScreen({
       );
 
       if (nextCapture.status === "failed" || !nextCapture.normalizedProduct) {
-        if (nextCapture.captureSource === "pasted_url" || nextCapture.captureSource === "barcode") {
+        if (isAnalyticsCaptureSource(nextCapture.captureSource)) {
           trackProductEventNonBlocking("capture_failed", {
             captureSource: nextCapture.captureSource,
             reason: getCaptureFailureReason(nextCapture),
@@ -125,7 +128,7 @@ export function ProductCaptureScreen({
       setVariant(product.variant ?? "");
       setCondition(product.condition ?? "");
       setTargetPrice("");
-      if (nextCapture.captureSource === "pasted_url" || nextCapture.captureSource === "barcode") {
+      if (isAnalyticsCaptureSource(nextCapture.captureSource)) {
         trackProductEventNonBlocking("product_identified", {
           captureSource: nextCapture.captureSource,
           hasPrice: product.price !== null,
@@ -136,9 +139,9 @@ export function ProductCaptureScreen({
       }
     },
     onError: (error) => {
-      if (captureSource === "pasted_url") {
+      if (isAnalyticsCaptureSource(captureSource)) {
         trackProductEventNonBlocking("capture_failed", {
-          captureSource: "pasted_url",
+          captureSource,
           reason: "request_failed",
         });
       }
@@ -327,7 +330,11 @@ export function ProductCaptureScreen({
               ? "Review shared product"
               : captureSource === "barcode"
                 ? "Review scanned product"
-                : "Paste a product link"
+                : captureSource === "screenshot"
+                  ? "Review product screenshot"
+                  : captureSource === "product_photo"
+                    ? "Review product photo"
+                    : "Paste a product link"
           }
           subtitle="DealDrop will identify the product before you start tracking it."
           onBack={onCancel ?? (() => router.back())}
@@ -375,7 +382,7 @@ export function ProductCaptureScreen({
             <View className="gap-1">
               <AppText variant="label">Choose the matching product</AppText>
               <AppText variant="bodySmall">
-                The barcode matched more than one result. Select the product you want to track.
+                We found more than one likely match. Select the product you want to track.
               </AppText>
             </View>
             {candidateProducts.map((product, index) => (
@@ -422,12 +429,12 @@ export function ProductCaptureScreen({
               </AppText>
             </View>
 
-            {normalizedProduct.imageUrls[0] && (
+            {(initialImageUri || normalizedProduct.imageUrls[0]) && (
               <Image
                 accessibilityLabel="Detected product image"
                 className="h-44 w-full rounded-2xl bg-background-muted"
                 resizeMode="cover"
-                source={{ uri: normalizedProduct.imageUrls[0] }}
+                source={{ uri: initialImageUri ?? normalizedProduct.imageUrls[0] ?? "" }}
               />
             )}
 
@@ -446,7 +453,39 @@ export function ProductCaptureScreen({
               {normalizedProduct.availability && (
                 <AppText variant="caption">Availability: {normalizedProduct.availability}</AppText>
               )}
+              {normalizedProduct.color && (
+                <AppText variant="caption">Color: {normalizedProduct.color}</AppText>
+              )}
+              {normalizedProduct.size && (
+                <AppText variant="caption">Size: {normalizedProduct.size}</AppText>
+              )}
+              {normalizedProduct.recognition?.brand && (
+                <AppText variant="caption">
+                  Brand: {normalizedProduct.recognition.brand.value}
+                </AppText>
+              )}
+              {normalizedProduct.recognition?.model && (
+                <AppText variant="caption">
+                  Model: {normalizedProduct.recognition.model.value}
+                </AppText>
+              )}
             </View>
+
+            {normalizedProduct.recognition && (
+              <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
+                <AppText variant="label">Image recognition confidence</AppText>
+                <AppText variant="bodySmall">
+                  {formatConfidence(normalizedProduct.recognition.overallConfidence)} overall. We
+                  show uncertain details for you to confirm before tracking.
+                </AppText>
+                {lowConfidenceRecognitionFields(normalizedProduct.recognition).length > 0 && (
+                  <AppText variant="caption">
+                    Review:{" "}
+                    {lowConfidenceRecognitionFields(normalizedProduct.recognition).join(", ")}
+                  </AppText>
+                )}
+              </View>
+            )}
 
             {capture?.status === "needs_confirmation" && capture.failureReason && (
               <AppText variant="bodySmall" className="text-warning">
@@ -548,7 +587,7 @@ export function ProductCaptureScreen({
             <ErrorState title="Product unavailable" description={capture.failureReason} />
             {onRetryCapture && (
               <Button variant="outline" onPress={onRetryCapture}>
-                Scan another barcode
+                {captureSource === "barcode" ? "Scan another barcode" : "Choose another image"}
               </Button>
             )}
           </View>
@@ -607,4 +646,35 @@ function getCaptureFailureReason(capture: ApiProductCapture) {
   if (capture.failureReason?.toLowerCase().includes("private")) return "private";
   if (capture.failureReason?.toLowerCase().includes("valid")) return "malformed";
   return "not_identified";
+}
+
+function isAnalyticsCaptureSource(
+  source: ApiProductCaptureSource | ProductCaptureScreenProps["captureSource"],
+): source is "pasted_url" | "barcode" | "screenshot" | "product_photo" {
+  return (
+    source === "pasted_url" ||
+    source === "barcode" ||
+    source === "screenshot" ||
+    source === "product_photo"
+  );
+}
+
+function formatConfidence(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function lowConfidenceRecognitionFields(
+  recognition: NonNullable<ApiNormalizedCapturedProduct["recognition"]>,
+) {
+  const fields = [
+    ["brand", recognition.brand],
+    ["product name", recognition.productName],
+    ["model", recognition.model],
+    ["variant", recognition.variant],
+    ["color", recognition.color],
+    ["size", recognition.size],
+    ["price", recognition.price],
+    ["condition", recognition.condition],
+  ] as const;
+  return fields.filter(([, field]) => field && field.confidence < 0.82).map(([label]) => label);
 }

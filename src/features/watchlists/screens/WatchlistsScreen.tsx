@@ -329,6 +329,14 @@ export function WatchlistsScreen() {
               Scan a barcode
             </Button>
 
+            <Button
+              size="md"
+              variant="outline"
+              onPress={() => router.push(authRoutes.imageCapture)}
+            >
+              Recognize a screenshot or photo
+            </Button>
+
             <SearchBar
               accessibilityLabel="Search watchlists"
               leftIcon={<AppIcon name="search" size={19} color={theme.colors.textTertiary} />}
@@ -361,6 +369,9 @@ export function WatchlistsScreen() {
                 </Button>
                 <Button variant="outline" onPress={() => router.push(authRoutes.barcodeCapture)}>
                   Scan a barcode
+                </Button>
+                <Button variant="outline" onPress={() => router.push(authRoutes.imageCapture)}>
+                  Recognize a screenshot or photo
                 </Button>
               </View>
             )}

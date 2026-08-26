@@ -2,7 +2,8 @@ import type { ApiWeeklySummary } from "@/services/api";
 
 export type AnalyticsPropertyValue = string | number | boolean | null;
 export type AnalyticsProperties = Record<string, AnalyticsPropertyValue>;
-export type ProductCaptureAnalyticsSource = "pasted_url" | "barcode";
+export type ProductCaptureAnalyticsSource =
+  "pasted_url" | "barcode" | "screenshot" | "product_photo";
 
 /**
  * Product event contract. Properties intentionally contain only stable IDs,
@@ -28,6 +29,8 @@ export type AnalyticsEventProperties = {
   watchlist_completed: AnalyticsProperties & { watchlistId: string };
   pro_upgrade_viewed: AnalyticsProperties & { surface: string };
   pro_upgrade_cta_tapped: AnalyticsProperties & { surface: string };
+  pro_purchase_completed: AnalyticsProperties & { surface: string };
+  pro_purchase_cancelled: AnalyticsProperties & { surface: string };
   pro_feature_used: AnalyticsProperties & { feature: string };
   url_pasted: AnalyticsProperties & { captureSource: "pasted_url" };
   product_identified: AnalyticsProperties & {
