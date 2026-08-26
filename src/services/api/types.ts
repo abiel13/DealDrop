@@ -206,6 +206,32 @@ export interface ApiListing {
   priceTarget: ApiPriceTarget | null;
   product: ApiProductMetadata | null;
   relevance: ApiListingRelevance | null;
+  productIdentity?: ApiProductIdentity | null;
+}
+
+export interface ApiProductIdentity {
+  productIdentityId: string | null;
+  productVariantId: string | null;
+  matchStatus: "matched" | "ambiguous" | "unmatched" | "manual";
+  matchMethod: "identifier" | "brand_model" | "title_variant" | "manual" | "none";
+  confidence: number | null;
+  title: string | null;
+  brand: string | null;
+  model: string | null;
+  category: string | null;
+  identifiers: {
+    type: "upc" | "gtin" | "ean" | "mpn" | "asin" | "model" | "style";
+    value: string;
+  }[];
+  variant: {
+    size: string | null;
+    storage: string | null;
+    color: string | null;
+    generation: string | null;
+    configuration: string | null;
+    raw: string | null;
+  };
+  condition: string | null;
 }
 
 export type ApiPriceHistoryStatus = "available" | "insufficient_history" | "unavailable";
@@ -295,6 +321,25 @@ export interface ApiSearchDistanceFilter {
   longitude?: number;
 }
 
+export interface ApiProductIdentityFilter {
+  title?: string;
+  brand?: string;
+  model?: string;
+  identifiers?: {
+    type: "upc" | "gtin" | "ean" | "mpn" | "asin" | "model" | "style";
+    value: string;
+  }[];
+  variant?: {
+    size?: string | null;
+    storage?: string | null;
+    color?: string | null;
+    generation?: string | null;
+    configuration?: string | null;
+    raw?: string | null;
+  };
+  condition?: string;
+}
+
 export interface ApiSearchFilters {
   aliases?: string[];
   excludedKeywords?: string[];
@@ -302,6 +347,7 @@ export interface ApiSearchFilters {
   price?: ApiSearchPriceFilter;
   distance?: ApiSearchDistanceFilter;
   conditions?: string[];
+  productIdentity?: ApiProductIdentityFilter;
 }
 
 export interface ApiSearchRequest {

@@ -210,6 +210,29 @@ export function ProductCaptureScreen({
             }
           : {}),
         ...(condition.trim() ? { conditions: [condition.trim()] } : {}),
+        productIdentity: {
+          title: normalizedTitle,
+          brand: normalizedProduct.product?.brand ?? undefined,
+          model: normalizedProduct.product?.model ?? undefined,
+          identifiers: normalizedProduct.identifiers.flatMap((identifier) => {
+            if (
+              identifier.type !== "upc" &&
+              identifier.type !== "ean" &&
+              identifier.type !== "gtin" &&
+              identifier.type !== "asin" &&
+              identifier.type !== "mpn"
+            ) {
+              return [];
+            }
+            return [{ type: identifier.type, value: identifier.value }];
+          }),
+          variant: {
+            color: normalizedProduct.color ?? null,
+            size: normalizedProduct.size ?? null,
+            raw: variant.trim() || null,
+          },
+          condition: condition.trim() || normalizedProduct.condition || undefined,
+        },
       };
       const searchQuery = [normalizedTitle, variant.trim()].filter(Boolean).join(" ");
 

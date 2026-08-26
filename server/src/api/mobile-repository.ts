@@ -53,9 +53,9 @@ import type {
 const WATCHLIST_COLUMNS =
   "id,user_id,marketplace_id,marketplace_scope,alert_mode,name,search_query,filters,is_active,is_favorite,lifecycle_state,snoozed_until,completed_at,last_checked_at,created_at,updated_at,watchlist_marketplaces(marketplace_id)";
 const LISTING_COLUMNS =
-  "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
+  "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data,product_identity_id,product_variant_id,identity_match_status,identity_match_method,identity_match_confidence,product_identity_data";
 const MATCH_LISTING_COLUMNS =
-  "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data";
+  "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,first_seen_at,last_seen_at,is_active,raw_data,product_identity_id,product_variant_id,identity_match_status,identity_match_method,identity_match_confidence,product_identity_data";
 const WORKSPACE_COLUMNS =
   "id,owner_id,name,business_type,primary_sourcing_categories,default_currency,country_region,created_at,updated_at";
 const SOURCING_LIST_COLUMNS =

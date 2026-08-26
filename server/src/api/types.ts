@@ -28,6 +28,7 @@ import type {
   ProductCaptureStatus,
   ProductCaptureStatusUpdate,
 } from "../product-capture/types";
+import type { ProductIdentitySnapshot } from "../product-identity";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -113,6 +114,7 @@ export interface ApiListing {
   priceTarget: ApiPriceTarget | null;
   product: MarketplaceProductMetadata | null;
   relevance: MarketplaceListingRelevance | null;
+  productIdentity?: ProductIdentitySnapshot | null;
 }
 
 export interface ApiPriceHistorySummary {
@@ -654,6 +656,12 @@ export interface StoredListingReference {
   id: string;
   marketplace_id: string;
   external_id: string;
+  product_identity_id?: string | null;
+  product_variant_id?: string | null;
+  identity_match_status?: ProductIdentitySnapshot["matchStatus"];
+  identity_match_method?: ProductIdentitySnapshot["matchMethod"];
+  identity_match_confidence?: number | string | null;
+  product_identity_data?: Record<string, unknown>;
 }
 
 export interface RawApiListing {
@@ -679,6 +687,12 @@ export interface RawApiListing {
   is_active: boolean;
   raw_data: Record<string, unknown>;
   normalized_data?: Record<string, unknown>;
+  product_identity_id?: string | null;
+  product_variant_id?: string | null;
+  identity_match_status?: "matched" | "ambiguous" | "unmatched" | "manual";
+  identity_match_method?: "identifier" | "brand_model" | "title_variant" | "manual" | "none";
+  identity_match_confidence?: number | string | null;
+  product_identity_data?: Record<string, unknown>;
 }
 
 export interface RawApiProductCapture {
@@ -952,9 +966,18 @@ export function toApiListing(
     isFavorite?: boolean;
     priceHistory?: ApiPriceHistorySummary | null;
     priceTarget?: ApiPriceTarget | null;
+    productIdentity?: ProductIdentitySnapshot | null;
+    productIdentityData?: Record<string, unknown>;
   } = {},
 ): ApiListing {
   const isNormalized = "externalId" in listing;
+  const productIdentity =
+    options.productIdentity ??
+    (options.productIdentityData
+      ? parseProductIdentitySnapshot(options.productIdentityData)
+      : !isNormalized
+        ? parseProductIdentitySnapshot(listing.product_identity_data)
+        : null);
 
   return {
     id: options.id ?? (isNormalized ? null : listing.id),
@@ -986,7 +1009,27 @@ export function toApiListing(
         ? listing.normalized_data
         : null,
     relevance: isNormalized ? (listing.relevance ?? null) : null,
+    ...(productIdentity ? { productIdentity } : {}),
   };
+}
+
+function parseProductIdentitySnapshot(value: Record<string, unknown> | undefined) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (
+    (value.matchStatus !== "matched" &&
+      value.matchStatus !== "ambiguous" &&
+      value.matchStatus !== "unmatched" &&
+      value.matchStatus !== "manual") ||
+    typeof value.matchMethod !== "string" ||
+    !Array.isArray(value.identifiers) ||
+    !value.variant ||
+    typeof value.variant !== "object" ||
+    Array.isArray(value.variant)
+  ) {
+    return null;
+  }
+
+  return value as unknown as ProductIdentitySnapshot;
 }
 
 function extractImageUrls(imageUrl: string | null, rawData: Record<string, unknown>) {

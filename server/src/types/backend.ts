@@ -36,6 +36,25 @@ export interface WatchlistDistanceFilter {
   longitude?: number;
 }
 
+export interface WatchlistProductIdentityFilter {
+  title?: string;
+  brand?: string;
+  model?: string;
+  identifiers?: Array<{
+    type: "upc" | "gtin" | "ean" | "mpn" | "asin" | "model" | "style";
+    value: string;
+  }>;
+  variant?: {
+    size?: string | null;
+    storage?: string | null;
+    color?: string | null;
+    generation?: string | null;
+    configuration?: string | null;
+    raw?: string | null;
+  };
+  condition?: string;
+}
+
 export interface WatchlistFilters {
   aliases?: string[];
   excludedKeywords?: string[];
@@ -49,6 +68,7 @@ export interface WatchlistFilters {
   price?: WatchlistPriceFilter;
   distance?: WatchlistDistanceFilter;
   conditions?: string[];
+  productIdentity?: WatchlistProductIdentityFilter;
 }
 
 export interface WorkerLogger {
