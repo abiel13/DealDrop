@@ -2,6 +2,7 @@ import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
 import type { ExchangeRate } from "../../pricing/currency";
 import type { DeliveredCostResult } from "../../pricing/delivered-cost";
 import type { MarketplaceListingQualitySignals } from "../shared/quality";
+import type { ProductRecommendation } from "../../intelligence";
 
 export interface MarketplaceListingReference {
   source: MarketplaceSource;
@@ -79,6 +80,7 @@ export interface MarketplaceProductComparison {
   cheapestLandedCurrency: string | null;
   currenciesCompared: string[];
   rawAndLandedWinnersDiffer: boolean;
+  recommendation?: ProductRecommendation | null;
 }
 
 export interface MarketplaceComparisonResult {

@@ -39,6 +39,7 @@ import type {
 } from "../product-capture/types";
 import type { ProductIdentitySnapshot } from "../product-identity";
 import type { ShoppingPreferences } from "../preferences/shopping";
+import type { ProductRecommendation } from "../intelligence";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -124,6 +125,7 @@ export interface ApiListing {
   priceTarget: ApiPriceTarget | null;
   product: MarketplaceProductMetadata | null;
   qualitySignals: MarketplaceListingQualitySignals | null;
+  recommendation: ProductRecommendation | null;
   relevance: MarketplaceListingRelevance | null;
   productIdentity?: ProductIdentitySnapshot | null;
   sourcePrice?: number | null;
@@ -1011,6 +1013,7 @@ export function toApiListing(
     exchangeRateAsOf?: string | null;
     exchangeRateSource?: string | null;
     conversionStatus?: ApiListing["conversionStatus"];
+    recommendation?: ProductRecommendation | null;
   } = {},
 ): ApiListing {
   const isNormalized = "externalId" in listing;
@@ -1072,6 +1075,7 @@ export function toApiListing(
       : isMarketplaceListingQualitySignals(listing.raw_data.qualitySignals)
         ? listing.raw_data.qualitySignals
         : createUnknownListingQualitySignals(),
+    recommendation: options.recommendation ?? null,
     relevance: isNormalized ? (listing.relevance ?? null) : null,
     ...(productIdentity ? { productIdentity } : {}),
   };

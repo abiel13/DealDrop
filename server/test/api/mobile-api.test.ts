@@ -617,6 +617,7 @@ test("listing details and notification routes remain user-scoped", async () => {
         source: string;
         priceHistory: { status: string; lowestPrice: number };
         priceTarget: { price: number; difference: number };
+        recommendation: { decision: string | null; confidence: string; explanation: string };
       };
     };
     const notificationBody = (await notificationResponse.json()) as {
@@ -631,6 +632,9 @@ test("listing details and notification routes remain user-scoped", async () => {
     assert.equal(listingBody.data.priceHistory.lowestPrice, 80);
     assert.equal(listingBody.data.priceTarget.price, 125);
     assert.equal(listingBody.data.priceTarget.difference, -25);
+    assert.equal(listingBody.data.recommendation.decision, "buy_now");
+    assert.equal(listingBody.data.recommendation.confidence, "moderate");
+    assert.match(listingBody.data.recommendation.explanation, /USD 100\.00/);
     assert.equal(notificationResponse.status, 200);
     assert.equal(notificationBody.data[0]?.id, NOTIFICATION_ID);
     assert.deepEqual(listingUsers, [USER_ID]);

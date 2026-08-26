@@ -24,6 +24,7 @@ import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { getAccountLinks } from "@/features/profile/utils/legal-links";
 import { useTheme } from "@/providers/ThemeProvider";
+import { RecommendationCard } from "@/features/intelligence/components/RecommendationCard";
 
 import {
   getListing,
@@ -295,6 +296,8 @@ export function ListingDetailsScreen() {
         </Card>
 
         <PriceContext listing={listing} />
+
+        {listing.recommendation && <RecommendationCard recommendation={listing.recommendation} />}
 
         {listing.seller_name && (
           <Card padding="md" className="gap-3">

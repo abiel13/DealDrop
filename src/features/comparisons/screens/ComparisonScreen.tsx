@@ -20,6 +20,7 @@ import {
   getSourcingNotes,
 } from "@/features/sourcing-lists/services/sourcing-list.service";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
+import { RecommendationCard } from "@/features/intelligence/components/RecommendationCard";
 import type {
   ApiDeliveredCostComponent,
   ApiComparisonOffer,
@@ -299,6 +300,8 @@ function ComparisonGroupCard({
               : "Conservative model and title match"}
         </AppText>
       </View>
+
+      {group.recommendation && <RecommendationCard recommendation={group.recommendation} />}
 
       {group.rawAndLandedWinnersDiffer && (
         <AppText variant="bodySmall" className="font-semibold text-primary">

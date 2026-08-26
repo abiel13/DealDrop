@@ -227,6 +227,44 @@ export interface ApiMarketplaceListingQualitySignals {
   };
 }
 
+export type ApiRecommendationDecision = "buy_now" | "wait" | "skip";
+export type ApiRecommendationConfidence = "strong" | "moderate" | "insufficient_data";
+export type ApiRecommendationPriceBasis = "marketplace_price" | "delivered_unit_cost";
+export type ApiRecommendationFactorImpact = "supports" | "caution" | "rules_out" | "unknown";
+
+export interface ApiRecommendationMoney {
+  amount: number;
+  currency: string;
+}
+
+export interface ApiRecommendationFactor {
+  key: string;
+  impact: ApiRecommendationFactorImpact;
+  label: string;
+  detail: string;
+}
+
+export interface ApiProductRecommendation {
+  decision: ApiRecommendationDecision | null;
+  confidence: ApiRecommendationConfidence;
+  explanation: string;
+  currentOfferId: string | null;
+  factors: ApiRecommendationFactor[];
+  supportingMetrics: {
+    basis: ApiRecommendationPriceBasis;
+    currentPrice: ApiRecommendationMoney | null;
+    marketplacePrice: ApiRecommendationMoney | null;
+    deliveredUnitCost: ApiRecommendationMoney | null;
+    historicalMedian: ApiRecommendationMoney | null;
+    historicalAverage: ApiRecommendationMoney | null;
+    targetPrice: ApiRecommendationMoney | null;
+    maximumPrice: ApiRecommendationMoney | null;
+    cheapestAlternative: (ApiRecommendationMoney & { source: string }) | null;
+    historicalObservationCount: number;
+    comparableOfferCount: number;
+  };
+}
+
 export interface ApiMarketplace {
   source: MarketplaceSource;
   enabled: boolean;
@@ -257,6 +295,7 @@ export interface ApiListing {
   priceTarget: ApiPriceTarget | null;
   product: ApiProductMetadata | null;
   qualitySignals: ApiMarketplaceListingQualitySignals | null;
+  recommendation: ApiProductRecommendation | null;
   relevance: ApiListingRelevance | null;
   productIdentity?: ApiProductIdentity | null;
   sourcePrice?: number | null;
@@ -790,6 +829,7 @@ export interface ApiProductComparison {
   cheapestLandedCurrency: string | null;
   currenciesCompared: string[];
   rawAndLandedWinnersDiffer: boolean;
+  recommendation?: ApiProductRecommendation | null;
 }
 
 export interface ApiComparisonShortlist {
