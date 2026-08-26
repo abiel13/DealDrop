@@ -19,6 +19,7 @@ export function normalizeRakutenListing(listing: ParsedRakutenItem): Marketplace
     latitude: null,
     longitude: null,
     postedAt: listing.postedAt,
+    qualitySignals: listing.qualitySignals,
     metadata: listing.metadata,
   };
 }

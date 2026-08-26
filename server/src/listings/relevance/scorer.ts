@@ -5,6 +5,7 @@ import type {
   MarketplaceProductMetadata,
 } from "../../marketplaces/shared/types";
 import { DEALDROP_PRODUCT_CATEGORIES } from "../../marketplaces/shared/types";
+import { assessListingQualitySignals } from "../../marketplaces/shared/quality";
 import { createSearchIntent, containsText, normalizeSearchText, tokenize } from "./intent";
 import { classifyMarketplaceListing } from "./classifier";
 import type { DealDropSearchIntent, RelevanceEvaluation } from "./types";
@@ -14,6 +15,7 @@ export function evaluateListingRelevance(
   intent: DealDropSearchIntent,
 ): RelevanceEvaluation {
   const listingProduct = classifyMarketplaceListing(listing);
+  const qualityAssessment = assessListingQualitySignals(listing.qualitySignals);
   const title = normalizeSearchText(listing.title);
   const description = normalizeSearchText(listing.description);
   const searchableText = [title, description].filter(Boolean).join(" ");
@@ -98,6 +100,7 @@ export function evaluateListingRelevance(
     excluded,
     reasons,
     warnings: [...new Set(warnings)],
+    qualityAssessment,
   };
 
   return { listingProduct, relevance };

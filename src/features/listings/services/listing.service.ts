@@ -39,6 +39,7 @@ function toListing(
     is_favorite: listing.isFavorite,
     price_history: listing.priceHistory,
     price_target: listing.priceTarget,
+    quality_signals: listing.qualitySignals,
     match_id: match?.id ?? null,
     match_status: match?.status ?? null,
     feedback: match?.feedback ?? null,

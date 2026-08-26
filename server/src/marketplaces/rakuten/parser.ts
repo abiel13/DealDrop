@@ -1,4 +1,5 @@
 import { RakutenParseError } from "./errors";
+import { normalizeListingQuality } from "../shared/quality";
 import type { ParsedRakutenItem, RakutenSearchResponse } from "./types";
 
 export type RakutenParseReporter = (error: RakutenParseError) => void;
@@ -55,6 +56,10 @@ function parseRakutenItem(value: unknown, genreNames: ReadonlyMap<string, string
   const genreName = genreId ? (genreNames.get(genreId) ?? null) : null;
   const availability = integer(item.availability);
   const overseasShipping = integer(item.shipOverseasFlag);
+  const sellerName = text(item.shopName);
+  const deliverySummary = text(item.shipOverseasArea)
+    ? `International shipping areas: ${splitAreas(text(item.shipOverseasArea)).join(", ")}`
+    : null;
   const metadata: Record<string, unknown> = {
     ...(genreId ? { genreId } : {}),
     ...(genreName ? { genreName } : {}),
@@ -93,9 +98,16 @@ function parseRakutenItem(value: unknown, genreNames: ReadonlyMap<string, string
     currency: "JPY" as const,
     url,
     imageUrls: parseImageUrls(item.mediumImageUrls, item.smallImageUrls),
-    sellerName: text(item.shopName),
+    sellerName,
     category: genreName || genreId,
     postedAt: null,
+    qualitySignals: normalizeListingQuality({
+      sellerName,
+      sellerId: text(item.shopCode),
+      availabilityRawStatus:
+        availability === 0 ? "unavailable" : availability === 1 ? "available" : null,
+      deliverySummary,
+    }),
     metadata,
   } satisfies ParsedRakutenItem;
 }

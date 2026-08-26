@@ -1,4 +1,5 @@
 import { EbayParseError } from "./errors";
+import { normalizeListingQuality } from "../shared/quality";
 import type { EbaySearchPage, ParsedEbayListing } from "./types";
 
 export type EbayParseReporter = (error: EbayParseError) => void;
@@ -48,6 +49,13 @@ function parseEbayItem(value: unknown): ParsedEbayListing {
     throw new EbayParseError("eBay listing is missing its ID, title, or URL.");
   }
 
+  const seller = asObjectOrNull(item.seller);
+  const sellerName = parseSellerName(seller);
+  const condition = text(item.condition);
+  const returnTerms = asObjectOrNull(item.returnTerms) || asObjectOrNull(item.returnPolicy);
+  const shipping = parseShipping(item.shippingOptions);
+  const buyerProtection = parseBuyerProtection(item.buyerProtection);
+
   return {
     externalId,
     title,
@@ -56,11 +64,38 @@ function parseEbayItem(value: unknown): ParsedEbayListing {
     currency: parseCurrency(item.price),
     url,
     imageUrls: parseImageUrls(item.image, item.additionalImages),
-    sellerName: parseSellerName(item.seller),
+    sellerName,
     location: parseLocation(item.itemLocation),
     category: parseCategory(item.categories),
-    condition: text(item.condition),
+    condition,
     postedAt: text(item.itemCreationDate) || text(item.itemOriginDate),
+    qualitySignals: normalizeListingQuality({
+      sellerName,
+      sellerId: text(seller?.userId) || text(seller?.sellerId),
+      sellerRating: parseSellerRating(seller),
+      sellerReviewCount: number(seller?.feedbackScore),
+      sellerHistorySummary: text(seller?.sellerHistory),
+      sellerAccountCreatedAt: text(seller?.accountCreatedAt),
+      sellerVerified: booleanValue(seller?.verified ?? seller?.isVerified),
+      sellerProfessional: booleanValue(seller?.professionalSeller ?? seller?.isBusinessSeller),
+      condition,
+      availabilityRawStatus:
+        text(item.availability) || text(item.estimatedAvailabilityStatus) || text(item.stockStatus),
+      availabilityQuantity: number(
+        item.availableQuantity ?? item.estimatedAvailableQuantity ?? item.quantity,
+      ),
+      deliverySummary: text(item.deliveryInformation) || shipping.summary || shipping.estimatedAt,
+      deliveryEstimatedAt: shipping.estimatedAt,
+      returnAccepted: booleanValue(returnTerms?.returnsAccepted ?? returnTerms?.accepted),
+      returnWindowDays: parseReturnWindowDays(
+        returnTerms?.returnPeriod ?? returnTerms?.returnWindow,
+      ),
+      returnSummary:
+        text(returnTerms?.description) || text(returnTerms?.summary) || text(item.returnPolicy),
+      buyerProtectionAvailable: buyerProtection.available,
+      buyerProtectionPrograms: buyerProtection.programs,
+      buyerProtectionSummary: buyerProtection.summary,
+    }),
     metadata: {
       ...(text(item.conditionId) ? { conditionId: text(item.conditionId) } : {}),
       ...(text(item.upc) ? { upc: text(item.upc) } : {}),
@@ -113,8 +148,58 @@ function parseImageUrls(primary: unknown, additional: unknown) {
   return [...new Set(urls.filter((url): url is string => Boolean(url)))];
 }
 
-function parseSellerName(seller: unknown) {
-  return text(asObjectOrNull(seller)?.username) || text(asObjectOrNull(seller)?.sellerUsername);
+function parseSellerName(seller: Record<string, unknown> | null) {
+  return text(seller?.username) || text(seller?.sellerUsername);
+}
+
+function parseSellerRating(seller: Record<string, unknown> | null) {
+  const value = number(seller?.feedbackPercentage);
+  return value === null ? null : { value, scale: 100, label: "feedback percentage" };
+}
+
+function parseShipping(value: unknown) {
+  const options = Array.isArray(value) ? value : [];
+  for (const option of options) {
+    const shipping = asObjectOrNull(option);
+    if (!shipping) continue;
+    const estimatedAt =
+      text(shipping.estimatedDeliveryDate) ||
+      text(shipping.minEstimatedDeliveryDate) ||
+      text(shipping.maxEstimatedDeliveryDate) ||
+      text(shipping.deliveryDate);
+    const summary = text(shipping.deliveryInformation) || text(shipping.type);
+    if (summary || estimatedAt) return { summary, estimatedAt };
+  }
+
+  return { summary: null, estimatedAt: null };
+}
+
+function parseBuyerProtection(value: unknown) {
+  const protection = asObjectOrNull(value);
+  if (!protection) {
+    return { available: booleanValue(value), programs: null, summary: text(value) };
+  }
+
+  const programs = Array.isArray(protection.programs)
+    ? protection.programs.filter((program): program is string => typeof program === "string")
+    : null;
+  return {
+    available: booleanValue(protection.available ?? protection.isAvailable),
+    programs,
+    summary: text(protection.summary) || text(protection.description) || text(protection.name),
+  };
+}
+
+function parseReturnWindowDays(value: unknown) {
+  const period = asObjectOrNull(value);
+  if (!period) return number(value);
+  const amount = number(period.value ?? period.amount ?? period.days);
+  if (amount === null) return null;
+  const unit = text(period.unit)?.toLowerCase();
+  if (!unit || /day/.test(unit)) return amount;
+  if (/week/.test(unit)) return amount * 7;
+  if (/month/.test(unit)) return amount * 30;
+  return null;
 }
 
 function parseCategory(categories: unknown) {
@@ -149,6 +234,24 @@ function parsePrice(price: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  return null;
+}
+
+function number(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function booleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (/^(true|yes|accepted|available)$/i.test(value.trim())) return true;
+    if (/^(false|no|declined|unavailable)$/i.test(value.trim())) return false;
+  }
   return null;
 }
 

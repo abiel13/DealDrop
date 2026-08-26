@@ -1,4 +1,5 @@
 import type { MarketplaceProductIdentifier, MarketplaceSearchRequest } from "../shared/types";
+import type { MarketplaceListingQualitySignals } from "../shared/quality";
 
 export type AmazonBusinessProductRegion =
   "DE" | "FR" | "UK" | "IT" | "ES" | "IN" | "US" | "CA" | "MX" | "JP" | "AU";
@@ -50,6 +51,7 @@ export interface ParsedAmazonBusinessListing {
   condition: string | null;
   availability: string | null;
   deliveryInformation: string | null;
+  qualitySignals: MarketplaceListingQualitySignals;
   metadata: Record<string, unknown>;
 }
 

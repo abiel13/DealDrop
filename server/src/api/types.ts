@@ -13,6 +13,11 @@ import type {
 } from "../marketplaces/comparison";
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
+import {
+  createUnknownListingQualitySignals,
+  isMarketplaceListingQualitySignals,
+  type MarketplaceListingQualitySignals,
+} from "../marketplaces/shared/quality";
 import type { DealDropSearchIntent } from "../listings/relevance";
 import type {
   DealIndicator,
@@ -118,6 +123,7 @@ export interface ApiListing {
   priceHistory: ApiPriceHistorySummary | null;
   priceTarget: ApiPriceTarget | null;
   product: MarketplaceProductMetadata | null;
+  qualitySignals: MarketplaceListingQualitySignals | null;
   relevance: MarketplaceListingRelevance | null;
   productIdentity?: ProductIdentitySnapshot | null;
   sourcePrice?: number | null;
@@ -1061,6 +1067,11 @@ export function toApiListing(
       : isMarketplaceProductMetadata(listing.normalized_data)
         ? listing.normalized_data
         : null,
+    qualitySignals: isNormalized
+      ? (listing.qualitySignals ?? createUnknownListingQualitySignals())
+      : isMarketplaceListingQualitySignals(listing.raw_data.qualitySignals)
+        ? listing.raw_data.qualitySignals
+        : createUnknownListingQualitySignals(),
     relevance: isNormalized ? (listing.relevance ?? null) : null,
     ...(productIdentity ? { productIdentity } : {}),
   };

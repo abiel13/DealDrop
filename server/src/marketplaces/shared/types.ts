@@ -1,4 +1,8 @@
 import type { WatchlistFilters } from "../../types/backend";
+import type {
+  MarketplaceListingQualityAssessment,
+  MarketplaceListingQualitySignals,
+} from "./quality";
 
 export const MARKETPLACE_IDS = {
   amazonBusiness: "amazon_business",
@@ -49,6 +53,7 @@ export interface MarketplaceListingRelevance {
   excluded: boolean;
   reasons: string[];
   warnings: string[];
+  qualityAssessment?: MarketplaceListingQualityAssessment;
 }
 
 export type MarketplaceCostState = "known" | "estimated";
@@ -89,6 +94,7 @@ export interface MarketplaceListing {
   longitude: number | null;
   postedAt: string | null;
   product?: MarketplaceProductMetadata;
+  qualitySignals?: MarketplaceListingQualitySignals;
   relevance?: MarketplaceListingRelevance;
   cost?: MarketplaceListingCost;
   metadata?: Record<string, unknown>;

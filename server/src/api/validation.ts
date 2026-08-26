@@ -742,6 +742,74 @@ const deliveredCostSchema = z
   })
   .strict();
 
+const marketplaceSignalProvenanceSchema = z.enum(["marketplace", "dealdrop", "unavailable"]);
+const marketplaceSignal = <T extends z.ZodTypeAny>(valueSchema: T) =>
+  z
+    .object({
+      value: valueSchema.nullable(),
+      provenance: marketplaceSignalProvenanceSchema,
+    })
+    .strict();
+
+const marketplaceListingQualitySignalsSchema = z
+  .object({
+    seller: z
+      .object({
+        name: marketplaceSignal(z.string().trim().max(200)),
+        id: marketplaceSignal(z.string().trim().max(300)),
+        rating: marketplaceSignal(
+          z
+            .object({
+              value: finiteNumber,
+              scale: finiteNumber.nonnegative().nullable(),
+              label: z.string().trim().max(100).nullable(),
+            })
+            .strict(),
+        ),
+        reviewCount: marketplaceSignal(finiteNumber.nonnegative()),
+        history: marketplaceSignal(
+          z
+            .object({
+              summary: z.string().trim().max(500).nullable(),
+              accountCreatedAt: z.string().trim().max(100).nullable(),
+            })
+            .strict(),
+        ),
+        verified: marketplaceSignal(z.boolean()),
+        professional: marketplaceSignal(z.boolean()),
+      })
+      .strict(),
+    condition: marketplaceSignal(z.string().trim().max(100)),
+    availability: z
+      .object({
+        status: marketplaceSignal(z.enum(["available", "limited", "unavailable"])),
+        rawStatus: marketplaceSignal(z.string().trim().max(200)),
+        quantity: marketplaceSignal(finiteNumber.nonnegative()),
+      })
+      .strict(),
+    delivery: z
+      .object({
+        summary: marketplaceSignal(z.string().trim().max(500)),
+        estimatedAt: marketplaceSignal(z.string().trim().max(100)),
+      })
+      .strict(),
+    returnPolicy: z
+      .object({
+        accepted: marketplaceSignal(z.boolean()),
+        windowDays: marketplaceSignal(finiteNumber.nonnegative()),
+        summary: marketplaceSignal(z.string().trim().max(500)),
+      })
+      .strict(),
+    buyerProtection: z
+      .object({
+        available: marketplaceSignal(z.boolean()),
+        programs: marketplaceSignal(z.array(z.string().trim().min(1).max(200)).max(20)),
+        summary: marketplaceSignal(z.string().trim().max(500)),
+      })
+      .strict(),
+  })
+  .strict();
+
 const comparisonOfferSchema = z
   .object({
     source: z.enum(Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]]),
@@ -776,6 +844,7 @@ const comparisonOfferSchema = z
     condition: z.string().trim().max(100).nullable(),
     deliveryInformation: z.string().trim().max(500).nullable(),
     availability: z.string().trim().max(200).nullable(),
+    qualitySignals: marketplaceListingQualitySignalsSchema.nullable().optional(),
     qualification: z.enum(["qualifies", "does_not_qualify", "unknown"]),
     qualificationReasons: z.array(z.string().trim().min(1).max(200)).max(10),
     isShortlisted: z.boolean(),
