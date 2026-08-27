@@ -67,7 +67,7 @@ const WORKSPACE_COLUMNS =
 const SOURCING_LIST_COLUMNS =
   "id,workspace_id,created_by,name,status,target_budget,target_budget_currency,created_at,updated_at";
 const SOURCING_LIST_PRODUCT_COLUMNS =
-  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,alert_enabled,alert_target_price_reached,alert_new_cheaper_source,alert_price_dropped,alert_quantity_available,alert_back_in_stock,alert_cooldown_minutes,preferred_condition,notes,required_by,assigned_to,workflow_status,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
+  "id,sourcing_list_id,category,product_name,sku,upc,gtin,mpn,keywords,target_quantity,sourced_quantity,target_unit_cost,target_unit_cost_currency,max_unit_cost,max_unit_cost_currency,estimated_shipping_cost,estimated_shipping_currency,estimated_duties_taxes,estimated_duties_taxes_currency,other_sourcing_cost,other_sourcing_cost_currency,desired_retail_price,desired_retail_price_currency,minimum_desired_margin_percent,desired_roi_percent,estimated_resale_fees,estimated_resale_fees_currency,max_landed_unit_cost,max_landed_unit_cost_currency,alert_cost_basis,alert_enabled,alert_target_price_reached,alert_new_cheaper_source,alert_price_dropped,alert_quantity_available,alert_back_in_stock,alert_cooldown_minutes,preferred_condition,notes,required_by,assigned_to,workflow_status,sort_order,created_at,updated_at,sourcing_list_product_marketplaces(marketplace_id)";
 const COMPARISON_SHORTLIST_COLUMNS =
   "id,workspace_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,supplier_id,offer_snapshot,created_by,created_at";
 const COMPARISON_GROUP_COLUMNS =
@@ -858,6 +858,9 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         desiredRetailPrice: toNullableNumber(product.desired_retail_price),
         desiredRetailPriceCurrency: product.desired_retail_price_currency,
         minimumDesiredMarginPercent: toNullableNumber(product.minimum_desired_margin_percent),
+        desiredRoiPercent: toNullableNumber(product.desired_roi_percent),
+        estimatedResaleFees: toNullableNumber(product.estimated_resale_fees),
+        estimatedResaleFeesCurrency: product.estimated_resale_fees_currency,
         maxLandedUnitCost: toNullableNumber(product.max_landed_unit_cost),
         maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
         alertCostBasis: product.alert_cost_basis,
@@ -2843,6 +2846,16 @@ function toSourcingProductRow(
   }
   if (input.minimumDesiredMarginPercent !== undefined) {
     row.minimum_desired_margin_percent = input.minimumDesiredMarginPercent;
+  }
+  if (input.desiredRoiPercent !== undefined) row.desired_roi_percent = input.desiredRoiPercent;
+  if (input.estimatedResaleFees !== undefined) {
+    row.estimated_resale_fees = input.estimatedResaleFees;
+  }
+  if (input.estimatedResaleFeesCurrency !== undefined) {
+    row.estimated_resale_fees_currency = input.estimatedResaleFeesCurrency;
+  } else if (input.estimatedResaleFees !== undefined) {
+    row.estimated_resale_fees_currency =
+      input.estimatedResaleFees === null ? null : defaultCurrency;
   }
   if (input.maxLandedUnitCost !== undefined) {
     row.max_landed_unit_cost = input.maxLandedUnitCost;

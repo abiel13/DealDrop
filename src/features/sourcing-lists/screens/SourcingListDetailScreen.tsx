@@ -49,6 +49,7 @@ import {
 import { shareCsvFile } from "../services/csv-file.service";
 import { createSourcingSummaryCsv } from "../services/sourcing-list-csv";
 import { calculateSourcingEconomics } from "../services/sourcing-economics";
+import { ProfessionalEconomicsCard } from "../components/ProfessionalEconomicsCard";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
 const statuses: SourcingListStatus[] = ["active", "paused", "completed"];
@@ -273,6 +274,7 @@ export function SourcingListDetailScreen() {
               Sources: {product.marketplaceIds.map(formatMarketplaceName).join(", ")}
             </AppText>
             <SourcingEconomicsCard product={product} />
+            <ProfessionalEconomicsCard economics={product.professionalEconomics} />
             {product.maxUnitCost !== null && (
               <AppText variant="bodySmall">
                 Max marketplace unit cost: {product.maxUnitCostCurrency ?? ""} {product.maxUnitCost}

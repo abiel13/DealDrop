@@ -40,6 +40,7 @@ import type {
 import type { ProductIdentitySnapshot } from "../product-identity";
 import type { ShoppingPreferences } from "../preferences/shopping";
 import type { MarketplaceAlternativeOffer, ProductRecommendation } from "../intelligence";
+import type { ProfessionalEconomicsResult } from "../sourcing/profit-economics";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -290,6 +291,7 @@ export type ApiSourcingWorkflowStatus =
 
 export type ApiSourcingListStatus = "active" | "paused" | "completed";
 export type ApiSourcingAlertCostBasis = "marketplace_price" | "landed_unit_cost";
+export type ApiProfessionalEconomics = ProfessionalEconomicsResult;
 
 export interface ApiSourcingListProduct {
   id: string;
@@ -315,8 +317,12 @@ export interface ApiSourcingListProduct {
   desiredRetailPrice: number | null;
   desiredRetailPriceCurrency: string | null;
   minimumDesiredMarginPercent: number | null;
+  desiredRoiPercent: number | null;
+  estimatedResaleFees: number | null;
+  estimatedResaleFeesCurrency: string | null;
   maxLandedUnitCost: number | null;
   maxLandedUnitCostCurrency: string | null;
+  professionalEconomics: ApiProfessionalEconomics;
   alertCostBasis: ApiSourcingAlertCostBasis;
   alertEnabled: boolean;
   alertTargetPriceReached: boolean;
@@ -379,6 +385,9 @@ export interface ApiSourcingListProductInput {
   desiredRetailPrice?: number | null;
   desiredRetailPriceCurrency?: string | null;
   minimumDesiredMarginPercent?: number | null;
+  desiredRoiPercent?: number | null;
+  estimatedResaleFees?: number | null;
+  estimatedResaleFeesCurrency?: string | null;
   maxLandedUnitCost?: number | null;
   maxLandedUnitCostCurrency?: string | null;
   alertCostBasis?: ApiSourcingAlertCostBasis;
@@ -426,7 +435,9 @@ export interface ApiSourcingActivity {
 }
 
 export type ApiComparisonOffer = MarketplaceComparisonOffer;
-export type ApiProductComparison = MarketplaceProductComparison;
+export type ApiProductComparison = MarketplaceProductComparison & {
+  professionalEconomics?: ApiProfessionalEconomics | null;
+};
 
 export interface ApiComparisonShortlist {
   id: string;
@@ -816,6 +827,9 @@ export interface RawApiSourcingListProduct {
   desired_retail_price: number | string | null;
   desired_retail_price_currency: string | null;
   minimum_desired_margin_percent: number | string | null;
+  desired_roi_percent: number | string | null;
+  estimated_resale_fees: number | string | null;
+  estimated_resale_fees_currency: string | null;
   max_landed_unit_cost: number | string | null;
   max_landed_unit_cost_currency: string | null;
   alert_cost_basis: ApiSourcingAlertCostBasis;

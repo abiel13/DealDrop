@@ -21,6 +21,7 @@ import {
 } from "@/features/sourcing-lists/services/sourcing-list.service";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import { RecommendationCard } from "@/features/intelligence/components/RecommendationCard";
+import { ProfessionalEconomicsCard } from "@/features/sourcing-lists/components/ProfessionalEconomicsCard";
 import type {
   ApiDeliveredCostComponent,
   ApiComparisonOffer,
@@ -302,6 +303,9 @@ function ComparisonGroupCard({
       </View>
 
       {group.recommendation && <RecommendationCard recommendation={group.recommendation} />}
+      {group.professionalEconomics && (
+        <ProfessionalEconomicsCard economics={group.professionalEconomics} />
+      )}
 
       {group.rawAndLandedWinnersDiffer && (
         <AppText variant="bodySmall" className="font-semibold text-primary">

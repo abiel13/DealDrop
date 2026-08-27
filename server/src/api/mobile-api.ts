@@ -41,6 +41,10 @@ import {
   normalizeShoppingPreferences,
   type ShoppingPreferences,
 } from "../preferences/shopping";
+import {
+  calculateProfessionalEconomics,
+  type ProfessionalEconomicsResult,
+} from "../sourcing/profit-economics";
 import { identifyProductCapture } from "../product-capture/identify";
 import {
   createProductCaptureResolver,
@@ -1062,15 +1066,21 @@ export class MobileApiService {
         ...offer,
         savedSupplier: findSavedSupplier(offer, suppliers),
       }));
+      const selectedOffer = selectRecommendationOffer(group, offers);
+      const professionalEconomics = selectedOffer
+        ? calculateSourcingProfessionalEconomics(product, selectedOffer)
+        : null;
       return {
         ...group,
         offers,
+        professionalEconomics,
         recommendation: buildSourcingComparisonRecommendation(
           group,
           offers,
           product,
           sourcingPriceHistory,
           shoppingPreferences,
+          professionalEconomics,
         ),
       };
     });
@@ -1693,9 +1703,15 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
       product.minimum_desired_margin_percent === null
         ? null
         : Number(product.minimum_desired_margin_percent),
+    desiredRoiPercent:
+      product.desired_roi_percent === null ? null : Number(product.desired_roi_percent),
+    estimatedResaleFees:
+      product.estimated_resale_fees === null ? null : Number(product.estimated_resale_fees),
+    estimatedResaleFeesCurrency: product.estimated_resale_fees_currency,
     maxLandedUnitCost:
       product.max_landed_unit_cost === null ? null : Number(product.max_landed_unit_cost),
     maxLandedUnitCostCurrency: product.max_landed_unit_cost_currency,
+    professionalEconomics: calculateSourcingProfessionalEconomics(product),
     alertCostBasis: product.alert_cost_basis,
     alertEnabled: product.alert_enabled,
     alertTargetPriceReached: product.alert_target_price_reached,
@@ -1753,6 +1769,43 @@ function buildComparisonIdentifiers(product: {
   if (product.gtin) identifiers.push({ type: "ean", value: product.gtin });
   if (product.mpn) identifiers.push({ type: "part_number", value: product.mpn });
   return identifiers.slice(0, 1);
+}
+
+function calculateSourcingProfessionalEconomics(
+  product: RawApiSourcingListProduct,
+  offer?: MarketplaceComparisonOffer | null,
+): ProfessionalEconomicsResult {
+  const delivered = offer?.cost?.estimatedDeliveredUnitCost;
+  const providedLandedUnitCost =
+    delivered ??
+    (offer?.landedUnitCost !== null && offer?.landedUnitCostCurrency
+      ? { amount: offer.landedUnitCost, currency: offer.landedUnitCostCurrency }
+      : null);
+  const expectedBuyUnitCost = offer ? offer.price : numericOrNull(product.target_unit_cost);
+  const expectedBuyCurrency = offer ? offer.currency : product.target_unit_cost_currency;
+
+  return calculateProfessionalEconomics({
+    basis: offer ? "marketplace_offer" : "configured_expected_buy_cost",
+    quantity: product.target_quantity,
+    expectedBuyUnitCost,
+    expectedBuyCurrency,
+    providedLandedUnitCost: providedLandedUnitCost?.amount ?? null,
+    providedLandedUnitCostCurrency: providedLandedUnitCost?.currency ?? null,
+    providedLandedCostCompleteness:
+      offer?.cost?.completeness ?? (providedLandedUnitCost ? "complete" : null),
+    estimatedShippingCost: numericOrNull(product.estimated_shipping_cost),
+    estimatedShippingCurrency: product.estimated_shipping_currency,
+    estimatedDutiesTaxes: numericOrNull(product.estimated_duties_taxes),
+    estimatedDutiesTaxesCurrency: product.estimated_duties_taxes_currency,
+    otherSourcingCost: numericOrNull(product.other_sourcing_cost),
+    otherSourcingCostCurrency: product.other_sourcing_cost_currency,
+    expectedSalePrice: numericOrNull(product.desired_retail_price),
+    expectedSalePriceCurrency: product.desired_retail_price_currency,
+    resaleFeesTotal: numericOrNull(product.estimated_resale_fees),
+    resaleFeesCurrency: product.estimated_resale_fees_currency,
+    desiredRoiPercent: numericOrNull(product.desired_roi_percent),
+    desiredMarginPercent: numericOrNull(product.minimum_desired_margin_percent),
+  });
 }
 
 function toMarketplaceListingForComparison(
@@ -1907,6 +1960,7 @@ function buildSourcingComparisonRecommendation(
   product: RawApiSourcingListProduct,
   history: ApiSourcingPriceHistory | null,
   preferences: ShoppingPreferences | null,
+  professionalEconomics: ProfessionalEconomicsResult | null,
 ) {
   const recommendationTarget = sourcingRecommendationTarget(product);
   const currentOffer = selectRecommendationOffer(group, offers);
@@ -1925,6 +1979,7 @@ function buildSourcingComparisonRecommendation(
     preferredCondition: product.preferred_condition,
     targetQuantity: product.target_quantity,
     preferredMarketplaces: preferences?.preferredMarketplaces,
+    professionalEconomics,
   });
 }
 
