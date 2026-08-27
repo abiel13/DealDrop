@@ -3,6 +3,7 @@ import type {
   StoredListingReference,
 } from "../../database/listing-repository";
 import type { ListingPersistence } from "../../database/listing-ingestion";
+import type { DealRoomLiveUpdateSummary } from "../../database/deal-room-live-updates";
 import type { MarketplaceSearchCoordinator } from "../../marketplaces/search/coordinator";
 import type { MarketplaceListing, MarketplaceSource } from "../../marketplaces/shared/types";
 import type { MarketplaceComparisonOffer } from "../../marketplaces/comparison";
@@ -46,6 +47,10 @@ export interface WatchlistMonitoringRepository extends ListingPersistence {
     stateUpdates: readonly SourcingProductAlertStateUpdate[],
     alerts: readonly SourcingOpportunityAlert[],
   ): Promise<void>;
+  refreshDealRoomLiveUpdates?(
+    observedAt?: string,
+    logger?: WorkerLogger,
+  ): Promise<DealRoomLiveUpdateSummary>;
 }
 
 export interface WatchlistMonitoringWorkerConfig {

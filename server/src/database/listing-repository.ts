@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  refreshDealRoomLiveUpdates,
+  type DealRoomLiveUpdateSummary,
+} from "./deal-room-live-updates";
 import { matchesWatchlist } from "../matching/watchlist";
 import {
   getNotificationQueueHealth,
@@ -722,6 +726,17 @@ export class ListingRepository {
 
   getNotificationQueueHealth(): Promise<NotificationQueueHealth> {
     return getNotificationQueueHealth(this.client);
+  }
+
+  refreshDealRoomLiveUpdates(
+    observedAt = new Date().toISOString(),
+    logger: import("../types/backend").WorkerLogger = {
+      info() {},
+      warn() {},
+      error() {},
+    },
+  ): Promise<DealRoomLiveUpdateSummary> {
+    return refreshDealRoomLiveUpdates(this.client, observedAt, logger);
   }
 
   async markWatchlistChecked(watchlistId: string) {

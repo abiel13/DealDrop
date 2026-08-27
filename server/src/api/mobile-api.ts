@@ -52,6 +52,7 @@ import {
 } from "../product-capture/resolve";
 import { ApiError, ApiNotFoundError, ApiProRequiredError, ApiValidationError } from "./errors";
 import { EMPTY_PRO_ENTITLEMENT } from "./pro";
+import type { RevenueCatProSubscriptionVerifier } from "../billing/revenuecat";
 import { encodeApiCursor } from "./pagination";
 import type {
   MatchQueryOptions,
@@ -106,6 +107,7 @@ import type {
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
   ApiSourcingPriceHistory,
+  ApiSourcingListProduct,
   ApiSourcingSummary,
   ApiWatchlist,
   ApiWeeklySummary,
@@ -144,6 +146,7 @@ export interface MobileApiDependencies {
     error(message: string, context?: Record<string, unknown>): void;
   };
   coordinator?: MarketplaceSearchCoordinator;
+  proSubscriptionVerifier?: RevenueCatProSubscriptionVerifier;
   productCaptureResolver?: ProductCaptureResolver;
   exchangeRateProvider?: ExchangeRateProvider;
 }
@@ -692,6 +695,22 @@ export class MobileApiService {
     }
 
     return entitlement.call(this.dependencies.repository, userId, workspaceId);
+  }
+
+  async syncProEntitlement(userId: string): Promise<ApiProEntitlement> {
+    const verifier = this.dependencies.proSubscriptionVerifier;
+    const sync = this.dependencies.repository.syncProSubscriptionEntitlement;
+    if (!verifier || !sync) {
+      throw new ApiError(
+        503,
+        "pro_billing_unavailable",
+        "DealDrop Pro billing verification is not configured yet.",
+      );
+    }
+
+    const entitlement = await verifier.getActiveProEntitlement(userId);
+    await sync.call(this.dependencies.repository, userId, entitlement);
+    return this.getProEntitlement(userId);
   }
 
   async requireProAccess(userId: string, workspaceId?: string) {
@@ -1942,12 +1961,31 @@ function toPublicDealRoomItem(item: RawApiDealRoomItem): ApiPublicDealRoomItem {
     availability: publicItem.availability,
     source: publicItem.source,
     url: publicItem.url,
+    ...(item.live_update
+      ? {
+          priceChange: publicItem.priceChange,
+          priceChangePercent: publicItem.priceChangePercent,
+          priceChangedAt: publicItem.priceChangedAt,
+          availabilityChangedAt: publicItem.availabilityChangedAt,
+          lastUpdateType: publicItem.lastUpdateType,
+          lastChangedAt: publicItem.lastChangedAt,
+          betterAlternativeSource: publicItem.betterAlternativeSource,
+          betterAlternativePrice: publicItem.betterAlternativePrice,
+          betterAlternativeCurrency: publicItem.betterAlternativeCurrency,
+          betterAlternativeUrl: publicItem.betterAlternativeUrl,
+        }
+      : {}),
   };
 }
 
 function toDealRoomItem(item: RawApiDealRoomItem): ApiDealRoomItem {
   const listing = item.listing ?? item.current_listing ?? null;
-  const title = listing?.title ?? item.product_identity?.canonical_title ?? item.watchlist?.name;
+  const liveUpdate = item.live_update;
+  const title =
+    liveUpdate?.title ??
+    listing?.title ??
+    item.product_identity?.canonical_title ??
+    item.watchlist?.name;
 
   return {
     id: item.id,
@@ -1957,12 +1995,32 @@ function toDealRoomItem(item: RawApiDealRoomItem): ApiDealRoomItem {
     listingId: item.listing_id,
     watchlistId: item.watchlist_id,
     title: title ?? item.watchlist?.search_query ?? "Saved DealDrop item",
-    imageUrl: listing?.image_url ?? null,
-    currentPrice: listing?.price ?? null,
-    currency: listing?.currency ?? null,
-    availability: listing ? (listing.is_active ? "available" : "unavailable") : "unknown",
-    source: listing?.marketplace_id ?? null,
-    url: listing?.url ?? null,
+    imageUrl: liveUpdate?.image_url ?? listing?.image_url ?? null,
+    currentPrice: liveUpdate ? numericOrNull(liveUpdate.current_price) : (listing?.price ?? null),
+    currency: liveUpdate ? liveUpdate.currency : (listing?.currency ?? null),
+    availability: liveUpdate
+      ? liveUpdate.availability
+      : listing
+        ? listing.is_active
+          ? "available"
+          : "unavailable"
+        : "unknown",
+    source: liveUpdate?.source_marketplace_id ?? listing?.marketplace_id ?? null,
+    url: liveUpdate?.url ?? listing?.url ?? null,
+    ...(liveUpdate
+      ? {
+          priceChange: numericOrNull(liveUpdate.price_change),
+          priceChangePercent: numericOrNull(liveUpdate.price_change_percent),
+          priceChangedAt: liveUpdate.price_changed_at,
+          availabilityChangedAt: liveUpdate.availability_changed_at,
+          lastUpdateType: liveUpdate.last_update_type,
+          lastChangedAt: liveUpdate.last_changed_at,
+          betterAlternativeSource: liveUpdate.better_alternative_source,
+          betterAlternativePrice: numericOrNull(liveUpdate.better_alternative_price),
+          betterAlternativeCurrency: liveUpdate.better_alternative_currency,
+          betterAlternativeUrl: liveUpdate.better_alternative_url,
+        }
+      : {}),
     watchlistName: item.watchlist?.name ?? null,
     isShortlisted: item.is_shortlisted,
     voteCount: item.vote_count ?? 0,

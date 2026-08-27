@@ -668,6 +668,7 @@ export const notificationPreferencesSchema = z
   .object({
     pushEnabled: z.boolean(),
     newMatchEnabled: z.boolean(),
+    dealRoomUpdatesEnabled: z.boolean().optional(),
     quietHoursEnabled: z.boolean(),
     quietHoursStart: z.string().trim().nullable(),
     quietHoursEnd: z.string().trim().nullable(),

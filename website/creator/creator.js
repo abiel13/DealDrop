@@ -83,6 +83,14 @@
     return "Availability unknown";
   }
 
+  function formatPriceChange(item) {
+    var percent = Number(item.priceChangePercent);
+    if (!Number.isFinite(percent) || percent === 0 || item.lastUpdateType !== "price_changed") {
+      return "";
+    }
+    return (percent < 0 ? "↓ " : "↑ ") + Math.abs(percent * 100).toFixed(1) + "%";
+  }
+
   function getFallbackUrl() {
     if (config.appUrl) return config.appUrl;
     var agent = navigator.userAgent || "";
@@ -139,6 +147,14 @@
     availability.textContent = availabilityLabel(item.availability);
     if (item.availability === "unavailable") availability.className = "is-unavailable";
     details.appendChild(availability);
+
+    var change = formatPriceChange(item);
+    if (change) {
+      var changeCopy = document.createElement("span");
+      changeCopy.className = Number(item.priceChange) < 0 ? "is-price-drop" : "is-price-rise";
+      changeCopy.textContent = change;
+      details.appendChild(changeCopy);
+    }
 
     row.appendChild(copy);
     row.appendChild(details);
@@ -276,6 +292,32 @@
     setHidden(error, false);
   }
 
+  function fetchCreator(slug, isRefresh) {
+    var apiUrl = getApiUrl();
+    var suffix = isRefresh ? "?refresh=1" : "";
+    return fetch(apiUrl + "/creators/public/" + encodeURIComponent(slug) + suffix, {
+      headers: { Accept: "application/json" },
+    }).then(function (response) {
+      if (response.status === 404) throw new Error("not_found");
+      if (!response.ok) throw new Error("unavailable");
+      return response.json();
+    });
+  }
+
+  function startLiveRefresh(slug) {
+    if (!getApiUrl()) return;
+    window.setInterval(function () {
+      if (document.visibilityState === "hidden") return;
+      fetchCreator(slug, true)
+        .then(function (payload) {
+          if (payload && payload.data) renderCreator(payload.data);
+        })
+        .catch(function () {
+          // Keep the last known creator collections visible during a failed refresh.
+        });
+    }, 60000);
+  }
+
   function loadCreator() {
     var slug = getSlug();
     if (!/^[a-f0-9]{24}$/.test(slug)) {
@@ -288,6 +330,7 @@
 
     if (initialCreator) {
       renderCreator(initialCreator);
+      startLiveRefresh(slug);
       return;
     }
 
@@ -300,17 +343,11 @@
       return;
     }
 
-    fetch(apiUrl + "/creators/public/" + encodeURIComponent(slug), {
-      headers: { Accept: "application/json" },
-    })
-      .then(function (response) {
-        if (response.status === 404) throw new Error("not_found");
-        if (!response.ok) throw new Error("unavailable");
-        return response.json();
-      })
+    fetchCreator(slug, false)
       .then(function (payload) {
         if (!payload || !payload.data) throw new Error("unavailable");
         renderCreator(payload.data);
+        startLiveRefresh(slug);
       })
       .catch(function (loadError) {
         if (loadError && loadError.message === "not_found") {

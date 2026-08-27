@@ -59,6 +59,8 @@ export function DealRoomDetailScreen() {
     queryKey: ["deal-room", user?.id, roomId],
     queryFn: () => getDealRoom(roomId!),
     enabled: Boolean(user && roomId),
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
   const savedListingsQuery = useQuery({
     queryKey: ["deal-room-saved-listings", user?.id],

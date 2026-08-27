@@ -17,6 +17,7 @@ const DEFAULT_DAILY_ALERT_LIMIT = 20;
 type AlertMode = "instant" | "digest";
 
 interface QueueNotification {
+  type?: string;
   title: string;
   body: string;
   data: Record<string, unknown>;
@@ -43,6 +44,7 @@ interface NotificationPreferenceRow {
   user_id: string;
   push_enabled: boolean;
   new_match_enabled: boolean;
+  deal_room_updates_enabled?: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
@@ -197,7 +199,7 @@ export async function processNotificationQueue(
   const { data: queueRows, error: queueError } = await client
     .from("notification_queue")
     .select(
-      "id,notification_id,user_id,push_token_id,attempts,next_attempt_at,created_at,notifications(title,body,data),push_tokens(expo_push_token,is_active)",
+      "id,notification_id,user_id,push_token_id,attempts,next_attempt_at,created_at,notifications(type,title,body,data),push_tokens(expo_push_token,is_active)",
     )
     .in("status", ["pending", "failed"])
     .lte("next_attempt_at", nowIso)
@@ -215,7 +217,7 @@ export async function processNotificationQueue(
     ? await client
         .from("notification_preferences")
         .select(
-          "user_id,push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
+          "user_id,push_enabled,new_match_enabled,deal_room_updates_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit",
         )
         .in("user_id", userIds)
         .returns<NotificationPreferenceRow[]>()
@@ -242,7 +244,11 @@ export async function processNotificationQueue(
     if (
       row.push_tokens.is_active !== true ||
       preference?.push_enabled === false ||
-      preference?.new_match_enabled === false
+      ((row.notifications.type ?? "new_match") === "new_match"
+        ? preference?.new_match_enabled === false
+        : (row.notifications.type ?? "new_match") === "deal_room_update"
+          ? preference?.deal_room_updates_enabled === false
+          : false)
     ) {
       await markQueueItem(client, row.id, {
         status: "cancelled",
@@ -409,6 +415,7 @@ function getPreference(row: NotificationPreferenceRow | undefined): Notification
       user_id: "",
       push_enabled: true,
       new_match_enabled: true,
+      deal_room_updates_enabled: true,
       quiet_hours_enabled: false,
       quiet_hours_start: null,
       quiet_hours_end: null,

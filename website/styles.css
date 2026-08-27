@@ -2671,6 +2671,17 @@ mark {
   font-size: 12px;
 }
 
+.public-room-item-change {
+  margin: 8px 0 0;
+  color: #a63f4a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-room-item-change.is-positive {
+  color: #2f7656;
+}
+
 .public-room-item-recommendation {
   margin: 14px 0 0;
   padding: 8px 10px;
@@ -3031,6 +3042,16 @@ mark {
 }
 
 .creator-product-details .is-unavailable {
+  color: #a63f4a;
+  font-weight: 700;
+}
+
+.creator-product-details .is-price-drop {
+  color: #2f7656;
+  font-weight: 700;
+}
+
+.creator-product-details .is-price-rise {
   color: #a63f4a;
   font-weight: 700;
 }

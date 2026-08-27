@@ -38,6 +38,8 @@ export function PublicCreatorScreen() {
     queryKey: ["public-creator", publicSlug],
     queryFn: () => getPublicCreatorProfile(publicSlug!),
     enabled: isValidSlug,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
   const savedQueryKey = ["saved-deal-rooms", user?.id] as const;
   const savedQuery = useQuery({
@@ -231,6 +233,21 @@ function CollectionItemPreview({ item }: { item: ApiPublicDealRoomItem }) {
           {item.title}
         </AppText>
         <AppText variant="caption">{formatPrice(item.currentPrice, item.currency)}</AppText>
+        {item.lastUpdateType === "price_changed" && typeof item.priceChangePercent === "number" && (
+          <AppText
+            variant="caption"
+            className={
+              typeof item.priceChange === "number" && item.priceChange < 0
+                ? "text-primary"
+                : "text-error"
+            }
+          >
+            {typeof item.priceChange === "number" && item.priceChange < 0
+              ? "Price dropped "
+              : "Price increased "}
+            {Math.abs(item.priceChangePercent * 100).toFixed(1)}%
+          </AppText>
+        )}
       </View>
       <AppText
         variant="caption"

@@ -153,6 +153,23 @@ export async function runWatchlistMonitoringWorker(
 
   await monitorSourcingTargets(dependencies, ingestion, summary);
 
+  if (repository.refreshDealRoomLiveUpdates) {
+    try {
+      const roomUpdates = await repository.refreshDealRoomLiveUpdates(
+        new Date().toISOString(),
+        logger,
+      );
+      logger.info("Watchlist monitoring Deal Room updates completed", { ...roomUpdates });
+    } catch (error) {
+      const failure = toFailure("notifications", "deal_room_updates", error, []);
+      summary.failures.push(failure);
+      logger.error("Watchlist monitoring Deal Room updates failed", {
+        category: failure.category,
+        error: failure.message,
+      });
+    }
+  }
+
   try {
     summary.notificationDelivery = await repository.processNotificationQueue();
     logger.info("Watchlist monitoring notification queue processed", {

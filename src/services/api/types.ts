@@ -538,6 +538,12 @@ export type ApiDealRoomRole = "owner" | "contributor" | "viewer";
 export type ApiDealRoomItemType =
   "product" | "saved_product" | "marketplace_listing" | "tracked_product" | "selected_deal";
 export type ApiDealRoomItemAvailability = "available" | "unavailable" | "unknown";
+export type ApiDealRoomLiveUpdateType =
+  | "initial"
+  | "price_changed"
+  | "availability_changed"
+  | "listing_unavailable"
+  | "better_alternative";
 
 export interface ApiDealRoomItem {
   id: string;
@@ -553,6 +559,16 @@ export interface ApiDealRoomItem {
   availability: ApiDealRoomItemAvailability;
   source: MarketplaceSource | null;
   url: string | null;
+  priceChange?: number | null;
+  priceChangePercent?: number | null;
+  priceChangedAt?: string | null;
+  availabilityChangedAt?: string | null;
+  lastUpdateType?: ApiDealRoomLiveUpdateType;
+  lastChangedAt?: string | null;
+  betterAlternativeSource?: MarketplaceSource | null;
+  betterAlternativePrice?: number | null;
+  betterAlternativeCurrency?: string | null;
+  betterAlternativeUrl?: string | null;
   watchlistName: string | null;
   isShortlisted: boolean;
   voteCount: number;
@@ -587,6 +603,16 @@ export interface ApiPublicDealRoomItem {
   availability: ApiDealRoomItemAvailability;
   source: MarketplaceSource | null;
   url: string | null;
+  priceChange?: number | null;
+  priceChangePercent?: number | null;
+  priceChangedAt?: string | null;
+  availabilityChangedAt?: string | null;
+  lastUpdateType?: ApiDealRoomLiveUpdateType;
+  lastChangedAt?: string | null;
+  betterAlternativeSource?: MarketplaceSource | null;
+  betterAlternativePrice?: number | null;
+  betterAlternativeCurrency?: string | null;
+  betterAlternativeUrl?: string | null;
 }
 
 export interface ApiPublicDealRoom {
@@ -1303,6 +1329,7 @@ export interface ApiNotification {
 export interface ApiNotificationPreferences {
   pushEnabled: boolean;
   newMatchEnabled: boolean;
+  dealRoomUpdatesEnabled?: boolean;
   quietHoursEnabled: boolean;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;

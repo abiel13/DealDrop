@@ -176,3 +176,50 @@ test("readiness and liveness health routes distinguish process and dependencies"
     await once(server, "close");
   }
 });
+
+test("RevenueCat webhook route authenticates and forwards the payload", async () => {
+  let receivedPayload: unknown;
+  const server = createHttpServer(logger, {
+    revenueCatWebhookAuthToken: "webhook-test-token",
+    revenueCatWebhookHandler: async (payload) => {
+      receivedPayload = payload;
+      return true;
+    },
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address() as AddressInfo;
+    const unauthorizedResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/webhooks/revenuecat`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer wrong-token", "Content-Type": "application/json" },
+        body: JSON.stringify({ event: { type: "INITIAL_PURCHASE" } }),
+      },
+    );
+    assert.equal(unauthorizedResponse.status, 401);
+
+    const payload = { event: { type: "INITIAL_PURCHASE", app_user_id: "user-1" } };
+    const authorizedResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/webhooks/revenuecat`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer webhook-test-token",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    assert.equal(authorizedResponse.status, 200);
+    assert.deepEqual(receivedPayload, payload);
+    assert.deepEqual(await authorizedResponse.json(), { received: true, handled: true });
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
