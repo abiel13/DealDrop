@@ -194,6 +194,74 @@ export const createWorkspaceSchema = z
   })
   .strict();
 
+const dealRoomVisibilitySchema = z.enum(["private", "public"]);
+
+export const createDealRoomSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120),
+    description: z.string().trim().max(500).nullable().optional(),
+    coverImageUrl: productCapturePublicUrl.nullable().optional(),
+    visibility: dealRoomVisibilitySchema.optional().default("private"),
+  })
+  .strict();
+
+export const updateDealRoomSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    coverImageUrl: productCapturePublicUrl.nullable().optional(),
+    visibility: dealRoomVisibilitySchema.optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, "At least one room field is required.");
+
+export const createDealRoomItemSchema = z
+  .object({
+    itemType: z.enum([
+      "product",
+      "saved_product",
+      "marketplace_listing",
+      "tracked_product",
+      "selected_deal",
+    ]),
+    productIdentityId: z.string().uuid().nullable().optional(),
+    listingId: z.string().uuid().nullable().optional(),
+    watchlistId: z.string().uuid().nullable().optional(),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    const referenceCount = [input.productIdentityId, input.listingId, input.watchlistId].filter(
+      (value) => value !== undefined && value !== null,
+    ).length;
+    if (referenceCount !== 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Provide exactly one Deal Room item reference.",
+        path: ["itemType"],
+      });
+      return;
+    }
+
+    const validReference =
+      (input.itemType === "product" && input.productIdentityId) ||
+      (["saved_product", "marketplace_listing", "selected_deal"].includes(input.itemType) &&
+        input.listingId) ||
+      (input.itemType === "tracked_product" && input.watchlistId);
+    if (!validReference) {
+      context.addIssue({
+        code: "custom",
+        message: "The selected reference does not match the Deal Room item type.",
+        path: ["itemType"],
+      });
+    }
+  });
+
+export const updateDealRoomItemSchema = z
+  .object({
+    sortOrder: z.number().int().min(0).max(1_000_000),
+  })
+  .strict();
+
 export const watchlistFiltersSchema = z
   .object({
     aliases: z.array(z.string().trim().min(1).max(100)).max(20).optional(),

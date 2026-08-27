@@ -321,6 +321,10 @@ export function WatchlistsScreen() {
               Paste a product link
             </Button>
 
+            <Button size="md" variant="outline" onPress={() => router.push(authRoutes.dealRooms)}>
+              Open Deal Rooms
+            </Button>
+
             <Button
               size="md"
               variant="outline"

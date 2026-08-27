@@ -62,6 +62,12 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiDealRoom,
+  ApiDealRoomInput,
+  ApiDealRoomItem,
+  ApiDealRoomItemInput,
+  ApiDealRoomItemUpdateInput,
+  ApiDealRoomUpdateInput,
   ApiProductCapture,
   ApiProductCaptureInput,
   ApiProEntitlement,
@@ -108,6 +114,8 @@ import type {
   RawApiSourcingActivity,
   RawApiSourcingNote,
   RawApiProductCapture,
+  RawApiDealRoom,
+  RawApiDealRoomItem,
   RawApiWatchlist,
   RawApiListing,
 } from "./types";
@@ -1242,6 +1250,85 @@ export class MobileApiService {
     }
   }
 
+  async getDealRooms(userId: string) {
+    return (await this.dependencies.repository.getDealRooms(userId)).map(toDealRoom);
+  }
+
+  async getDealRoom(userId: string, roomId: string) {
+    const room = await this.dependencies.repository.getDealRoom(userId, roomId);
+    if (!room) {
+      throw new ApiNotFoundError("The Deal Room was not found.");
+    }
+
+    return toDealRoom(room);
+  }
+
+  async getPublicDealRoom(roomId: string) {
+    const room = await this.dependencies.repository.getDealRoom(null, roomId);
+    if (!room) {
+      throw new ApiNotFoundError("The public Deal Room was not found.");
+    }
+
+    return toDealRoom(room);
+  }
+
+  async createDealRoom(userId: string, input: ApiDealRoomInput) {
+    return toDealRoom(await this.dependencies.repository.createDealRoom(userId, input));
+  }
+
+  async updateDealRoom(userId: string, roomId: string, input: ApiDealRoomUpdateInput) {
+    const room = await this.dependencies.repository.updateDealRoom(userId, roomId, input);
+    if (!room) {
+      throw new ApiNotFoundError("The Deal Room was not found or cannot be edited.");
+    }
+
+    return toDealRoom(room);
+  }
+
+  async deleteDealRoom(userId: string, roomId: string) {
+    const deleted = await this.dependencies.repository.deleteDealRoom(userId, roomId);
+    if (!deleted) {
+      throw new ApiNotFoundError("The Deal Room was not found.");
+    }
+  }
+
+  async addDealRoomItem(userId: string, roomId: string, input: ApiDealRoomItemInput) {
+    const item = await this.dependencies.repository.addDealRoomItem(userId, roomId, input);
+    if (!item) {
+      throw new ApiNotFoundError(
+        "The Deal Room was not found, or the selected product is not available to this account.",
+      );
+    }
+
+    return toDealRoomItem(item);
+  }
+
+  async updateDealRoomItem(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    input: ApiDealRoomItemUpdateInput,
+  ) {
+    const item = await this.dependencies.repository.updateDealRoomItem(
+      userId,
+      roomId,
+      itemId,
+      input,
+    );
+    if (!item) {
+      throw new ApiNotFoundError("The Deal Room item was not found or cannot be edited.");
+    }
+
+    return toDealRoomItem(item);
+  }
+
+  async deleteDealRoomItem(userId: string, roomId: string, itemId: string) {
+    const deleted = await this.dependencies.repository.deleteDealRoomItem(userId, roomId, itemId);
+    if (!deleted) {
+      throw new ApiNotFoundError("The Deal Room item was not found.");
+    }
+  }
+
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
     const page = await this.dependencies.repository.getWatchlists(userId, cursor, limit);
     return {
@@ -1655,6 +1742,44 @@ function toSourcingNote(note: RawApiSourcingNote): ApiSourcingNote {
     body: note.body,
     createdAt: note.created_at,
     updatedAt: note.updated_at,
+  };
+}
+
+function toDealRoom(room: RawApiDealRoom): ApiDealRoom {
+  return {
+    id: room.id,
+    name: room.name,
+    description: room.description,
+    coverImageUrl: room.cover_image_url,
+    visibility: room.visibility,
+    items: room.items.map(toDealRoomItem),
+    createdAt: room.created_at,
+    updatedAt: room.updated_at,
+  };
+}
+
+function toDealRoomItem(item: RawApiDealRoomItem): ApiDealRoomItem {
+  const listing = item.listing ?? item.current_listing ?? null;
+  const title = listing?.title ?? item.product_identity?.canonical_title ?? item.watchlist?.name;
+
+  return {
+    id: item.id,
+    roomId: item.room_id,
+    itemType: item.item_type,
+    productIdentityId: item.product_identity_id,
+    listingId: item.listing_id,
+    watchlistId: item.watchlist_id,
+    title: title ?? item.watchlist?.search_query ?? "Saved DealDrop item",
+    imageUrl: listing?.image_url ?? null,
+    currentPrice: listing?.price ?? null,
+    currency: listing?.currency ?? null,
+    availability: listing ? (listing.is_active ? "available" : "unavailable") : "unknown",
+    source: listing?.marketplace_id ?? null,
+    url: listing?.url ?? null,
+    watchlistName: item.watchlist?.name ?? null,
+    sortOrder: item.sort_order,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
   };
 }
 

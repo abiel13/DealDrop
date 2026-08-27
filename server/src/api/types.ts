@@ -223,6 +223,62 @@ export interface ApiWatchlist {
   updatedAt: string;
 }
 
+export type ApiDealRoomVisibility = "private" | "public";
+export type ApiDealRoomItemType =
+  "product" | "saved_product" | "marketplace_listing" | "tracked_product" | "selected_deal";
+export type ApiDealRoomItemAvailability = "available" | "unavailable" | "unknown";
+
+export interface ApiDealRoomItem {
+  id: string;
+  roomId: string;
+  itemType: ApiDealRoomItemType;
+  productIdentityId: string | null;
+  listingId: string | null;
+  watchlistId: string | null;
+  title: string;
+  imageUrl: string | null;
+  currentPrice: number | null;
+  currency: string | null;
+  availability: ApiDealRoomItemAvailability;
+  source: MarketplaceSource | null;
+  url: string | null;
+  watchlistName: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiDealRoom {
+  id: string;
+  name: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  visibility: ApiDealRoomVisibility;
+  items: ApiDealRoomItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiDealRoomInput {
+  name: string;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  visibility?: ApiDealRoomVisibility;
+}
+
+export type ApiDealRoomUpdateInput = Partial<ApiDealRoomInput>;
+
+export interface ApiDealRoomItemInput {
+  itemType: ApiDealRoomItemType;
+  productIdentityId?: string | null;
+  listingId?: string | null;
+  watchlistId?: string | null;
+}
+
+export interface ApiDealRoomItemUpdateInput {
+  sortOrder: number;
+}
+
 export type ApiWorkspaceRole = "owner" | "buyer" | "viewer";
 
 export interface ApiWorkspace {
@@ -787,6 +843,37 @@ export interface RawApiWatchlist {
   created_at: string;
   updated_at: string;
   watchlist_marketplaces?: Array<{ marketplace_id: MarketplaceSource }>;
+}
+
+export interface RawApiDealRoomItem {
+  id: string;
+  room_id: string;
+  item_type: ApiDealRoomItemType;
+  product_identity_id: string | null;
+  listing_id: string | null;
+  watchlist_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  listing?: RawApiListing | null;
+  current_listing?: RawApiListing | null;
+  watchlist?: RawApiWatchlist | null;
+  product_identity?: {
+    id: string;
+    canonical_title: string;
+  } | null;
+}
+
+export interface RawApiDealRoom {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  cover_image_url: string | null;
+  visibility: ApiDealRoomVisibility;
+  items: RawApiDealRoomItem[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RawApiWorkspace {

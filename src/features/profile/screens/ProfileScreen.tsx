@@ -410,6 +410,15 @@ export function ProfileScreen() {
           )}
         </AccountSection>
 
+        <AccountSection title="Collections">
+          <AccountRow
+            icon="image"
+            title="Deal Rooms"
+            subtitle="Organize saved products and deals into collections"
+            onPress={() => router.push(authRoutes.dealRooms)}
+          />
+        </AccountSection>
+
         {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (
           <AccountSection title="Insights">
             <AccountRow

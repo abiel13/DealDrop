@@ -23,6 +23,9 @@ export const authRoutes = {
   barcodeCapture: "/scan-barcode" as Href,
   imageCapture: "/capture-image" as Href,
   shareProduct: "/share-product" as Href,
+  dealRooms: "/deal-rooms" as Href,
+  dealRoomForm: "/deal-room-form" as Href,
+  dealRoom: "/deal-room" as Href,
   listing: "/listing" as Href,
 };
 
@@ -40,6 +43,14 @@ export function sourcingListRoute(sourcingListId: string) {
 
 export function sourcingListImportRoute(sourcingListId: string) {
   return `/sourcing-list/${encodeURIComponent(sourcingListId)}/import` as Href;
+}
+
+export function dealRoomFormRoute() {
+  return authRoutes.dealRoomForm;
+}
+
+export function dealRoomRoute(dealRoomId: string) {
+  return `/deal-room/${encodeURIComponent(dealRoomId)}` as Href;
 }
 
 export function sourcingListProductComparisonRoute(
