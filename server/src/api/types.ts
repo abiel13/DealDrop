@@ -39,7 +39,7 @@ import type {
 } from "../product-capture/types";
 import type { ProductIdentitySnapshot } from "../product-identity";
 import type { ShoppingPreferences } from "../preferences/shopping";
-import type { ProductRecommendation } from "../intelligence";
+import type { MarketplaceAlternativeOffer, ProductRecommendation } from "../intelligence";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -126,6 +126,7 @@ export interface ApiListing {
   product: MarketplaceProductMetadata | null;
   qualitySignals: MarketplaceListingQualitySignals | null;
   recommendation: ProductRecommendation | null;
+  alternatives?: ApiListingAlternatives | null;
   relevance: MarketplaceListingRelevance | null;
   productIdentity?: ProductIdentitySnapshot | null;
   sourcePrice?: number | null;
@@ -173,6 +174,18 @@ export interface ApiSearchPartialFailure {
   source: MarketplaceSource;
   category: MarketplaceErrorCategory;
   message: string;
+}
+
+export interface ApiListingAlternatives {
+  currentOfferId: string;
+  currentSource: MarketplaceSource;
+  searchQuery: string;
+  matchMethod: MarketplaceProductComparison["matchMethod"] | null;
+  confidence: MarketplaceProductComparison["confidence"] | null;
+  alternatives: MarketplaceAlternativeOffer[];
+  sources: MarketplaceSource[];
+  partialFailures: ApiSearchPartialFailure[];
+  recommendation: ProductRecommendation | null;
 }
 
 export interface ApiSearchResult {
@@ -1014,6 +1027,7 @@ export function toApiListing(
     exchangeRateSource?: string | null;
     conversionStatus?: ApiListing["conversionStatus"];
     recommendation?: ProductRecommendation | null;
+    alternatives?: ApiListingAlternatives | null;
   } = {},
 ): ApiListing {
   const isNormalized = "externalId" in listing;
@@ -1076,6 +1090,7 @@ export function toApiListing(
         ? listing.raw_data.qualitySignals
         : createUnknownListingQualitySignals(),
     recommendation: options.recommendation ?? null,
+    alternatives: options.alternatives ?? null,
     relevance: isNormalized ? (listing.relevance ?? null) : null,
     ...(productIdentity ? { productIdentity } : {}),
   };

@@ -4,6 +4,7 @@ import type {
   ApiPriceHistorySummary,
   ApiPriceTarget,
   ApiMarketplaceListingQualitySignals,
+  ApiProductIdentity,
   ApiProductRecommendation,
   ApiSearchIntent,
   ApiSearchPartialFailure,
@@ -38,6 +39,7 @@ export interface Listing {
   price_target: ApiPriceTarget | null;
   quality_signals: ApiMarketplaceListingQualitySignals | null;
   recommendation: ApiProductRecommendation | null;
+  product_identity: ApiProductIdentity | null;
   match_id: string | null;
   match_status: "unread" | "read" | "dismissed" | null;
   feedback: "relevant" | "not_relevant" | null;

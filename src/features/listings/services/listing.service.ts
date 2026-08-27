@@ -1,6 +1,7 @@
 import {
   apiClient,
   type ApiListing,
+  type ApiListingAlternatives,
   type ApiListingQuery,
   type ApiMatch,
   type ApiMatchQuery,
@@ -41,6 +42,7 @@ function toListing(
     price_target: listing.priceTarget,
     quality_signals: listing.qualitySignals,
     recommendation: listing.recommendation,
+    product_identity: listing.productIdentity ?? null,
     match_id: match?.id ?? null,
     match_status: match?.status ?? null,
     feedback: match?.feedback ?? null,
@@ -117,6 +119,11 @@ export async function getListing(listingId: string) {
   }
 
   return listing;
+}
+
+export async function getListingAlternatives(listingId: string): Promise<ApiListingAlternatives> {
+  const response = await apiClient.getListingAlternatives(listingId);
+  return response.data;
 }
 
 export async function searchListings(

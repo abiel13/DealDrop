@@ -669,6 +669,12 @@ async function routeProtectedRequest(
     return;
   }
 
+  if (method === "GET" && resource === "listings" && resourceId && action === "alternatives") {
+    assertResourceId(resourceId);
+    sendSuccess(response, requestId, await api.getListingAlternatives(userId, resourceId));
+    return;
+  }
+
   if (
     (method === "PUT" || method === "PATCH") &&
     resource === "listings" &&

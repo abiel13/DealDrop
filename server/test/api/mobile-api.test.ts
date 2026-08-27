@@ -644,6 +644,95 @@ test("listing details and notification routes remain user-scoped", async () => {
   }
 });
 
+test("listing alternatives search other sources and exclude a conflicting variant", async () => {
+  const current = rawListing();
+  current.raw_data = { productIdentity: productIdentitySnapshot("128 GB") };
+  const equivalent = {
+    ...listing(MARKETPLACE_IDS.etsy, "etsy-camera"),
+    price: 80,
+    condition: "new",
+    metadata: { productIdentity: productIdentitySnapshot("128 GB", "new") },
+  };
+  const conflictingVariant = {
+    ...listing(MARKETPLACE_IDS.rakuten, "rakuten-camera-256"),
+    price: 60,
+    metadata: { productIdentity: productIdentitySnapshot("256 GB") },
+  };
+  const repository = createRepository({
+    async getListingForUser(userId, listingId) {
+      assert.equal(userId, USER_ID);
+      assert.equal(listingId, LISTING_ID);
+      return {
+        listing: current,
+        matchedAt: null,
+        isFavorite: false,
+        priceHistory: null,
+        priceTarget: null,
+      };
+    },
+  });
+  const server = createHttpServer(logger, {
+    adapters: {
+      [MARKETPLACE_IDS.ebay]: adapter(MARKETPLACE_IDS.ebay, []),
+      [MARKETPLACE_IDS.etsy]: adapter(MARKETPLACE_IDS.etsy, [equivalent]),
+      [MARKETPLACE_IDS.rakuten]: adapter(MARKETPLACE_IDS.rakuten, [conflictingVariant]),
+    },
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/listings/${LISTING_ID}/alternatives`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const body = (await response.json()) as {
+      data: {
+        matchMethod: string | null;
+        alternatives: Array<{
+          source: string;
+          rank: number;
+          variantMatch: string;
+          alternativeReasons: Array<{ code: string }>;
+        }>;
+        sources: string[];
+        recommendation: {
+          supportingMetrics: {
+            basis: string;
+            cheapestAlternative: { amount: number; source: string } | null;
+          };
+        };
+      };
+    };
+
+    assert.equal(response.status, 200);
+    assert.equal(body.data.matchMethod, "identifier");
+    assert.deepEqual(body.data.sources, [MARKETPLACE_IDS.etsy, MARKETPLACE_IDS.rakuten]);
+    assert.equal(body.data.alternatives.length, 1);
+    assert.equal(body.data.alternatives[0]?.source, MARKETPLACE_IDS.etsy);
+    assert.equal(body.data.alternatives[0]?.rank, 1);
+    assert.equal(body.data.alternatives[0]?.variantMatch, "exact");
+    assert.ok(
+      body.data.alternatives[0]?.alternativeReasons.some(
+        (reason) => reason.code === "lower_delivered_cost",
+      ),
+    );
+    assert.ok(
+      body.data.alternatives[0]?.alternativeReasons.some(
+        (reason) => reason.code === "better_condition",
+      ),
+    );
+    assert.equal(body.data.recommendation.supportingMetrics.basis, "delivered_unit_cost");
+    assert.deepEqual(body.data.recommendation.supportingMetrics.cheapestAlternative, {
+      amount: 80,
+      currency: "USD",
+      source: MARKETPLACE_IDS.etsy,
+    });
+  } finally {
+    await close(server);
+  }
+});
+
 test("match lifecycle routes keep dismissal and feedback user-scoped", async () => {
   let includeDismissed = false;
   let receivedMatchOptions: { status?: "dismissed" } | undefined;
@@ -1059,6 +1148,30 @@ function listing(source: MarketplaceListing["source"], externalId: string): Mark
     latitude: null,
     longitude: null,
     postedAt: "2026-08-09T00:00:00.000Z",
+  };
+}
+
+function productIdentitySnapshot(storage: string, condition = "used") {
+  return {
+    productIdentityId: "product-identity-1",
+    productVariantId: "product-variant-1",
+    matchStatus: "matched" as const,
+    matchMethod: "identifier" as const,
+    confidence: 0.99,
+    title: "Mirrorless camera",
+    brand: "Acme",
+    model: "A1",
+    category: "cameras",
+    identifiers: [{ type: "gtin" as const, value: "00012345678905" }],
+    variant: {
+      size: null,
+      storage,
+      color: null,
+      generation: null,
+      configuration: null,
+      raw: storage,
+    },
+    condition,
   };
 }
 

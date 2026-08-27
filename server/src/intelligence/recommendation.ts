@@ -59,6 +59,7 @@ export interface RecommendationTarget {
 export interface RecommendationInput {
   currentOffer: RecommendationOffer;
   competingOffers?: readonly RecommendationOffer[];
+  preferredPriceBasis?: RecommendationPriceBasis;
   history?: RecommendationHistory | null;
   targetPrice?: RecommendationTarget | null;
   maximumPrice?: RecommendationTarget | null;
@@ -94,7 +95,11 @@ const MATERIAL_PRICE_DIFFERENCE = 0.1;
 const ALTERNATIVE_PRICE_DIFFERENCE = 0.05;
 
 export function buildProductRecommendation(input: RecommendationInput): ProductRecommendation {
-  const basis = input.targetPrice?.basis ?? input.maximumPrice?.basis ?? "marketplace_price";
+  const basis =
+    input.targetPrice?.basis ??
+    input.maximumPrice?.basis ??
+    input.preferredPriceBasis ??
+    "marketplace_price";
   const current = input.currentOffer;
   const currentValue = valueForOffer(current, basis);
   const factors: RecommendationFactor[] = [];
