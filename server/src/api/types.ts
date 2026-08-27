@@ -268,6 +268,8 @@ export interface ApiDealRoom {
 }
 
 export interface ApiPublicDealRoomItem {
+  productIdentityId: string | null;
+  listingId: string | null;
   title: string;
   imageUrl: string | null;
   currentPrice: number | null;

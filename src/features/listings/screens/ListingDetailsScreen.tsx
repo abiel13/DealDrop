@@ -28,6 +28,7 @@ import { ProductAlternativesCard } from "@/features/intelligence/components/Prod
 import { useTheme } from "@/providers/ThemeProvider";
 import { RecommendationCard } from "@/features/intelligence/components/RecommendationCard";
 import type { ApiAlternativeOffer, ApiSearchFilters } from "@/services/api";
+import { buildMerchantLinkUrl } from "@/services/merchant-links";
 
 import {
   getListing,
@@ -411,7 +412,14 @@ export function ListingDetailsScreen() {
             rightIcon={<AppIcon name="arrow-forward" size={18} color="white" />}
             onPress={() => {
               trackProductEventNonBlocking("listing_opened_externally", { listingId: listing.id });
-              void Linking.openURL(listing.url);
+              void Linking.openURL(
+                buildMerchantLinkUrl({
+                  merchantUrl: listing.url,
+                  marketplace: listing.marketplace_id,
+                  productIdentityId: listing.product_identity?.productIdentityId,
+                  listingId: listing.id,
+                }),
+              );
             }}
           >
             View on {formatMarketplaceName(listing.marketplace_id)}

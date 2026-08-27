@@ -1933,6 +1933,8 @@ function toPublicDealRoom(room: RawApiPublicDealRoom): ApiPublicDealRoom {
 function toPublicDealRoomItem(item: RawApiDealRoomItem): ApiPublicDealRoomItem {
   const publicItem = toDealRoomItem(item);
   return {
+    productIdentityId: publicItem.productIdentityId,
+    listingId: publicItem.listingId,
     title: publicItem.title,
     imageUrl: publicItem.imageUrl,
     currentPrice: publicItem.currentPrice,

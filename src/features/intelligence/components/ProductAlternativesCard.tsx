@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { AppText } from "@/components/ui/Text";
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import type { ApiAlternativeOffer, ApiDeliveredCost, ApiListingAlternatives } from "@/services/api";
+import { buildMerchantLinkUrl } from "@/services/merchant-links";
 
 export function ProductAlternativesCard({
   alternatives,
@@ -201,7 +202,13 @@ export function ProductAlternativesCard({
                     onPress={(event) => {
                       event.stopPropagation();
                       setLinkError(null);
-                      void Linking.openURL(offer.url).catch(() => {
+                      void Linking.openURL(
+                        buildMerchantLinkUrl({
+                          merchantUrl: offer.url,
+                          marketplace: offer.source,
+                          listingId: offer.listingId,
+                        }),
+                      ).catch(() => {
                         setLinkError("This marketplace link could not be opened.");
                       });
                     }}

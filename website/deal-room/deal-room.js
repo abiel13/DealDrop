@@ -21,6 +21,29 @@
     return typeof config.apiUrl === "string" ? config.apiUrl.replace(/\/+$/, "") : "";
   }
 
+  function getCreatorContext() {
+    var creator = new URLSearchParams(window.location.search).get("creator") || "";
+    return /^[a-f0-9]{24}$/.test(creator) ? creator : "";
+  }
+
+  function getMerchantUrl(item) {
+    if (!item.url || !item.source) return item.url || "";
+
+    var apiUrl = getApiUrl();
+    if (!apiUrl) return item.url;
+
+    var params = new URLSearchParams({
+      url: item.url,
+      marketplace: item.source,
+      room: getSlug(),
+    });
+    var creator = getCreatorContext();
+    if (creator) params.set("creator", creator);
+    if (item.productIdentityId) params.set("product", item.productIdentityId);
+    if (item.listingId) params.set("listing", item.listingId);
+    return apiUrl + "/merchant-links?" + params.toString();
+  }
+
   function setMeta(id, value, attribute) {
     var element = document.getElementById(id);
     if (element && value) element.setAttribute(attribute, value);
@@ -197,7 +220,7 @@
     if (item.url) {
       var marketplaceLink = document.createElement("a");
       marketplaceLink.className = "public-room-item-link";
-      marketplaceLink.href = item.url;
+      marketplaceLink.href = getMerchantUrl(item);
       marketplaceLink.target = "_blank";
       marketplaceLink.rel = "noopener noreferrer";
       marketplaceLink.textContent = "Open marketplace ↗";
