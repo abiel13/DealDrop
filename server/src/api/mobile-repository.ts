@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { aggregateWeeklySummary, type WeeklySummaryMatch } from "../analytics/weekly-summary";
@@ -17,6 +18,10 @@ import type {
   ApiComparisonManualGroupInput,
   ApiComparisonShortlistInput,
   ApiDealRoomInput,
+  ApiDealRoomRole,
+  ApiDealRoomInvitation,
+  ApiDealRoomComment,
+  ApiDealRoomActivity,
   ApiDealRoomItemInput,
   ApiDealRoomItemUpdateInput,
   ApiDealRoomUpdateInput,
@@ -55,6 +60,9 @@ import type {
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
   RawApiDealRoom,
+  RawApiDealRoomActivity,
+  RawApiDealRoomComment,
+  RawApiDealRoomMember,
   RawApiDealRoomItem,
   RawApiSupplier,
   RawApiSupplierShortlistHistory,
@@ -87,7 +95,12 @@ const PRODUCT_CAPTURE_COLUMNS =
 const DEAL_ROOM_COLUMNS =
   "id,user_id,name,description,cover_image_url,visibility,created_at,updated_at";
 const DEAL_ROOM_ITEM_COLUMNS =
-  "id,room_id,item_type,product_identity_id,listing_id,watchlist_id,sort_order,created_at,updated_at";
+  "id,room_id,item_type,product_identity_id,listing_id,watchlist_id,is_shortlisted,shortlisted_at,shortlisted_by,sort_order,created_at,updated_at";
+const DEAL_ROOM_MEMBER_COLUMNS = "user_id,role,created_at";
+const DEAL_ROOM_COMMENT_COLUMNS = "id,item_id,user_id,body,created_at,updated_at";
+const DEAL_ROOM_ACTIVITY_COLUMNS = "id,room_id,item_id,actor_id,event_type,metadata,created_at";
+
+type DealRoomRow = Omit<RawApiDealRoom, "items" | "role" | "is_member" | "member_count">;
 
 export interface Page<T> {
   items: T[];
@@ -193,6 +206,32 @@ export interface MobileApiRepositoryContract {
     input: ApiDealRoomItemUpdateInput,
   ): Promise<RawApiDealRoomItem | null>;
   deleteDealRoomItem(userId: string, roomId: string, itemId: string): Promise<boolean>;
+  getDealRoomMembers(userId: string, roomId: string): Promise<RawApiDealRoomMember[]>;
+  createDealRoomInvitation(
+    userId: string,
+    roomId: string,
+    input: { email: string; role: Exclude<ApiDealRoomRole, "owner"> },
+  ): Promise<ApiDealRoomInvitation | null>;
+  acceptDealRoomInvitation(userId: string, token: string): Promise<RawApiDealRoom | null>;
+  getDealRoomComments(
+    userId: string,
+    roomId: string,
+    itemId: string,
+  ): Promise<RawApiDealRoomComment[]>;
+  createDealRoomComment(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    body: string,
+  ): Promise<RawApiDealRoomComment | null>;
+  deleteDealRoomComment(userId: string, roomId: string, commentId: string): Promise<boolean>;
+  setDealRoomItemVote(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    prefer: boolean,
+  ): Promise<boolean>;
+  getDealRoomActivity(userId: string, roomId: string): Promise<RawApiDealRoomActivity[]>;
   inviteWorkspaceMember(
     userId: string,
     workspaceId: string,
@@ -675,34 +714,69 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
   }
 
   async getDealRooms(userId: string): Promise<RawApiDealRoom[]> {
+    const { data: memberships, error: membershipError } = await this.client
+      .from("deal_room_members")
+      .select("room_id,role")
+      .eq("user_id", userId)
+      .returns<Array<{ room_id: string; role: ApiDealRoomRole }>>();
+    if (membershipError) throw membershipError;
+
+    const membershipRoles = new Map(
+      (memberships ?? []).map((membership) => [membership.room_id, membership.role]),
+    );
+    if (membershipRoles.size === 0) {
+      return [];
+    }
     const { data, error } = await this.client
       .from("deal_rooms")
       .select(DEAL_ROOM_COLUMNS)
-      .eq("user_id", userId)
+      .in("id", [...membershipRoles.keys()])
       .order("updated_at", { ascending: false })
       .order("id", { ascending: false })
-      .returns<Array<Omit<RawApiDealRoom, "items">>>();
+      .returns<DealRoomRow[]>();
 
     if (error) {
       throw error;
     }
 
-    return Promise.all((data ?? []).map((room) => this.withDealRoomItems(room)));
+    return Promise.all(
+      (data ?? []).map((room) =>
+        this.withDealRoomItems(
+          {
+            ...room,
+            role: membershipRoles.get(room.id) ?? "viewer",
+            is_member: true,
+            member_count: 0,
+          },
+          userId,
+        ),
+      ),
+    );
   }
 
   async getDealRoom(userId: string | null, roomId: string): Promise<RawApiDealRoom | null> {
-    let query = this.client.from("deal_rooms").select(DEAL_ROOM_COLUMNS).eq("id", roomId);
-
-    query = userId
-      ? query.or(`user_id.eq.${userId},visibility.eq.public`)
-      : query.eq("visibility", "public");
-
-    const { data, error } = await query.maybeSingle<Omit<RawApiDealRoom, "items">>();
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .select(DEAL_ROOM_COLUMNS)
+      .eq("id", roomId)
+      .maybeSingle<DealRoomRow>();
     if (error) {
       throw error;
     }
+    if (!data) return null;
 
-    return data ? this.withDealRoomItems(data) : null;
+    const role = userId ? await this.getDealRoomRole(userId, roomId, data.user_id) : null;
+    if (data.visibility !== "public" && !role) return null;
+
+    return this.withDealRoomItems(
+      {
+        ...data,
+        role: role ?? "viewer",
+        is_member: Boolean(role),
+        member_count: 0,
+      },
+      userId,
+    );
   }
 
   async createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom> {
@@ -716,13 +790,21 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         visibility: input.visibility ?? "private",
       })
       .select(DEAL_ROOM_COLUMNS)
-      .single<Omit<RawApiDealRoom, "items">>();
+      .single<DealRoomRow>();
 
     if (error) {
       throw error;
     }
 
-    return { ...data, items: [] };
+    return (
+      (await this.getDealRoom(userId, data.id)) ?? {
+        ...data,
+        role: "owner",
+        is_member: true,
+        member_count: 1,
+        items: [],
+      }
+    );
   }
 
   async updateDealRoom(
@@ -742,13 +824,13 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       .eq("id", roomId)
       .eq("user_id", userId)
       .select(DEAL_ROOM_COLUMNS)
-      .maybeSingle<Omit<RawApiDealRoom, "items">>();
+      .maybeSingle<DealRoomRow>();
 
     if (error) {
       throw error;
     }
 
-    return data ? this.withDealRoomItems(data) : null;
+    return data ? this.getDealRoom(userId, data.id) : null;
   }
 
   async deleteDealRoom(userId: string, roomId: string): Promise<boolean> {
@@ -772,7 +854,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     roomId: string,
     input: ApiDealRoomItemInput,
   ): Promise<RawApiDealRoomItem | null> {
-    if (!(await this.ownsDealRoom(userId, roomId))) {
+    if (!(await this.canContributeToDealRoom(userId, roomId))) {
       return null;
     }
 
@@ -829,6 +911,9 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       throw error;
     }
 
+    await this.recordDealRoomActivity(userId, roomId, item.id, "item_added", {
+      itemType: input.itemType,
+    });
     return this.findDealRoomItem(userId, roomId, item.id);
   }
 
@@ -838,13 +923,21 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     itemId: string,
     input: ApiDealRoomItemUpdateInput,
   ): Promise<RawApiDealRoomItem | null> {
-    if (!(await this.ownsDealRoom(userId, roomId))) {
+    if (!(await this.canContributeToDealRoom(userId, roomId))) {
       return null;
+    }
+
+    const values: Record<string, unknown> = {};
+    if (input.sortOrder !== undefined) values.sort_order = input.sortOrder;
+    if (input.isShortlisted !== undefined) {
+      values.is_shortlisted = input.isShortlisted;
+      values.shortlisted_at = input.isShortlisted ? new Date().toISOString() : null;
+      values.shortlisted_by = input.isShortlisted ? userId : null;
     }
 
     const { data, error } = await this.client
       .from("deal_room_items")
-      .update({ sort_order: input.sortOrder })
+      .update(values)
       .eq("id", itemId)
       .eq("room_id", roomId)
       .select("id")
@@ -853,11 +946,16 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       throw error;
     }
 
+    if (data && input.isShortlisted !== undefined) {
+      await this.recordDealRoomActivity(userId, roomId, data.id, "item_shortlisted", {
+        isShortlisted: input.isShortlisted,
+      });
+    }
     return data ? this.findDealRoomItem(userId, roomId, data.id) : null;
   }
 
   async deleteDealRoomItem(userId: string, roomId: string, itemId: string): Promise<boolean> {
-    if (!(await this.ownsDealRoom(userId, roomId))) {
+    if (!(await this.canContributeToDealRoom(userId, roomId))) {
       return false;
     }
 
@@ -873,6 +971,295 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
 
     return Boolean(data);
+  }
+
+  async getDealRoomMembers(userId: string, roomId: string): Promise<RawApiDealRoomMember[]> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (!room?.is_member) {
+      return [];
+    }
+
+    const { data: memberships, error: membershipError } = await this.client
+      .from("deal_room_members")
+      .select(DEAL_ROOM_MEMBER_COLUMNS)
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: true })
+      .returns<Array<{ user_id: string; role: ApiDealRoomRole; created_at: string }>>();
+    if (membershipError) throw membershipError;
+
+    const ids = (memberships ?? []).map((member) => member.user_id);
+    if (ids.length === 0) return [];
+    const { data: profiles, error: profileError } = await this.client
+      .from("profiles")
+      .select("id,email,full_name")
+      .in("id", ids)
+      .returns<Array<{ id: string; email: string | null; full_name: string | null }>>();
+    if (profileError) throw profileError;
+    const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+
+    return (memberships ?? []).map((member) => ({
+      user_id: member.user_id,
+      email: profileById.get(member.user_id)?.email ?? null,
+      full_name: profileById.get(member.user_id)?.full_name ?? null,
+      role: member.role,
+      created_at: member.created_at,
+    }));
+  }
+
+  async createDealRoomInvitation(
+    userId: string,
+    roomId: string,
+    input: { email: string; role: Exclude<ApiDealRoomRole, "owner"> },
+  ): Promise<ApiDealRoomInvitation | null> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (!room || room.role !== "owner") return null;
+
+    const email = input.email.trim().toLowerCase();
+    const { data: existingProfile, error: profileError } = await this.client
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle<{ id: string }>();
+    if (profileError) throw profileError;
+    if (existingProfile && existingProfile.id === userId) return null;
+
+    const { error: removeError } = await this.client
+      .from("deal_room_invitations")
+      .delete()
+      .eq("room_id", roomId)
+      .eq("email", email)
+      .is("accepted_at", null);
+    if (removeError) throw removeError;
+
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString();
+    const { data: invitation, error } = await this.client
+      .from("deal_room_invitations")
+      .insert({
+        room_id: roomId,
+        email,
+        role: input.role,
+        token_hash: hashDealRoomInviteToken(token),
+        invited_by: userId,
+        expires_at: expiresAt,
+      })
+      .select("id,email,role,expires_at")
+      .single<{
+        id: string;
+        email: string;
+        role: Exclude<ApiDealRoomRole, "owner">;
+        expires_at: string;
+      }>();
+    if (error) throw error;
+
+    await this.recordDealRoomActivity(userId, roomId, null, "member_invited", {
+      email,
+      role: input.role,
+    });
+
+    return {
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      inviteUrl: `dealdrop://deal-room-invite?token=${encodeURIComponent(token)}`,
+      expiresAt: invitation.expires_at,
+    };
+  }
+
+  async acceptDealRoomInvitation(userId: string, token: string): Promise<RawApiDealRoom | null> {
+    const { data: profile, error: profileError } = await this.client
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle<{ email: string | null }>();
+    if (profileError) throw profileError;
+    if (!profile?.email) return null;
+
+    const { data: invitation, error: invitationError } = await this.client
+      .from("deal_room_invitations")
+      .select("id,room_id,email,role,expires_at,accepted_at")
+      .eq("token_hash", hashDealRoomInviteToken(token))
+      .is("accepted_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle<{
+        id: string;
+        room_id: string;
+        email: string;
+        role: Exclude<ApiDealRoomRole, "owner">;
+        expires_at: string;
+        accepted_at: string | null;
+      }>();
+    if (invitationError) throw invitationError;
+    if (!invitation || invitation.email !== profile.email.toLowerCase()) return null;
+
+    const { data: room, error: roomError } = await this.client
+      .from("deal_rooms")
+      .select("id")
+      .eq("id", invitation.room_id)
+      .maybeSingle<{ id: string }>();
+    if (roomError) throw roomError;
+    if (!room) return null;
+
+    const { data: existingMember, error: existingMemberError } = await this.client
+      .from("deal_room_members")
+      .select("role")
+      .eq("room_id", invitation.room_id)
+      .eq("user_id", userId)
+      .maybeSingle<{ role: ApiDealRoomRole }>();
+    if (existingMemberError) throw existingMemberError;
+
+    if (!existingMember) {
+      const { error } = await this.client.from("deal_room_members").insert({
+        room_id: invitation.room_id,
+        user_id: userId,
+        role: invitation.role,
+        invited_by: null,
+      });
+      if (error) throw error;
+    } else if (existingMember.role === "viewer" && invitation.role === "contributor") {
+      const { error } = await this.client
+        .from("deal_room_members")
+        .update({ role: "contributor" })
+        .eq("room_id", invitation.room_id)
+        .eq("user_id", userId);
+      if (error) throw error;
+    }
+
+    const { error: acceptError } = await this.client
+      .from("deal_room_invitations")
+      .update({ accepted_at: new Date().toISOString(), accepted_by: userId })
+      .eq("id", invitation.id)
+      .is("accepted_at", null);
+    if (acceptError) throw acceptError;
+
+    await this.recordDealRoomActivity(userId, invitation.room_id, null, "member_joined", {
+      role: invitation.role,
+    });
+    return this.getDealRoom(userId, invitation.room_id);
+  }
+
+  async getDealRoomComments(
+    userId: string,
+    roomId: string,
+    itemId: string,
+  ): Promise<RawApiDealRoomComment[]> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (!room?.is_member || !room.items.some((item) => item.id === itemId)) return [];
+
+    const { data, error } = await this.client
+      .from("deal_room_comments")
+      .select(DEAL_ROOM_COMMENT_COLUMNS)
+      .eq("item_id", itemId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .returns<RawApiDealRoomComment[]>();
+    if (error) throw error;
+
+    return this.attachDealRoomCommentAuthors(data ?? []);
+  }
+
+  async createDealRoomComment(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    body: string,
+  ): Promise<RawApiDealRoomComment | null> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (
+      !room ||
+      !room.is_member ||
+      room.role === "viewer" ||
+      !room.items.some((item) => item.id === itemId)
+    ) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("deal_room_comments")
+      .insert({ item_id: itemId, user_id: userId, body: body.trim() })
+      .select(DEAL_ROOM_COMMENT_COLUMNS)
+      .single<RawApiDealRoomComment>();
+    if (error) throw error;
+
+    await this.recordDealRoomActivity(userId, roomId, itemId, "comment_added", {});
+    return (await this.attachDealRoomCommentAuthors([data]))[0] ?? null;
+  }
+
+  async deleteDealRoomComment(userId: string, roomId: string, commentId: string): Promise<boolean> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (!room) return false;
+
+    const { data: comment, error: commentError } = await this.client
+      .from("deal_room_comments")
+      .select("id,item_id,user_id")
+      .eq("id", commentId)
+      .maybeSingle<{ id: string; item_id: string; user_id: string }>();
+    if (commentError) throw commentError;
+    if (!comment || !room.items.some((item) => item.id === comment.item_id)) return false;
+    if (room.role === "viewer") return false;
+    if (comment.user_id !== userId && room.role !== "owner") return false;
+
+    const { data, error } = await this.client
+      .from("deal_room_comments")
+      .delete()
+      .eq("id", commentId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  async setDealRoomItemVote(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    prefer: boolean,
+  ): Promise<boolean> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (
+      !room?.is_member ||
+      room.role === "viewer" ||
+      !room.items.some((item) => item.id === itemId)
+    ) {
+      return false;
+    }
+
+    if (prefer) {
+      const { error } = await this.client
+        .from("deal_room_item_votes")
+        .upsert(
+          { item_id: itemId, user_id: userId, preference: "prefer" },
+          { onConflict: "item_id,user_id" },
+        );
+      if (error) throw error;
+    } else {
+      const { error } = await this.client
+        .from("deal_room_item_votes")
+        .delete()
+        .eq("item_id", itemId)
+        .eq("user_id", userId);
+      if (error) throw error;
+    }
+
+    await this.recordDealRoomActivity(userId, roomId, itemId, "vote_cast", { prefer });
+    return true;
+  }
+
+  async getDealRoomActivity(userId: string, roomId: string): Promise<RawApiDealRoomActivity[]> {
+    const room = await this.getDealRoom(userId, roomId);
+    if (!room?.is_member) return [];
+
+    const { data, error } = await this.client
+      .from("deal_room_activity")
+      .select(DEAL_ROOM_ACTIVITY_COLUMNS)
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(30)
+      .returns<RawApiDealRoomActivity[]>();
+    if (error) throw error;
+
+    return this.attachDealRoomActivityActors(data ?? []);
   }
 
   async getSourcingLists(
@@ -2761,18 +3148,35 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
   }
 
-  private async ownsDealRoom(userId: string, roomId: string) {
-    const { data, error } = await this.client
-      .from("deal_rooms")
-      .select("id")
-      .eq("id", roomId)
-      .eq("user_id", userId)
-      .maybeSingle<{ id: string }>();
-    if (error) {
-      throw error;
-    }
+  private async getDealRoomRole(
+    userId: string,
+    roomId: string,
+    ownerId?: string,
+  ): Promise<ApiDealRoomRole | null> {
+    if (ownerId === userId) return "owner";
 
-    return Boolean(data);
+    const { data, error } = await this.client
+      .from("deal_room_members")
+      .select("role")
+      .eq("room_id", roomId)
+      .eq("user_id", userId)
+      .maybeSingle<{ role: ApiDealRoomRole }>();
+    if (error) throw error;
+
+    return data?.role ?? null;
+  }
+
+  private async canContributeToDealRoom(userId: string, roomId: string) {
+    const { data: room, error } = await this.client
+      .from("deal_rooms")
+      .select("user_id")
+      .eq("id", roomId)
+      .maybeSingle<{ user_id: string }>();
+    if (error) throw error;
+    if (!room) return false;
+
+    const role = await this.getDealRoomRole(userId, roomId, room.user_id);
+    return role === "owner" || role === "contributor";
   }
 
   private async canAddDealRoomReference(userId: string, input: ApiDealRoomItemInput) {
@@ -2823,14 +3227,30 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return room?.items.find((item) => item.id === itemId) ?? null;
   }
 
-  private async withDealRoomItems(room: Omit<RawApiDealRoom, "items">): Promise<RawApiDealRoom> {
+  private async withDealRoomItems(
+    room: Omit<RawApiDealRoom, "items">,
+    viewerId: string | null = null,
+  ): Promise<RawApiDealRoom> {
     return {
       ...room,
-      items: await this.getDealRoomItems(room.id),
+      member_count: await this.getDealRoomMemberCount(room.id),
+      items: await this.getDealRoomItems(room.id, viewerId),
     };
   }
 
-  private async getDealRoomItems(roomId: string): Promise<RawApiDealRoomItem[]> {
+  private async getDealRoomMemberCount(roomId: string) {
+    const { count, error } = await this.client
+      .from("deal_room_members")
+      .select("id", { count: "exact", head: true })
+      .eq("room_id", roomId);
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  private async getDealRoomItems(
+    roomId: string,
+    viewerId: string | null = null,
+  ): Promise<RawApiDealRoomItem[]> {
     const { data: itemRows, error: itemError } = await this.client
       .from("deal_room_items")
       .select(DEAL_ROOM_ITEM_COLUMNS)
@@ -2846,6 +3266,20 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     const rows = itemRows ?? [];
     if (rows.length === 0) {
       return [];
+    }
+
+    const itemIds = rows.map((row) => row.id);
+    const { data: votes, error: votesError } = await this.client
+      .from("deal_room_item_votes")
+      .select("item_id,user_id")
+      .in("item_id", itemIds)
+      .returns<Array<{ item_id: string; user_id: string }>>();
+    if (votesError) throw votesError;
+    const votesByItem = new Map<string, Array<{ user_id: string }>>();
+    for (const vote of votes ?? []) {
+      const itemVotes = votesByItem.get(vote.item_id) ?? [];
+      itemVotes.push(vote);
+      votesByItem.set(vote.item_id, itemVotes);
     }
 
     const listingIds = [
@@ -2959,6 +3393,10 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
     return rows.map((row) => ({
       ...row,
+      vote_count: votesByItem.get(row.id)?.length ?? 0,
+      viewer_voted: Boolean(
+        viewerId && votesByItem.get(row.id)?.some((vote) => vote.user_id === viewerId),
+      ),
       listing: row.listing_id ? (listingById.get(row.listing_id) ?? null) : null,
       current_listing: row.watchlist_id
         ? (currentListingByWatchlist.get(row.watchlist_id) ?? null)
@@ -2970,6 +3408,63 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         ? (identityById.get(row.product_identity_id) ?? null)
         : null,
     }));
+  }
+
+  private async attachDealRoomCommentAuthors(
+    comments: RawApiDealRoomComment[],
+  ): Promise<RawApiDealRoomComment[]> {
+    const userIds = [...new Set(comments.map((comment) => comment.user_id))];
+    if (userIds.length === 0) return comments;
+
+    const { data: profiles, error } = await this.client
+      .from("profiles")
+      .select("id,email,full_name")
+      .in("id", userIds)
+      .returns<Array<{ id: string; email: string | null; full_name: string | null }>>();
+    if (error) throw error;
+    const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+
+    return comments.map((comment) => ({
+      ...comment,
+      author: profileById.get(comment.user_id) ?? null,
+    }));
+  }
+
+  private async attachDealRoomActivityActors(
+    activities: RawApiDealRoomActivity[],
+  ): Promise<RawApiDealRoomActivity[]> {
+    const userIds = [...new Set(activities.map((activity) => activity.actor_id))];
+    if (userIds.length === 0) return activities;
+
+    const { data: profiles, error } = await this.client
+      .from("profiles")
+      .select("id,email,full_name")
+      .in("id", userIds)
+      .returns<Array<{ id: string; email: string | null; full_name: string | null }>>();
+    if (error) throw error;
+    const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+
+    return activities.map((activity) => ({
+      ...activity,
+      actor: profileById.get(activity.actor_id) ?? null,
+    }));
+  }
+
+  private async recordDealRoomActivity(
+    actorId: string,
+    roomId: string,
+    itemId: string | null,
+    eventType: RawApiDealRoomActivity["event_type"],
+    metadata: Record<string, unknown>,
+  ) {
+    const { error } = await this.client.from("deal_room_activity").insert({
+      room_id: roomId,
+      item_id: itemId,
+      actor_id: actorId,
+      event_type: eventType,
+      metadata,
+    });
+    if (error) throw error;
   }
 
   private async getFavoriteIds(userId: string, listingIds: string[]) {
@@ -3007,6 +3502,10 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
     return new Map((data ?? []).map((item) => [item.match_id, item.feedback]));
   }
+}
+
+function hashDealRoomInviteToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 function isWorkspaceEditor(role: RawApiWorkspace["role"]) {

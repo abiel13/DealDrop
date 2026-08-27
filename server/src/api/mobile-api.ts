@@ -63,6 +63,10 @@ import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
   ApiDealRoom,
+  ApiDealRoomActivity,
+  ApiDealRoomComment,
+  ApiDealRoomInvitation,
+  ApiDealRoomMember,
   ApiDealRoomInput,
   ApiDealRoomItem,
   ApiDealRoomItemInput,
@@ -115,6 +119,9 @@ import type {
   RawApiSourcingNote,
   RawApiProductCapture,
   RawApiDealRoom,
+  RawApiDealRoomActivity,
+  RawApiDealRoomComment,
+  RawApiDealRoomMember,
   RawApiDealRoomItem,
   RawApiWatchlist,
   RawApiListing,
@@ -1329,6 +1336,94 @@ export class MobileApiService {
     }
   }
 
+  async getDealRoomMembers(userId: string, roomId: string): Promise<ApiDealRoomMember[]> {
+    const members = await this.dependencies.repository.getDealRoomMembers(userId, roomId);
+    return members.map(toDealRoomMember);
+  }
+
+  async createDealRoomInvitation(
+    userId: string,
+    roomId: string,
+    input: { email: string; role: "contributor" | "viewer" },
+  ): Promise<ApiDealRoomInvitation> {
+    const invitation = await this.dependencies.repository.createDealRoomInvitation(
+      userId,
+      roomId,
+      input,
+    );
+    if (!invitation) {
+      throw new ApiNotFoundError("The Deal Room was not found or you cannot invite members.");
+    }
+    return invitation;
+  }
+
+  async acceptDealRoomInvitation(userId: string, token: string) {
+    const room = await this.dependencies.repository.acceptDealRoomInvitation(userId, token);
+    if (!room) {
+      throw new ApiNotFoundError(
+        "This invitation is invalid, expired, or addressed to a different DealDrop account.",
+      );
+    }
+    return toDealRoom(room);
+  }
+
+  async getDealRoomComments(
+    userId: string,
+    roomId: string,
+    itemId: string,
+  ): Promise<ApiDealRoomComment[]> {
+    return (await this.dependencies.repository.getDealRoomComments(userId, roomId, itemId)).map(
+      toDealRoomComment,
+    );
+  }
+
+  async createDealRoomComment(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    body: string,
+  ): Promise<ApiDealRoomComment> {
+    const comment = await this.dependencies.repository.createDealRoomComment(
+      userId,
+      roomId,
+      itemId,
+      body,
+    );
+    if (!comment) {
+      throw new ApiNotFoundError("The Deal Room item was not found or you cannot comment here.");
+    }
+    return toDealRoomComment(comment);
+  }
+
+  async deleteDealRoomComment(userId: string, roomId: string, commentId: string) {
+    const deleted = await this.dependencies.repository.deleteDealRoomComment(
+      userId,
+      roomId,
+      commentId,
+    );
+    if (!deleted) {
+      throw new ApiNotFoundError("The comment was not found or cannot be removed.");
+    }
+  }
+
+  async setDealRoomItemVote(userId: string, roomId: string, itemId: string, prefer: boolean) {
+    const updated = await this.dependencies.repository.setDealRoomItemVote(
+      userId,
+      roomId,
+      itemId,
+      prefer,
+    );
+    if (!updated) {
+      throw new ApiNotFoundError("The Deal Room item was not found or you cannot vote here.");
+    }
+  }
+
+  async getDealRoomActivity(userId: string, roomId: string): Promise<ApiDealRoomActivity[]> {
+    return (await this.dependencies.repository.getDealRoomActivity(userId, roomId)).map(
+      toDealRoomActivity,
+    );
+  }
+
   async getWatchlists(userId: string, cursor: string | null, limit: number) {
     const page = await this.dependencies.repository.getWatchlists(userId, cursor, limit);
     return {
@@ -1752,6 +1847,9 @@ function toDealRoom(room: RawApiDealRoom): ApiDealRoom {
     description: room.description,
     coverImageUrl: room.cover_image_url,
     visibility: room.visibility,
+    role: room.role,
+    isMember: room.is_member,
+    memberCount: room.member_count,
     items: room.items.map(toDealRoomItem),
     createdAt: room.created_at,
     updatedAt: room.updated_at,
@@ -1777,9 +1875,47 @@ function toDealRoomItem(item: RawApiDealRoomItem): ApiDealRoomItem {
     source: listing?.marketplace_id ?? null,
     url: listing?.url ?? null,
     watchlistName: item.watchlist?.name ?? null,
+    isShortlisted: item.is_shortlisted,
+    voteCount: item.vote_count ?? 0,
+    viewerVoted: item.viewer_voted ?? false,
     sortOrder: item.sort_order,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
+  };
+}
+
+function toDealRoomMember(member: RawApiDealRoomMember): ApiDealRoomMember {
+  return {
+    userId: member.user_id,
+    email: member.email,
+    fullName: member.full_name,
+    role: member.role,
+    createdAt: member.created_at,
+  };
+}
+
+function toDealRoomComment(comment: RawApiDealRoomComment): ApiDealRoomComment {
+  return {
+    id: comment.id,
+    itemId: comment.item_id,
+    userId: comment.user_id,
+    authorName: comment.author?.full_name ?? comment.author?.email ?? null,
+    body: comment.body,
+    createdAt: comment.created_at,
+    updatedAt: comment.updated_at,
+  };
+}
+
+function toDealRoomActivity(activity: RawApiDealRoomActivity): ApiDealRoomActivity {
+  return {
+    id: activity.id,
+    roomId: activity.room_id,
+    itemId: activity.item_id,
+    actorId: activity.actor_id,
+    actorName: activity.actor?.full_name ?? activity.actor?.email ?? null,
+    eventType: activity.event_type,
+    metadata: activity.metadata,
+    createdAt: activity.created_at,
   };
 }
 

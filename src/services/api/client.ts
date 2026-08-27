@@ -25,6 +25,10 @@ import type {
   ApiNotificationQuery,
   ApiNotificationPreferences,
   ApiDealRoom,
+  ApiDealRoomActivity,
+  ApiDealRoomComment,
+  ApiDealRoomInvitation,
+  ApiDealRoomMember,
   ApiDealRoomInput,
   ApiDealRoomItem,
   ApiDealRoomItemInput,
@@ -70,7 +74,7 @@ export interface DealDropApiClientOptions {
 interface RequestOptions {
   authenticated?: boolean;
   body?: unknown;
-  method?: "DELETE" | "GET" | "PATCH" | "POST";
+  method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 }
 
 const EMPTY_ACCESS_TOKEN: AccessTokenProvider = async () => null;
@@ -199,6 +203,60 @@ export class DealDropApiClient {
     return this.request<{ deleted: boolean }>(
       `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async getDealRoomMembers(roomId: string) {
+    return this.request<ApiDealRoomMember[]>(`/deal-rooms/${encodeURIComponent(roomId)}/members`);
+  }
+
+  async createDealRoomInvitation(
+    roomId: string,
+    input: { email: string; role: "contributor" | "viewer" },
+  ) {
+    return this.request<ApiDealRoomInvitation>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/invitations`,
+      { method: "POST", body: input },
+    );
+  }
+
+  async acceptDealRoomInvitation(token: string) {
+    return this.request<ApiDealRoom>("/deal-room-invitations/accept", {
+      method: "POST",
+      body: { token },
+    });
+  }
+
+  async getDealRoomComments(roomId: string, itemId: string) {
+    return this.request<ApiDealRoomComment[]>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}/comments`,
+    );
+  }
+
+  async createDealRoomComment(roomId: string, itemId: string, body: string) {
+    return this.request<ApiDealRoomComment>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}/comments`,
+      { method: "POST", body: { body } },
+    );
+  }
+
+  async deleteDealRoomComment(roomId: string, itemId: string, commentId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}/comments/${encodeURIComponent(commentId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async setDealRoomItemVote(roomId: string, itemId: string, prefer: boolean) {
+    return this.request<{ updated: boolean }>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}/vote`,
+      { method: "PUT", body: { prefer } },
+    );
+  }
+
+  async getDealRoomActivity(roomId: string) {
+    return this.request<ApiDealRoomActivity[]>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/activity`,
     );
   }
 
