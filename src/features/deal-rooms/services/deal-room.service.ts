@@ -64,6 +64,16 @@ export async function addDealRoomItem(
   return response.data;
 }
 
+export async function replaceDealRoomItem(
+  roomId: string,
+  itemId: string,
+  input: DealRoomItemInput,
+): Promise<DealRoomItem> {
+  const replacement = await addDealRoomItem(roomId, input);
+  await removeDealRoomItem(roomId, itemId);
+  return replacement;
+}
+
 export async function reorderDealRoomItem(roomId: string, itemId: string, sortOrder: number) {
   const response = await apiClient.updateDealRoomItem(roomId, itemId, { sortOrder });
   return response.data;

@@ -62,6 +62,9 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiCreatorProfile,
+  ApiCreatorProfileInput,
+  ApiPublicCreatorProfile,
   ApiDealRoom,
   ApiPublicDealRoom,
   ApiPublicDealRoomItem,
@@ -120,6 +123,8 @@ import type {
   RawApiSourcingActivity,
   RawApiSourcingNote,
   RawApiProductCapture,
+  RawApiCreatorProfile,
+  RawApiPublicCreatorProfile,
   RawApiDealRoom,
   RawApiPublicDealRoom,
   RawApiDealRoomActivity,
@@ -1264,6 +1269,38 @@ export class MobileApiService {
     return (await this.dependencies.repository.getDealRooms(userId)).map(toDealRoom);
   }
 
+  async getCreatorProfile(userId: string): Promise<ApiCreatorProfile | null> {
+    const profile = await this.dependencies.repository.getCreatorProfile(userId);
+    return profile ? toCreatorProfile(profile) : null;
+  }
+
+  async upsertCreatorProfile(
+    userId: string,
+    input: ApiCreatorProfileInput,
+  ): Promise<ApiCreatorProfile> {
+    return toCreatorProfile(await this.dependencies.repository.upsertCreatorProfile(userId, input));
+  }
+
+  async getPublicCreatorProfile(publicSlug: string): Promise<ApiPublicCreatorProfile> {
+    const profile = await this.dependencies.repository.getPublicCreatorProfile(publicSlug);
+    if (!profile) {
+      throw new ApiNotFoundError("The public creator profile was not found.");
+    }
+
+    return toPublicCreatorProfile(profile);
+  }
+
+  async getSavedDealRoomSlugs(userId: string): Promise<string[]> {
+    return this.dependencies.repository.getSavedDealRoomSlugs(userId);
+  }
+
+  async setDealRoomSaved(userId: string, publicSlug: string, saved: boolean) {
+    const updated = await this.dependencies.repository.setDealRoomSaved(userId, publicSlug, saved);
+    if (!updated) {
+      throw new ApiNotFoundError("The public Deal Room was not found.");
+    }
+  }
+
   async getDealRoom(userId: string, roomId: string) {
     const room = await this.dependencies.repository.getDealRoom(userId, roomId);
     if (!room) {
@@ -1857,6 +1894,28 @@ function toDealRoom(room: RawApiDealRoom): ApiDealRoom {
     items: room.items.map(toDealRoomItem),
     createdAt: room.created_at,
     updatedAt: room.updated_at,
+  };
+}
+
+function toCreatorProfile(profile: RawApiCreatorProfile): ApiCreatorProfile {
+  return {
+    publicSlug: profile.public_slug,
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url,
+    bio: profile.bio,
+    isPublic: profile.is_public,
+    createdAt: profile.created_at,
+    updatedAt: profile.updated_at,
+  };
+}
+
+function toPublicCreatorProfile(profile: RawApiPublicCreatorProfile): ApiPublicCreatorProfile {
+  return {
+    publicSlug: profile.public_slug,
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url,
+    bio: profile.bio,
+    rooms: profile.rooms.map(toPublicDealRoom),
   };
 }
 

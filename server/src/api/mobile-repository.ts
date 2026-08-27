@@ -17,6 +17,7 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiComparisonManualGroupInput,
   ApiComparisonShortlistInput,
+  ApiCreatorProfileInput,
   ApiDealRoomInput,
   ApiDealRoomRole,
   ApiDealRoomInvitation,
@@ -59,6 +60,8 @@ import type {
   RawApiSourcingPriceObservation,
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
+  RawApiCreatorProfile,
+  RawApiPublicCreatorProfile,
   RawApiDealRoom,
   RawApiPublicDealRoom,
   RawApiDealRoomActivity,
@@ -100,6 +103,8 @@ const DEAL_ROOM_ITEM_COLUMNS =
 const DEAL_ROOM_MEMBER_COLUMNS = "user_id,role,created_at";
 const DEAL_ROOM_COMMENT_COLUMNS = "id,item_id,user_id,body,created_at,updated_at";
 const DEAL_ROOM_ACTIVITY_COLUMNS = "id,room_id,item_id,actor_id,event_type,metadata,created_at";
+const CREATOR_PROFILE_COLUMNS =
+  "user_id,public_slug,display_name,avatar_url,bio,is_public,created_at,updated_at";
 
 type DealRoomRow = Omit<RawApiDealRoom, "items" | "role" | "is_member" | "member_count">;
 
@@ -189,6 +194,14 @@ export interface MobileApiRepositoryContract {
   getDealRooms(userId: string): Promise<RawApiDealRoom[]>;
   getDealRoom(userId: string | null, roomId: string): Promise<RawApiDealRoom | null>;
   getPublicDealRoom(publicSlug: string): Promise<RawApiPublicDealRoom | null>;
+  getCreatorProfile(userId: string): Promise<RawApiCreatorProfile | null>;
+  upsertCreatorProfile(
+    userId: string,
+    input: ApiCreatorProfileInput,
+  ): Promise<RawApiCreatorProfile>;
+  getPublicCreatorProfile(publicSlug: string): Promise<RawApiPublicCreatorProfile | null>;
+  getSavedDealRoomSlugs(userId: string): Promise<string[]>;
+  setDealRoomSaved(userId: string, publicSlug: string, saved: boolean): Promise<boolean>;
   createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom>;
   updateDealRoom(
     userId: string,
@@ -713,6 +726,146 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       role: input.role,
       created_at: new Date().toISOString(),
     };
+  }
+
+  async getCreatorProfile(userId: string): Promise<RawApiCreatorProfile | null> {
+    const { data, error } = await this.client
+      .from("creator_profiles")
+      .select(CREATOR_PROFILE_COLUMNS)
+      .eq("user_id", userId)
+      .maybeSingle<RawApiCreatorProfile>();
+    if (error) throw error;
+    return data;
+  }
+
+  async upsertCreatorProfile(
+    userId: string,
+    input: ApiCreatorProfileInput,
+  ): Promise<RawApiCreatorProfile> {
+    const { data, error } = await this.client
+      .from("creator_profiles")
+      .upsert(
+        {
+          user_id: userId,
+          display_name: input.displayName.trim(),
+          avatar_url: input.avatarUrl?.trim() || null,
+          bio: input.bio?.trim() || null,
+          is_public: input.isPublic ?? true,
+        },
+        { onConflict: "user_id" },
+      )
+      .select(CREATOR_PROFILE_COLUMNS)
+      .single<RawApiCreatorProfile>();
+    if (error) throw error;
+    return data;
+  }
+
+  async getPublicCreatorProfile(publicSlug: string): Promise<RawApiPublicCreatorProfile | null> {
+    const { data: profile, error: profileError } = await this.client
+      .from("creator_profiles")
+      .select(CREATOR_PROFILE_COLUMNS)
+      .eq("public_slug", publicSlug)
+      .eq("is_public", true)
+      .maybeSingle<RawApiCreatorProfile>();
+    if (profileError) throw profileError;
+    if (!profile) return null;
+
+    const { data: roomRows, error: roomError } = await this.client
+      .from("deal_rooms")
+      .select(DEAL_ROOM_COLUMNS)
+      .eq("user_id", profile.user_id)
+      .eq("visibility", "public")
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .returns<DealRoomRow[]>();
+    if (roomError) throw roomError;
+
+    const rooms = await Promise.all(
+      (roomRows ?? []).map(async (roomRow) => {
+        const room = await this.withDealRoomItems(
+          {
+            ...roomRow,
+            role: "viewer",
+            is_member: false,
+            member_count: 0,
+          },
+          null,
+        );
+
+        return {
+          public_slug: room.public_slug,
+          name: room.name,
+          description: room.description,
+          cover_image_url: room.cover_image_url,
+          owner_display_name: profile.display_name,
+          items: room.items,
+        } satisfies RawApiPublicDealRoom;
+      }),
+    );
+
+    return {
+      public_slug: profile.public_slug,
+      display_name: profile.display_name,
+      avatar_url: profile.avatar_url,
+      bio: profile.bio,
+      rooms,
+    };
+  }
+
+  async getSavedDealRoomSlugs(userId: string): Promise<string[]> {
+    const { data: saves, error: saveError } = await this.client
+      .from("deal_room_saves")
+      .select("room_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .returns<Array<{ room_id: string }>>();
+    if (saveError) throw saveError;
+    if (!saves || saves.length === 0) return [];
+
+    const roomIds = saves.map((save) => save.room_id);
+    const { data: rooms, error: roomError } = await this.client
+      .from("deal_rooms")
+      .select("id,public_slug")
+      .in("id", roomIds)
+      .eq("visibility", "public")
+      .returns<Array<{ id: string; public_slug: string }>>();
+    if (roomError) throw roomError;
+
+    const slugByRoomId = new Map((rooms ?? []).map((room) => [room.id, room.public_slug]));
+    return roomIds.flatMap((roomId) => {
+      const slug = slugByRoomId.get(roomId);
+      return slug ? [slug] : [];
+    });
+  }
+
+  async setDealRoomSaved(userId: string, publicSlug: string, saved: boolean): Promise<boolean> {
+    const { data: room, error: roomError } = await this.client
+      .from("deal_rooms")
+      .select("id")
+      .eq("public_slug", publicSlug)
+      .eq("visibility", "public")
+      .maybeSingle<{ id: string }>();
+    if (roomError) throw roomError;
+    if (!room) return false;
+
+    if (saved) {
+      const { error } = await this.client
+        .from("deal_room_saves")
+        .upsert(
+          { room_id: room.id, user_id: userId },
+          { onConflict: "room_id,user_id", ignoreDuplicates: true },
+        );
+      if (error) throw error;
+      return true;
+    }
+
+    const { error } = await this.client
+      .from("deal_room_saves")
+      .delete()
+      .eq("room_id", room.id)
+      .eq("user_id", userId);
+    if (error) throw error;
+    return true;
   }
 
   async getDealRooms(userId: string): Promise<RawApiDealRoom[]> {

@@ -59,6 +59,7 @@ import {
   productCaptureSchema,
   createDealRoomSchema,
   updateDealRoomSchema,
+  upsertCreatorProfileSchema,
   createDealRoomItemSchema,
   updateDealRoomItemSchema,
   createDealRoomInvitationSchema,
@@ -189,6 +190,18 @@ async function handleRequest(
       return;
     }
 
+    if (
+      method === "GET" &&
+      routeSegments.length === 3 &&
+      routeSegments[0] === "creators" &&
+      routeSegments[1] === "public"
+    ) {
+      assertPublicCreatorSlug(routeSegments[2]!);
+      const publicApi = options.mobileApi ?? createMobileApi(options, logger);
+      sendSuccess(response, requestId, await publicApi.getPublicCreatorProfile(routeSegments[2]!));
+      return;
+    }
+
     const authenticator = options.authenticator;
     if (!authenticator) {
       throw new ApiError(503, "api_unavailable", "The authenticated API is not configured.");
@@ -264,6 +277,37 @@ async function routeProtectedRequest(
     );
     sendSuccess(response, requestId, await api.acceptDealRoomInvitation(userId, input.token));
     return;
+  }
+
+  if (resource === "creator-profile" && !resourceId && segments.length === 1) {
+    if (method === "GET") {
+      sendSuccess(response, requestId, await api.getCreatorProfile(userId));
+      return;
+    }
+
+    if (method === "PUT") {
+      const input = parseBody(
+        upsertCreatorProfileSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(response, requestId, await api.upsertCreatorProfile(userId, input));
+      return;
+    }
+  }
+
+  if (resource === "saved-deal-rooms") {
+    if (!resourceId && segments.length === 1 && method === "GET") {
+      sendSuccess(response, requestId, await api.getSavedDealRoomSlugs(userId));
+      return;
+    }
+
+    if (resourceId && segments.length === 2 && (method === "PUT" || method === "DELETE")) {
+      assertPublicDealRoomSlug(resourceId);
+      const saved = method === "PUT";
+      await api.setDealRoomSaved(userId, resourceId, saved);
+      sendSuccess(response, requestId, { saved });
+      return;
+    }
   }
 
   if (resource === "deal-rooms" && !resourceId) {
@@ -1243,6 +1287,16 @@ function assertPublicDealRoomSlug(value: string) {
       400,
       "invalid_public_deal_room_slug",
       "The public Deal Room link is invalid.",
+    );
+  }
+}
+
+function assertPublicCreatorSlug(value: string) {
+  if (!/^[a-f0-9]{24}$/.test(value)) {
+    throw new ApiError(
+      400,
+      "invalid_public_creator_slug",
+      "The public creator profile link is invalid.",
     );
   }
 }

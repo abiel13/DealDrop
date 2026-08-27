@@ -596,6 +596,31 @@ export interface ApiPublicDealRoom {
   items: ApiPublicDealRoomItem[];
 }
 
+export interface ApiCreatorProfile {
+  publicSlug: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiCreatorProfileInput {
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  isPublic?: boolean;
+}
+
+export interface ApiPublicCreatorProfile {
+  publicSlug: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  rooms: ApiPublicDealRoom[];
+}
+
 export interface ApiDealRoomInput {
   name: string;
   description?: string | null;

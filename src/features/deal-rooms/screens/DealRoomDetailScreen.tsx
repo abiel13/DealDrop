@@ -31,6 +31,7 @@ import {
   getDealRoom,
   getDealRoomErrorMessage,
   getPublicDealRoomUrl,
+  replaceDealRoomItem,
   removeDealRoomItem,
   reorderDealRoomItem,
   setDealRoomItemShortlisted,
@@ -51,6 +52,7 @@ export function DealRoomDetailScreen() {
   );
   const [operationError, setOperationError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
   const [expandedCommentsItemId, setExpandedCommentsItemId] = useState<string | null>(null);
 
   const roomQuery = useQuery({
@@ -84,6 +86,20 @@ export function DealRoomDetailScreen() {
       void roomQuery.refetch();
     },
     onError: (error) => setOperationError(getDealRoomErrorMessage(error)),
+  });
+  const replaceMutation = useMutation({
+    mutationFn: ({ itemId, input }: { itemId: string; input: DealRoomItemInput }) =>
+      replaceDealRoomItem(roomId!, itemId, input),
+    onSuccess: () => {
+      setOperationError(null);
+      setReplacingItemId(null);
+      setShowAddPanel(false);
+      void roomQuery.refetch();
+    },
+    onError: (error) => {
+      setOperationError(getDealRoomErrorMessage(error));
+      void roomQuery.refetch();
+    },
   });
   const reorderMutation = useMutation({
     mutationFn: async ({ current, target }: { current: DealRoomItem; target: DealRoomItem }) => {
@@ -159,6 +175,7 @@ export function DealRoomDetailScreen() {
   const isMutating =
     addMutation.isPending ||
     removeMutation.isPending ||
+    replaceMutation.isPending ||
     reorderMutation.isPending ||
     deleteMutation.isPending ||
     shortlistMutation.isPending ||
@@ -166,6 +183,9 @@ export function DealRoomDetailScreen() {
   const selectableListings = savedListingsQuery.data?.listings ?? [];
   const canContribute = room.role === "owner" || room.role === "contributor";
   const canComment = room.isMember && room.role !== "viewer";
+  const replacingItem = replacingItemId
+    ? (items.find((item) => item.id === replacingItemId) ?? null)
+    : null;
 
   function confirmRemove(item: DealRoomItem) {
     Alert.alert("Remove from room?", `Remove “${item.title}” from ${room.name}?`, [
@@ -198,11 +218,25 @@ export function DealRoomDetailScreen() {
   }
 
   function selectListing(listing: Listing) {
-    addMutation.mutate({ itemType: addMode, listingId: listing.id });
+    submitSelection({ itemType: addMode, listingId: listing.id });
   }
 
   function selectWatchlist(watchlist: Watchlist) {
-    addMutation.mutate({ itemType: "tracked_product", watchlistId: watchlist.id });
+    submitSelection({ itemType: "tracked_product", watchlistId: watchlist.id });
+  }
+
+  function submitSelection(input: DealRoomItemInput) {
+    if (replacingItemId) {
+      replaceMutation.mutate({ itemId: replacingItemId, input });
+      return;
+    }
+    addMutation.mutate(input);
+  }
+
+  function beginReplacement(item: DealRoomItem) {
+    setReplacingItemId(item.id);
+    setShowAddPanel(true);
+    setOperationError(null);
   }
 
   function moveItem(index: number, direction: -1 | 1) {
@@ -249,7 +283,10 @@ export function DealRoomDetailScreen() {
         {canContribute && (
           <Button
             leftIcon={<AppIcon name="star" size={18} color="white" />}
-            onPress={() => setShowAddPanel((current) => !current)}
+            onPress={() => {
+              setShowAddPanel((current) => !current);
+              if (showAddPanel) setReplacingItemId(null);
+            }}
           >
             {showAddPanel ? "Close add panel" : "Add to this room"}
           </Button>
@@ -257,7 +294,19 @@ export function DealRoomDetailScreen() {
 
         {showAddPanel && (
           <Card padding="md" className="gap-4">
-            <AppText variant="title">Add something you already saved</AppText>
+            <View className="gap-1">
+              <AppText variant="title">
+                {replacingItem
+                  ? `Replace ${replacingItem.title}`
+                  : "Add something you already saved"}
+              </AppText>
+              {replacingItem && (
+                <AppText variant="bodySmall">
+                  Choose the current product that should take its place. The old item stays in the
+                  room unless the replacement is added successfully.
+                </AppText>
+              )}
+            </View>
             <View className="flex-row flex-wrap gap-2">
               <AddModeButton
                 label="Saved products"
@@ -315,6 +364,18 @@ export function DealRoomDetailScreen() {
                 Create a watchlist first, then it will appear here as a tracked product.
               </AppText>
             ) : null}
+            {replacingItem && (
+              <Button
+                variant="outline"
+                disabled={replaceMutation.isPending}
+                onPress={() => {
+                  setReplacingItemId(null);
+                  setShowAddPanel(false);
+                }}
+              >
+                Cancel replacement
+              </Button>
+            )}
           </Card>
         )}
 
@@ -344,6 +405,8 @@ export function DealRoomDetailScreen() {
                   onMoveDown={() => moveItem(index, 1)}
                   onRemove={() => confirmRemove(item)}
                   canRemove={canContribute}
+                  canReplace={canContribute}
+                  onReplace={() => beginReplacement(item)}
                   onVote={() => voteMutation.mutate({ itemId: item.id, prefer: !item.viewerVoted })}
                   onToggleShortlist={() =>
                     shortlistMutation.mutate({

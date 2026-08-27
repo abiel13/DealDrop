@@ -24,6 +24,9 @@ import type {
   ApiNotification,
   ApiNotificationQuery,
   ApiNotificationPreferences,
+  ApiCreatorProfile,
+  ApiCreatorProfileInput,
+  ApiPublicCreatorProfile,
   ApiDealRoom,
   ApiPublicDealRoom,
   ApiDealRoomActivity,
@@ -157,6 +160,31 @@ export class DealDropApiClient {
 
   async getDealRooms() {
     return this.request<ApiDealRoom[]>("/deal-rooms");
+  }
+
+  async getCreatorProfile() {
+    return this.request<ApiCreatorProfile | null>("/creator-profile");
+  }
+
+  async upsertCreatorProfile(input: ApiCreatorProfileInput) {
+    return this.request<ApiCreatorProfile>("/creator-profile", { method: "PUT", body: input });
+  }
+
+  async getPublicCreatorProfile(publicSlug: string) {
+    return this.request<ApiPublicCreatorProfile>(
+      `/creators/public/${encodeURIComponent(publicSlug)}`,
+      { authenticated: false },
+    );
+  }
+
+  async getSavedDealRoomSlugs() {
+    return this.request<string[]>("/saved-deal-rooms");
+  }
+
+  async setDealRoomSaved(publicSlug: string, saved: boolean) {
+    return this.request<{ saved: boolean }>(`/saved-deal-rooms/${encodeURIComponent(publicSlug)}`, {
+      method: saved ? "PUT" : "DELETE",
+    });
   }
 
   async getDealRoom(roomId: string) {

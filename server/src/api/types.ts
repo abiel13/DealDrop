@@ -286,6 +286,31 @@ export interface ApiPublicDealRoom {
   items: ApiPublicDealRoomItem[];
 }
 
+export interface ApiCreatorProfile {
+  publicSlug: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiCreatorProfileInput {
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  isPublic?: boolean;
+}
+
+export interface ApiPublicCreatorProfile {
+  publicSlug: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  rooms: ApiPublicDealRoom[];
+}
+
 export interface ApiDealRoomInput {
   name: string;
   description?: string | null;
@@ -963,6 +988,25 @@ export interface RawApiPublicDealRoom {
   cover_image_url: string | null;
   owner_display_name: string | null;
   items: RawApiDealRoomItem[];
+}
+
+export interface RawApiCreatorProfile {
+  user_id: string;
+  public_slug: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RawApiPublicCreatorProfile {
+  public_slug: string;
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  rooms: RawApiPublicDealRoom[];
 }
 
 export interface RawApiDealRoomMember {
