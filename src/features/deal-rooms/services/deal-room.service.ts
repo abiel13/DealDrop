@@ -22,6 +22,10 @@ export async function getDealRoom(roomId: string): Promise<DealRoom> {
   return response.data;
 }
 
+export function getPublicDealRoomUrl(publicSlug: string) {
+  return `https://get-deal-drop.com/deal-room/${encodeURIComponent(publicSlug)}`;
+}
+
 export async function createDealRoom(input: DealRoomInput): Promise<DealRoom> {
   const response = await apiClient.createDealRoom({
     ...input,

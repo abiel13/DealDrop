@@ -2388,3 +2388,456 @@ mark {
     transform: none;
   }
 }
+
+/* Public Deal Room pages */
+.is-hidden {
+  display: none !important;
+}
+
+.public-room-page {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.public-room-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--dark);
+  color: var(--white);
+}
+
+.public-room-header-inner,
+.public-room-footer {
+  display: flex;
+  width: min(calc(100% - 48px), var(--max-width));
+  margin: 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.public-room-header-inner {
+  min-height: 76px;
+}
+
+.public-room-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--white);
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.05em;
+}
+
+.public-room-brand > span:last-child > span {
+  color: var(--purple-light);
+}
+
+.public-room-brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(196, 181, 253, 0.4);
+  border-radius: 11px;
+  background: #19132c;
+  color: var(--magenta);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.public-room-header-note {
+  color: #cbc4d7;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.public-room-state {
+  display: grid;
+  min-height: min(72vh, 620px);
+  padding: 110px 24px;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.public-room-state h1 {
+  max-width: 620px;
+  margin: 10px 0 12px;
+  font-size: clamp(2.4rem, 7vw, 5.8rem);
+  letter-spacing: -0.07em;
+  line-height: 0.98;
+}
+
+.public-room-state p:not(.eyebrow) {
+  max-width: 510px;
+  margin: 0 0 26px;
+  color: var(--ink-soft);
+}
+
+.public-room-spinner {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 22px;
+  border: 3px solid var(--lavender-strong);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: public-room-spin 900ms linear infinite;
+}
+
+@keyframes public-room-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.public-room-hero {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.25), transparent 28%), var(--dark);
+  color: var(--white);
+}
+
+.public-room-hero-inner {
+  width: min(calc(100% - 48px), var(--max-width));
+  margin: 0 auto;
+  padding: clamp(78px, 11vw, 146px) 0 clamp(70px, 10vw, 124px);
+}
+
+.public-room-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--purple-light);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.public-room-kicker span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--magenta);
+  box-shadow: 0 0 0 6px rgba(215, 138, 255, 0.1);
+}
+
+.public-room-hero h1 {
+  max-width: 900px;
+  margin: 18px 0 18px;
+  font-size: clamp(3.1rem, 9vw, 7.6rem);
+  letter-spacing: -0.08em;
+  line-height: 0.92;
+}
+
+.public-room-description {
+  max-width: 680px;
+  margin: 0;
+  color: #d6d0e1;
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+}
+
+.public-room-owner {
+  margin: 18px 0 0;
+  color: var(--purple-light);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.public-room-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.public-room-actions .button-quiet {
+  color: #d6d0e1;
+}
+
+.public-room-app-note {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: #aaa1bd;
+  font-size: 12px;
+}
+
+.public-room-items-section {
+  width: min(calc(100% - 48px), var(--max-width));
+  margin: 0 auto;
+  padding: clamp(72px, 10vw, 130px) 0;
+}
+
+.public-room-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+
+.public-room-section-heading h2 {
+  max-width: 630px;
+  margin: 8px 0 0;
+  font-size: clamp(2.2rem, 5vw, 4.6rem);
+  letter-spacing: -0.07em;
+  line-height: 0.96;
+}
+
+.public-room-count {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.public-room-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.public-room-item {
+  display: grid;
+  grid-template-columns: minmax(120px, 38%) 1fr;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: 0 12px 38px rgba(38, 20, 65, 0.06);
+}
+
+.public-room-item-media {
+  display: grid;
+  min-height: 270px;
+  place-items: center;
+  background: var(--lavender);
+  color: var(--purple);
+  font-size: 54px;
+  font-weight: 800;
+}
+
+.public-room-item-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+
+.public-room-item-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px;
+}
+
+.public-room-item-source {
+  margin: 0 0 14px;
+  color: var(--purple-dark);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.public-room-item h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+}
+
+.public-room-item-price {
+  margin: 20px 0 4px;
+  color: var(--ink);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.public-room-item-availability {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.public-room-item-recommendation {
+  margin: 14px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--lavender);
+  color: var(--purple-dark);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.public-room-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.button-small {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.button-outline {
+  border: 1px solid var(--lavender-strong);
+  background: var(--paper);
+  color: var(--purple-dark);
+}
+
+.button-outline:hover,
+.button-outline:focus-visible {
+  border-color: var(--purple);
+  background: var(--lavender);
+}
+
+.button.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.public-room-item-link {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-room-item-link:hover,
+.public-room-item-link:focus-visible {
+  color: var(--purple-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.public-room-empty {
+  padding: 26px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+}
+
+.public-room-cta {
+  padding: clamp(72px, 10vw, 120px) 0;
+}
+
+.public-room-cta-inner {
+  width: min(calc(100% - 48px), 760px);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.public-room-cta h2 {
+  margin: 10px 0 16px;
+  font-size: clamp(2.4rem, 6vw, 5.3rem);
+  letter-spacing: -0.08em;
+  line-height: 0.94;
+}
+
+.public-room-cta p:not(.eyebrow) {
+  margin: 0;
+  color: #d6d0e1;
+}
+
+.public-room-cta .public-room-actions {
+  justify-content: center;
+}
+
+.public-room-footer {
+  min-height: 92px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.public-room-footer .public-room-brand {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.public-room-footer .public-room-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-color: var(--lavender-strong);
+  background: var(--lavender);
+  color: var(--purple-dark);
+  font-size: 15px;
+}
+
+.public-room-footer a:hover,
+.public-room-footer a:focus-visible {
+  color: var(--purple-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 860px) {
+  .public-room-items {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .public-room-header-inner,
+  .public-room-footer,
+  .public-room-hero-inner,
+  .public-room-items-section {
+    width: min(calc(100% - 32px), var(--max-width));
+  }
+
+  .public-room-header-inner {
+    min-height: 68px;
+  }
+
+  .public-room-header-note {
+    font-size: 10px;
+  }
+
+  .public-room-state {
+    min-height: 70vh;
+    padding: 90px 16px;
+  }
+
+  .public-room-section-heading {
+    display: block;
+  }
+
+  .public-room-count {
+    display: inline-flex;
+    margin-top: 18px;
+  }
+
+  .public-room-item {
+    grid-template-columns: 1fr;
+  }
+
+  .public-room-item-media {
+    min-height: 210px;
+  }
+
+  .public-room-item-content {
+    padding: 20px;
+  }
+
+  .public-room-footer {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 24px 0;
+  }
+}

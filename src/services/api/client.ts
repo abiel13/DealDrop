@@ -25,6 +25,7 @@ import type {
   ApiNotificationQuery,
   ApiNotificationPreferences,
   ApiDealRoom,
+  ApiPublicDealRoom,
   ApiDealRoomActivity,
   ApiDealRoomComment,
   ApiDealRoomInvitation,
@@ -162,8 +163,8 @@ export class DealDropApiClient {
     return this.request<ApiDealRoom>(`/deal-rooms/${encodeURIComponent(roomId)}`);
   }
 
-  async getPublicDealRoom(roomId: string) {
-    return this.request<ApiDealRoom>(`/deal-rooms/public/${encodeURIComponent(roomId)}`, {
+  async getPublicDealRoom(publicSlug: string) {
+    return this.request<ApiPublicDealRoom>(`/deal-rooms/public/${encodeURIComponent(publicSlug)}`, {
       authenticated: false,
     });
   }

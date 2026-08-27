@@ -1,4 +1,4 @@
-import { Alert, Pressable, View } from "react-native";
+import { Alert, Pressable, Share, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,6 +30,7 @@ import {
   deleteDealRoom,
   getDealRoom,
   getDealRoomErrorMessage,
+  getPublicDealRoomUrl,
   removeDealRoomItem,
   reorderDealRoomItem,
   setDealRoomItemShortlisted,
@@ -49,6 +50,7 @@ export function DealRoomDetailScreen() {
     "saved_product",
   );
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [expandedCommentsItemId, setExpandedCommentsItemId] = useState<string | null>(null);
 
   const roomQuery = useQuery({
@@ -187,6 +189,14 @@ export function DealRoomDetailScreen() {
     ]);
   }
 
+  function sharePublicRoom() {
+    setShareError(null);
+    void Share.share({
+      message: getPublicDealRoomUrl(room.publicSlug),
+      title: `Share ${room.name} on DealDrop`,
+    }).catch(() => setShareError("We couldn't open sharing for this room."));
+  }
+
   function selectListing(listing: Listing) {
     addMutation.mutate({ itemType: addMode, listingId: listing.id });
   }
@@ -218,6 +228,21 @@ export function DealRoomDetailScreen() {
         {room.description && (
           <Card padding="md" className="bg-primary-soft">
             <AppText variant="bodySmall">{room.description}</AppText>
+          </Card>
+        )}
+
+        {room.visibility === "public" && (
+          <Card padding="md" className="gap-3">
+            <View className="gap-1">
+              <AppText variant="label">Share this Deal Room</AppText>
+              <AppText variant="bodySmall">
+                Anyone with the link can view this collection without the app.
+              </AppText>
+            </View>
+            <Button variant="outline" onPress={sharePublicRoom}>
+              Share public link
+            </Button>
+            {shareError && <AppText variant="error">{shareError}</AppText>}
           </Card>
         )}
 
