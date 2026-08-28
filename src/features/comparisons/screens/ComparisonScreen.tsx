@@ -309,7 +309,9 @@ function ComparisonGroupCard({
         </AppText>
       </View>
 
-      {group.recommendation && <RecommendationCard recommendation={group.recommendation} />}
+      {group.recommendation && (
+        <RecommendationCard recommendation={group.recommendation} surface="sourcing_comparison" />
+      )}
       {group.professionalEconomics && (
         <ProfessionalEconomicsCard economics={group.professionalEconomics} />
       )}

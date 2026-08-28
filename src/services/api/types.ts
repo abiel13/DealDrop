@@ -1360,6 +1360,10 @@ export type ApiProductEventName =
   | "watchlist_paused"
   | "watchlist_resumed"
   | "watchlist_completed"
+  | "premium_upgrade_viewed"
+  | "premium_upgrade_cta_tapped"
+  | "premium_purchase_completed"
+  | "premium_purchase_cancelled"
   | "pro_upgrade_viewed"
   | "pro_upgrade_cta_tapped"
   | "pro_purchase_completed"
@@ -1368,7 +1372,10 @@ export type ApiProductEventName =
   | "url_pasted"
   | "product_identified"
   | "tracking_created"
-  | "capture_failed";
+  | "capture_failed"
+  | "recommendation_viewed"
+  | "deal_room_created"
+  | "deal_room_shared";
 
 export interface ApiProductEventInput {
   eventName: ApiProductEventName;

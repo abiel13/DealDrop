@@ -10,6 +10,10 @@ const captureEventsMigration = readFileSync(
   "supabase/migrations/20260905000000_add_product_capture_analytics_events.sql",
   "utf8",
 );
+const marketabilityEventsMigration = readFileSync(
+  "supabase/migrations/20260917000000_complete_marketability_analytics.sql",
+  "utf8",
+);
 
 test("analytics migration stores deduplicated privacy-conscious events", () => {
   assert.match(migration, /create table if not exists public\.product_events/);
@@ -44,4 +48,17 @@ test("URL capture analytics extends the existing event constraint", () => {
     assert.match(captureEventsMigration, new RegExp(`'${eventName}'`));
   }
   assert.match(captureEventsMigration, /drop constraint if exists product_events_name_valid/);
+});
+
+test("marketability analytics keeps conversion events and adds recommendation and sharing coverage", () => {
+  for (const eventName of [
+    "premium_purchase_completed",
+    "pro_purchase_completed",
+    "recommendation_viewed",
+    "deal_room_created",
+    "deal_room_shared",
+  ]) {
+    assert.match(marketabilityEventsMigration, new RegExp(`'${eventName}'`));
+  }
+  assert.match(marketabilityEventsMigration, /drop constraint if exists product_events_name_valid/);
 });

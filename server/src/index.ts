@@ -6,6 +6,7 @@ import { loadServerConfig } from "./config/env";
 import { loadServerEnvironment } from "./config/load-env";
 import { createServerDatabaseClient } from "./database/client";
 import { MerchantAttributionRepository } from "./database/merchant-attribution-repository";
+import { RevenueCatProIntegration } from "./billing/revenuecat";
 import { errorContext, logger } from "./lib/logger";
 import { MerchantLinkService } from "./merchant-links/service";
 import { createSupabaseHealthProvider } from "./operations/health";
@@ -34,10 +35,17 @@ async function main() {
     affiliates: {},
     logger,
   });
+  const revenueCat = config.revenueCatApiKey
+    ? new RevenueCatProIntegration({
+        apiKey: config.revenueCatApiKey,
+        entitlementId: config.revenueCatProEntitlementId,
+      })
+    : undefined;
   const mobileApi = new MobileApiService({
     adapters: runtime.adapters,
     logger,
     repository,
+    proSubscriptionVerifier: revenueCat,
   });
   const server = createHttpServer(logger, {
     adapters: runtime.adapters,
@@ -45,6 +53,10 @@ async function main() {
     mobileApi,
     repository,
     merchantLinkService,
+    revenueCatWebhookAuthToken: config.revenueCatWebhookAuthToken ?? undefined,
+    revenueCatWebhookHandler: revenueCat
+      ? (payload) => revenueCat.handleWebhook(payload, repository)
+      : undefined,
     security: config.apiSecurity,
     health: createSupabaseHealthProvider({
       client: databaseClient,

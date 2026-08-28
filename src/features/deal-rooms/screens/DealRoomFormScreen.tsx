@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { AppText } from "@/components/ui/Text";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, dealRoomRoute } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
@@ -56,6 +57,11 @@ export function DealRoomFormScreen() {
   const createMutation = useMutation({
     mutationFn: (input: DealRoomInput) => createDealRoom(input),
     onSuccess: (room) => {
+      trackProductEventNonBlocking(
+        "deal_room_created",
+        { dealRoomId: room.id, visibility: room.visibility },
+        `deal-room-created:${room.id}`,
+      );
       void queryClient.invalidateQueries({ queryKey: ["deal-rooms", user?.id] });
       router.replace(dealRoomRoute(room.id));
     },

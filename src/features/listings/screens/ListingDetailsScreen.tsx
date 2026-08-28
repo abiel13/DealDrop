@@ -328,7 +328,7 @@ export function ListingDetailsScreen() {
 
         <PriceContext listing={listing} />
 
-        {recommendation && <RecommendationCard recommendation={recommendation} />}
+        {recommendation && <RecommendationCard recommendation={recommendation} surface="listing" />}
 
         {alternativesQuery.isLoading && (
           <Card padding="md" className="gap-2">

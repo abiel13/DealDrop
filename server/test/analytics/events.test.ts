@@ -88,3 +88,46 @@ test("accepts URL capture events without recording product content", () => {
   assert.equal(pasted.properties.captureSource, "pasted_url");
   assert.equal(identified.properties.needsConfirmation, true);
 });
+
+test("accepts marketability events without product or room content", () => {
+  const recommendation = productEventSchema.parse({
+    eventName: "recommendation_viewed",
+    eventKey: "recommendation-viewed:1",
+    properties: {
+      surface: "listing",
+      decision: "insufficient_data",
+      confidence: "insufficient_data",
+    },
+  });
+  const room = productEventSchema.parse({
+    eventName: "deal_room_shared",
+    eventKey: "deal-room-shared:1",
+    properties: { dealRoomId: UUID, visibility: "public" },
+  });
+  const premium = productEventSchema.parse({
+    eventName: "premium_purchase_completed",
+    eventKey: "premium-purchase:1",
+    properties: { surface: "app_gate" },
+  });
+
+  assert.equal(recommendation.properties.confidence, "insufficient_data");
+  assert.equal(room.properties.visibility, "public");
+  assert.equal(premium.properties.surface, "app_gate");
+});
+
+test("rejects unsupported recommendation and room analytics values", () => {
+  assert.throws(() =>
+    productEventSchema.parse({
+      eventName: "recommendation_viewed",
+      eventKey: "recommendation-viewed:invalid",
+      properties: { surface: "listing", decision: "maybe", confidence: "high" },
+    }),
+  );
+  assert.throws(() =>
+    productEventSchema.parse({
+      eventName: "deal_room_created",
+      eventKey: "deal-room-created:invalid",
+      properties: { dealRoomId: UUID, visibility: "friends" },
+    }),
+  );
+});

@@ -293,6 +293,10 @@ export class DealDropApiClient {
     return this.request<ApiProEntitlement>("/pro/entitlement");
   }
 
+  async syncProEntitlement() {
+    return this.request<ApiProEntitlement>("/pro/entitlement/sync", { method: "POST" });
+  }
+
   async getWorkspace(workspaceId: string) {
     return this.request<ApiWorkspace>(`/workspaces/${encodeURIComponent(workspaceId)}`);
   }

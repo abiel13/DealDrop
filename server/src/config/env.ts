@@ -13,6 +13,9 @@ export interface ServerConfig {
   environment: "development" | "test" | "production";
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
+  revenueCatApiKey: string | null;
+  revenueCatProEntitlementId: string;
+  revenueCatWebhookAuthToken: string | null;
   apiSecurity: ApiSecurityConfig;
 }
 
@@ -24,6 +27,10 @@ function requiredValue(env: NodeJS.ProcessEnv, key: string) {
   }
 
   return value;
+}
+
+function optionalValue(env: NodeJS.ProcessEnv, key: string) {
+  return env[key]?.trim() || null;
 }
 
 function portValue(value: string | undefined) {
@@ -51,6 +58,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     environment,
     supabaseUrl: requiredValue(env, "SUPABASE_URL"),
     supabaseServiceRoleKey: requiredValue(env, "SUPABASE_SERVICE_ROLE_KEY"),
+    revenueCatApiKey: optionalValue(env, "REVENUECAT_API_KEY"),
+    revenueCatProEntitlementId: optionalValue(env, "REVENUECAT_PRO_ENTITLEMENT_ID") ?? "pro",
+    revenueCatWebhookAuthToken: optionalValue(env, "REVENUECAT_WEBHOOK_AUTH_TOKEN"),
     apiSecurity: loadApiSecurityConfig(env, environment),
   };
 }

@@ -630,7 +630,12 @@ export function ListingFeedScreen() {
               if (item.match_id) {
                 trackProductEventNonBlocking("match_opened", { matchId: item.match_id });
               }
-              router.push(listingRoute(item.id));
+              router.push(
+                listingRoute(item.id, {
+                  matchId: item.match_id,
+                  watchlistId: item.watchlist_id,
+                }),
+              );
             }}
             onFavoriteToggle={() => {
               favoriteMutation.mutate({ listingId: item.id, isFavorite: !item.is_favorite });

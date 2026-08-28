@@ -27,6 +27,10 @@ export type AnalyticsEventProperties = {
   watchlist_paused: AnalyticsProperties & { watchlistId: string };
   watchlist_resumed: AnalyticsProperties & { watchlistId: string };
   watchlist_completed: AnalyticsProperties & { watchlistId: string };
+  premium_upgrade_viewed: AnalyticsProperties & { surface: string };
+  premium_upgrade_cta_tapped: AnalyticsProperties & { surface: string };
+  premium_purchase_completed: AnalyticsProperties & { surface: string };
+  premium_purchase_cancelled: AnalyticsProperties & { surface: string };
   pro_upgrade_viewed: AnalyticsProperties & { surface: string };
   pro_upgrade_cta_tapped: AnalyticsProperties & { surface: string };
   pro_purchase_completed: AnalyticsProperties & { surface: string };
@@ -43,6 +47,19 @@ export type AnalyticsEventProperties = {
   capture_failed: AnalyticsProperties & {
     captureSource: ProductCaptureAnalyticsSource;
     reason: string;
+  };
+  recommendation_viewed: AnalyticsProperties & {
+    surface: "listing" | "sourcing_comparison";
+    decision: "buy_now" | "wait" | "skip" | "insufficient_data";
+    confidence: "strong" | "moderate" | "insufficient_data";
+  };
+  deal_room_created: AnalyticsProperties & {
+    dealRoomId: string;
+    visibility: "private" | "public";
+  };
+  deal_room_shared: AnalyticsProperties & {
+    dealRoomId: string;
+    visibility: "private" | "public";
   };
 };
 

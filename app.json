@@ -68,7 +68,8 @@
             "singleShareMimeTypes": ["text/plain", "text/uri-list"]
           }
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,
