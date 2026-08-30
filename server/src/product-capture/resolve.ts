@@ -4,10 +4,15 @@ import type {
   MarketplaceProductIdentifier,
   MarketplaceSource,
 } from "../marketplaces/shared/types";
-import { fetchProductPageMetadata, type ProductPageFetch } from "./metadata";
+import {
+  fetchProductPageMetadata,
+  type ProductPageFetch,
+  type ProductPageMetadata,
+} from "./metadata";
 import type {
   NormalizedCapturedProduct,
   ProductCaptureIdentification,
+  ProductCapturePageMetadata,
   ProductCaptureIdentifier,
   ProductCaptureRequest,
 } from "./types";
@@ -31,11 +36,12 @@ export function createProductCaptureResolver(
   options: ProductCaptureResolverOptions,
 ): ProductCaptureResolver {
   return {
-    resolve: (_input, identification) => resolveProductCapture(identification, options),
+    resolve: (input, identification) => resolveProductCapture(input, identification, options),
   };
 }
 
 export async function resolveProductCapture(
+  input: ProductCaptureRequest,
   identification: ProductCaptureIdentification,
   options: ProductCaptureResolverOptions,
 ): Promise<ProductCaptureIdentification> {
@@ -43,6 +49,8 @@ export async function resolveProductCapture(
   if (!product?.canonicalUrl || identification.status === "failed") {
     return identification;
   }
+
+  const suppliedMetadata = toPageMetadata(input.pageMetadata, product);
 
   const pageResult = await fetchProductPageMetadata(product.canonicalUrl, {
     fetchImpl: options.fetchImpl,
@@ -55,7 +63,7 @@ export async function resolveProductCapture(
     options.logger,
   );
 
-  if (pageResult.kind === "gone" && !adapterResult) {
+  if (pageResult.kind === "gone" && !adapterResult && !suppliedMetadata) {
     return {
       status: "failed",
       normalizedProduct: null,
@@ -64,14 +72,18 @@ export async function resolveProductCapture(
     };
   }
 
+  const pageMetadata = mergePageMetadata(
+    suppliedMetadata,
+    pageResult.kind === "resolved" ? pageResult.metadata : null,
+  );
   const mergedProduct = mergeProductMetadata(
     product,
-    pageResult.kind === "resolved" ? pageResult.metadata : null,
+    pageMetadata,
     adapterResult,
     marketplaceSource,
   );
 
-  if (pageResult.kind !== "resolved" || !pageResult.metadata.hasStructuredMetadata) {
+  if (pageResult.kind !== "resolved" || !pageMetadata?.hasStructuredMetadata) {
     return {
       status: "needs_confirmation",
       normalizedProduct: mergedProduct,
@@ -88,6 +100,73 @@ export async function resolveProductCapture(
     normalizedProduct: mergedProduct,
     missingFields: missingFields(mergedProduct),
     failureReason: mergedProduct.title ? null : "Confirm the product name before tracking.",
+  };
+}
+
+function toPageMetadata(
+  input: ProductCapturePageMetadata | null | undefined,
+  product: NormalizedCapturedProduct,
+): ProductPageMetadata | null {
+  if (!input) return null;
+
+  const hasValues = Boolean(
+    input.title ||
+    input.canonicalUrl ||
+    input.imageUrls?.length ||
+    (input.price !== null && input.price !== undefined) ||
+    input.currency ||
+    input.identifiers?.length ||
+    input.variant ||
+    input.condition ||
+    input.merchant,
+  );
+  if (!hasValues) return null;
+
+  let sourceDomain = product.sourceDomain ?? "";
+  try {
+    sourceDomain = new URL(input.canonicalUrl ?? product.canonicalUrl ?? "").hostname.toLowerCase();
+  } catch {
+    // The request schema validates supplied URLs; the fallback keeps this helper defensive.
+  }
+
+  return {
+    title: input.title ?? null,
+    canonicalUrl: input.canonicalUrl ?? product.canonicalUrl,
+    sourceDomain,
+    identifiers: input.identifiers ?? [],
+    imageUrls: input.imageUrls ?? [],
+    price: input.price ?? null,
+    currency: input.currency?.toUpperCase() ?? null,
+    variant: input.variant ?? null,
+    condition: input.condition ?? null,
+    merchant: input.merchant ?? null,
+    availability: null,
+    deliveryInformation: null,
+    hasStructuredMetadata: true,
+  };
+}
+
+function mergePageMetadata(
+  supplied: ProductPageMetadata | null,
+  fetched: ProductPageMetadata | null,
+): ProductPageMetadata | null {
+  if (!supplied) return fetched;
+  if (!fetched) return supplied;
+
+  return {
+    title: fetched.title ?? supplied.title,
+    canonicalUrl: fetched.canonicalUrl ?? supplied.canonicalUrl,
+    sourceDomain: fetched.sourceDomain || supplied.sourceDomain,
+    identifiers: uniqueIdentifiers([...fetched.identifiers, ...supplied.identifiers]),
+    imageUrls: uniqueStrings([...fetched.imageUrls, ...supplied.imageUrls]),
+    price: fetched.price ?? supplied.price,
+    currency: fetched.currency ?? supplied.currency,
+    variant: fetched.variant ?? supplied.variant,
+    condition: fetched.condition ?? supplied.condition,
+    merchant: fetched.merchant ?? supplied.merchant,
+    availability: fetched.availability ?? supplied.availability,
+    deliveryInformation: fetched.deliveryInformation ?? supplied.deliveryInformation,
+    hasStructuredMetadata: fetched.hasStructuredMetadata || supplied.hasStructuredMetadata,
   };
 }
 

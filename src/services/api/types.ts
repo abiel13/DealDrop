@@ -44,6 +44,7 @@ export interface ApiProductCaptureInput {
   rawText?: string | null;
   barcode?: string | null;
   imageReference?: string | null;
+  pageMetadata?: ApiProductCapturePageMetadata | null;
   country: string;
   preferredCurrency: string;
 }
@@ -51,6 +52,18 @@ export interface ApiProductCaptureInput {
 export interface ApiCapturedProductIdentifier {
   type: "upc" | "ean" | "gtin" | "asin" | "mpn" | "sku" | "isbn" | "barcode";
   value: string;
+}
+
+export interface ApiProductCapturePageMetadata {
+  title?: string | null;
+  canonicalUrl?: string | null;
+  imageUrls?: string[];
+  price?: number | null;
+  currency?: string | null;
+  identifiers?: ApiCapturedProductIdentifier[];
+  variant?: string | null;
+  condition?: string | null;
+  merchant?: string | null;
 }
 
 export interface ApiNormalizedCapturedProduct {

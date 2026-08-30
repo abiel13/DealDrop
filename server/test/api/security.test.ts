@@ -367,6 +367,13 @@ test("limits concurrent searches and exposes a retryable capacity error", async 
 
 test("validates security configuration and route operation mapping", () => {
   assert.deepEqual(loadApiSecurityConfig({}, "production").allowedOrigins, []);
+  assert.deepEqual(
+    loadApiSecurityConfig(
+      { SERVER_ALLOWED_ORIGINS: "chrome-extension://abcdefghijklmnopabcdefghijklmnop" },
+      "production",
+    ).allowedOrigins,
+    ["chrome-extension://abcdefghijklmnopabcdefghijklmnop"],
+  );
   assert.throws(
     () =>
       loadApiSecurityConfig(

@@ -409,10 +409,14 @@ function parseAllowedOrigins(raw: string | undefined, fallback: readonly string[
   const origins = [...new Set(values)].map((origin) => {
     let parsed: URL;
     try {
+      if (isChromeExtensionOrigin(origin)) {
+        return origin;
+      }
+
       parsed = new URL(origin);
     } catch {
       throw new ApiSecurityConfigurationError(
-        "SERVER_ALLOWED_ORIGINS must contain valid absolute HTTP(S) origins.",
+        "SERVER_ALLOWED_ORIGINS must contain valid absolute HTTP(S) or Chrome extension origins.",
       );
     }
 
@@ -432,6 +436,10 @@ function parseAllowedOrigins(raw: string | undefined, fallback: readonly string[
   });
 
   return origins;
+}
+
+function isChromeExtensionOrigin(origin: string) {
+  return /^chrome-extension:\/\/[a-p]{32}$/.test(origin);
 }
 
 function boundedInteger(

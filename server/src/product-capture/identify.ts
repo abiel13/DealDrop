@@ -97,7 +97,7 @@ function missingFields(product: NormalizedCapturedProduct): string[] {
 }
 
 export function identifyProductCapture(input: ProductCaptureRequest): ProductCaptureIdentification {
-  const candidateUrl = findUrl(input.url, input.rawText);
+  const candidateUrl = findUrl(input.url ?? input.pageMetadata?.canonicalUrl, input.rawText);
   const parsedUrl = parseHttpUrl(candidateUrl);
 
   if (candidateUrl && !parsedUrl) {
@@ -110,18 +110,25 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
   }
 
   const barcodeIdentifier = normalizeBarcode(input.barcode);
+  const pageMetadata = input.pageMetadata;
+  const canonicalUrl = parseHttpUrl(pageMetadata?.canonicalUrl ?? null) ?? parsedUrl;
+  const identifiers = uniqueIdentifiers([
+    ...(barcodeIdentifier ? [barcodeIdentifier] : []),
+    ...(pageMetadata?.identifiers ?? []),
+  ]);
   const product: NormalizedCapturedProduct = {
-    title: titleFromRawText(input.rawText) ?? titleFromUrl(parsedUrl),
-    canonicalUrl: parsedUrl?.toString() ?? null,
-    sourceDomain: parsedUrl?.hostname.toLowerCase() ?? null,
-    identifiers: barcodeIdentifier ? [barcodeIdentifier] : [],
-    imageReference: cleanText(input.imageReference),
-    imageUrls: [],
-    price: null,
-    currency: null,
-    variant: null,
-    condition: null,
-    merchant: null,
+    title:
+      cleanText(pageMetadata?.title) ?? titleFromRawText(input.rawText) ?? titleFromUrl(parsedUrl),
+    canonicalUrl: canonicalUrl?.toString() ?? null,
+    sourceDomain: canonicalUrl?.hostname.toLowerCase() ?? null,
+    identifiers,
+    imageReference: cleanText(input.imageReference) ?? pageMetadata?.imageUrls?.[0] ?? null,
+    imageUrls: uniqueHttpUrls(pageMetadata?.imageUrls ?? []),
+    price: pageMetadata?.price ?? null,
+    currency: pageMetadata?.currency?.toUpperCase() ?? null,
+    variant: cleanText(pageMetadata?.variant),
+    condition: cleanText(pageMetadata?.condition),
+    merchant: cleanText(pageMetadata?.merchant),
     marketplaceSource: null,
     availability: null,
     deliveryInformation: null,
@@ -153,4 +160,23 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
     missingFields: fields,
     failureReason: null,
   };
+}
+
+function uniqueIdentifiers(identifiers: ProductCaptureIdentifier[]) {
+  const seen = new Set<string>();
+  return identifiers.filter((identifier) => {
+    const key = `${identifier.type}:${identifier.value.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function uniqueHttpUrls(values: string[]) {
+  const urls: string[] = [];
+  for (const value of values) {
+    const parsed = parseHttpUrl(value);
+    if (parsed && !urls.includes(parsed.toString())) urls.push(parsed.toString());
+  }
+  return urls.slice(0, 8);
 }

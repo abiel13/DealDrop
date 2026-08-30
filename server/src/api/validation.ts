@@ -17,6 +17,49 @@ const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number
 const productCaptureText = (maxLength: number) =>
   z.string().trim().min(1).max(maxLength).nullable().optional();
 
+const productCapturePublicUrl = z
+  .string()
+  .trim()
+  .url()
+  .max(2_048)
+  .refine((value) => /^https?:\/\//i.test(value), "url must use HTTP or HTTPS.")
+  .refine((value) => {
+    const parsed = new URL(value);
+    return !parsed.username && !parsed.password;
+  }, "url must not contain embedded credentials.");
+
+const productCaptureIdentifierSchema = z
+  .object({
+    type: z.enum(["upc", "ean", "gtin", "asin", "mpn", "sku", "isbn", "barcode"]),
+    value: z.string().trim().min(1).max(128),
+  })
+  .strict();
+
+export const productCapturePageMetadataSchema = z
+  .object({
+    title: productCaptureText(300),
+    canonicalUrl: productCapturePublicUrl.nullable().optional(),
+    imageUrls: z.array(productCapturePublicUrl).max(8).optional(),
+    price: z
+      .number()
+      .refine(Number.isFinite, "price must be finite.")
+      .refine((value) => value >= 0, "price must be non-negative.")
+      .nullable()
+      .optional(),
+    currency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .transform((currency) => currency.toUpperCase())
+      .nullable()
+      .optional(),
+    identifiers: z.array(productCaptureIdentifierSchema).max(20).optional(),
+    variant: productCaptureText(300),
+    condition: productCaptureText(80),
+    merchant: productCaptureText(200),
+  })
+  .strict();
+
 export const productCaptureSchema = z
   .object({
     captureSource: z.enum([
@@ -27,14 +70,7 @@ export const productCaptureSchema = z
       "screenshot",
       "product_photo",
     ]),
-    url: z
-      .string()
-      .trim()
-      .url()
-      .max(2_048)
-      .refine((value) => /^https?:\/\//i.test(value), "url must use HTTP or HTTPS.")
-      .nullable()
-      .optional(),
+    url: productCapturePublicUrl.nullable().optional(),
     rawText: productCaptureText(10_000),
     barcode: z
       .string()
@@ -43,6 +79,7 @@ export const productCaptureSchema = z
       .nullable()
       .optional(),
     imageReference: productCaptureText(2_048),
+    pageMetadata: productCapturePageMetadataSchema.nullable().optional(),
     country: z.string().trim().min(2).max(100),
     preferredCurrency: z
       .string()
