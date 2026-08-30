@@ -296,6 +296,7 @@ export interface ApiListing {
   product: ApiProductMetadata | null;
   qualitySignals: ApiMarketplaceListingQualitySignals | null;
   recommendation: ApiProductRecommendation | null;
+  alternatives?: ApiListingAlternatives | null;
   relevance: ApiListingRelevance | null;
   productIdentity?: ApiProductIdentity | null;
   sourcePrice?: number | null;
@@ -830,6 +831,40 @@ export interface ApiProductComparison {
   currenciesCompared: string[];
   rawAndLandedWinnersDiffer: boolean;
   recommendation?: ApiProductRecommendation | null;
+}
+
+export type ApiAlternativeReasonCode =
+  | "lower_delivered_cost"
+  | "cheaper_price"
+  | "variant_match"
+  | "better_condition"
+  | "more_reliable_seller"
+  | "better_returns"
+  | "buyer_protection"
+  | "preferred_marketplace";
+
+export interface ApiAlternativeReason {
+  code: ApiAlternativeReasonCode;
+  label: string;
+  detail: string;
+}
+
+export interface ApiAlternativeOffer extends ApiComparisonOffer {
+  rank: number;
+  variantMatch: "exact" | "strong";
+  alternativeReasons: ApiAlternativeReason[];
+}
+
+export interface ApiListingAlternatives {
+  currentOfferId: string;
+  currentSource: MarketplaceSource;
+  searchQuery: string;
+  matchMethod: ApiComparisonMatchMethod | null;
+  confidence: "medium" | "high" | null;
+  alternatives: ApiAlternativeOffer[];
+  sources: MarketplaceSource[];
+  partialFailures: ApiSearchPartialFailure[];
+  recommendation: ApiProductRecommendation | null;
 }
 
 export interface ApiComparisonShortlist {

@@ -91,6 +91,8 @@ export interface MarketplaceComparisonBuildOptions {
   listingIds?: ReadonlyMap<string, string>;
   shortlistedKeys?: ReadonlySet<string>;
   manualGroups?: ComparisonManualGroup[];
+  /** Keep same-variant condition differences together for alternative discovery only. */
+  allowConditionDifferences?: boolean;
   targetCurrency?: string | null;
   exchangeRates?: ReadonlyMap<string, ExchangeRate>;
 }

@@ -284,6 +284,10 @@ export function operationForRoute(
     return "search";
   }
 
+  if (resource === "listings" && resourceId && action === "alternatives" && method === "GET") {
+    return "search";
+  }
+
   if (resource === "events" && method === "POST") {
     return "event_capture";
   }

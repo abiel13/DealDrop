@@ -14,6 +14,7 @@ import {
 } from "../marketplaces/comparison";
 import {
   buildProductRecommendation,
+  rankMarketplaceAlternatives,
   type RecommendationHistory,
   type RecommendationOffer,
   type RecommendationTarget,
@@ -76,6 +77,7 @@ import type {
   ApiShoppingPreferences,
   ApiShoppingPreferencesInput,
   ApiListing,
+  ApiListingAlternatives,
   ApiSearchResult,
   ApiSourcingListImportInput,
   ApiSourcingListImportResult,
@@ -383,7 +385,136 @@ export class MobileApiService {
 
     return {
       ...listing,
-      recommendation: buildListingRecommendation(listing),
+      recommendation: buildListingRecommendation(listing, [], undefined, preferences),
+    };
+  }
+
+  async getListingAlternatives(userId: string, listingId: string): Promise<ApiListingAlternatives> {
+    const result = await this.dependencies.repository.getListingForUser(userId, listingId);
+    if (!result) {
+      throw new ApiNotFoundError("The listing was not found.");
+    }
+
+    const preferences = await this.loadShoppingPreferences(userId);
+    const listing = toApiListing(result.listing, {
+      id: result.listing.id,
+      matchedAt: result.matchedAt,
+      isFavorite: result.isFavorite,
+      priceHistory: result.priceHistory,
+      priceTarget: result.priceTarget,
+      ...(await this.getListingPriceOptions(result.listing, preferences)),
+    });
+    const currentListing = toMarketplaceListingForComparison(result.listing, listing);
+    const sources = getEnabledMarketplaceSources(this.dependencies.adapters).filter(
+      (source) => source !== currentListing.source,
+    );
+    const searchQuery = alternativeSearchQuery(listing);
+    const filters = alternativeSearchFilters(listing);
+    const productIdentifiers = alternativeProductIdentifiers(listing);
+
+    if (sources.length === 0) {
+      return {
+        currentOfferId: listingIdentity(currentListing.source, currentListing.externalId),
+        currentSource: currentListing.source,
+        searchQuery,
+        matchMethod: null,
+        confidence: null,
+        alternatives: [],
+        sources: [],
+        partialFailures: [],
+        recommendation: buildListingRecommendation(listing, [], undefined, preferences),
+      };
+    }
+
+    const response = await this.coordinator.search(
+      {
+        searchQuery,
+        sources,
+        filters,
+        ...(productIdentifiers.length > 0 ? { productIdentifiers } : {}),
+        pagination: { limit: 100 },
+      },
+      { preserveAlternatives: true },
+    );
+    const storedListings = await this.dependencies.repository.persistListings(response.listings);
+    const listingIds = new Map(
+      storedListings.map((stored) => [
+        listingIdentity(stored.marketplace_id, stored.external_id),
+        stored.id,
+      ]),
+    );
+    listingIds.set(
+      listingIdentity(currentListing.source, currentListing.externalId),
+      result.listing.id,
+    );
+
+    const storedIdentityByListing = new Map(
+      storedListings.map((stored) => [
+        listingIdentity(stored.marketplace_id, stored.external_id),
+        stored.product_identity_data,
+      ]),
+    );
+    const comparisonListings = [
+      currentListing,
+      ...response.listings.map((alternative) => {
+        const productIdentity = storedIdentityByListing.get(
+          listingIdentity(alternative.source, alternative.externalId),
+        );
+        return productIdentity
+          ? {
+              ...alternative,
+              metadata: { ...alternative.metadata, productIdentity },
+            }
+          : alternative;
+      }),
+    ];
+    const criteria = emptyComparisonCriteria();
+    const exchangeRates = await this.loadComparisonExchangeRates(
+      comparisonListings,
+      criteria,
+      preferences,
+    );
+    const comparison = buildMarketplaceComparison(comparisonListings, criteria, {
+      listingIds,
+      allowConditionDifferences: true,
+      targetCurrency: preferences?.preferredCurrency,
+      exchangeRates,
+    });
+    const currentOfferId = listingIdentity(currentListing.source, currentListing.externalId);
+    const group = comparison.comparisons.find((candidate) =>
+      candidate.offers.some((offer) => offer.offerId === currentOfferId),
+    );
+    const currentOffer = group?.offers.find((offer) => offer.offerId === currentOfferId) ?? null;
+    const alternatives =
+      group && currentOffer
+        ? rankMarketplaceAlternatives({
+            group,
+            currentOffer,
+            preferences,
+            marketplaceCountries: new Map(
+              this.getMarketplaces().map((marketplace) => [
+                marketplace.source,
+                marketplace.capabilities?.country ?? null,
+              ]),
+            ),
+          })
+        : [];
+
+    return {
+      currentOfferId,
+      currentSource: currentListing.source,
+      searchQuery,
+      matchMethod: alternatives.length > 0 ? (group?.matchMethod ?? null) : null,
+      confidence: alternatives.length > 0 ? (group?.confidence ?? null) : null,
+      alternatives,
+      sources: response.sources,
+      partialFailures: response.partialFailures,
+      recommendation: buildListingRecommendation(
+        listing,
+        group?.offers.map(toRecommendationOffer) ?? [],
+        currentOffer ? toRecommendationOffer(currentOffer) : undefined,
+        preferences,
+      ),
     };
   }
 
@@ -1624,21 +1755,111 @@ function buildComparisonIdentifiers(product: {
   return identifiers.slice(0, 1);
 }
 
-function buildListingRecommendation(listing: ApiListing) {
-  return buildProductRecommendation({
-    currentOffer: {
-      id: listing.id ?? listingIdentity(listing.source, listing.externalId),
-      source: listing.source,
-      price: listing.price,
-      currency: listing.currency,
-      deliveredUnitCost: null,
-      deliveredUnitCostCurrency: null,
-      availability: listing.qualitySignals?.availability.rawStatus.value,
-      availabilityStatus: listing.qualitySignals?.availability.status.value,
-      availableQuantity: listing.qualitySignals?.availability.quantity.value,
-      condition: listing.condition,
-      qualitySignals: listing.qualitySignals,
+function toMarketplaceListingForComparison(
+  raw: RawApiListing,
+  listing: ApiListing,
+): MarketplaceListing {
+  return {
+    source: listing.source,
+    externalId: listing.externalId,
+    title: listing.title,
+    description: listing.description,
+    price: listing.price,
+    currency: listing.currency,
+    url: listing.url,
+    imageUrls: listing.imageUrls,
+    sellerName: listing.sellerName,
+    location: listing.location,
+    category: listing.category,
+    condition: listing.condition,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+    postedAt: listing.listedAt,
+    ...(listing.product ? { product: listing.product } : {}),
+    ...(listing.qualitySignals ? { qualitySignals: listing.qualitySignals } : {}),
+    metadata: {
+      ...raw.raw_data,
+      ...(raw.product_identity_data ? { productIdentity: raw.product_identity_data } : {}),
+      ...(listing.productIdentity ? { productIdentity: listing.productIdentity } : {}),
     },
+  };
+}
+
+function alternativeSearchQuery(listing: ApiListing) {
+  const identity = listing.productIdentity;
+  return [identity?.title ?? listing.title, identity?.brand, identity?.model, identity?.variant.raw]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .join(" ")
+    .slice(0, 200);
+}
+
+function alternativeSearchFilters(listing: ApiListing): WatchlistFilters {
+  const identity = listing.productIdentity;
+  return {
+    productIdentity: identity
+      ? {
+          title: identity.title ?? listing.title,
+          brand: identity.brand ?? undefined,
+          model: identity.model ?? undefined,
+          identifiers: identity.identifiers,
+          variant: identity.variant,
+        }
+      : {
+          title: listing.title,
+        },
+  };
+}
+
+function alternativeProductIdentifiers(listing: ApiListing): MarketplaceProductIdentifier[] {
+  const identifiers = listing.productIdentity?.identifiers ?? [];
+  return identifiers.flatMap((identifier): MarketplaceProductIdentifier[] => {
+    if (
+      identifier.type === "upc" ||
+      identifier.type === "ean" ||
+      identifier.type === "gtin" ||
+      identifier.type === "asin"
+    ) {
+      return [{ type: identifier.type, value: identifier.value }];
+    }
+    if (identifier.type === "mpn") {
+      return [{ type: "part_number" as const, value: identifier.value }];
+    }
+    return [];
+  });
+}
+
+function emptyComparisonCriteria(): ComparisonCriteria {
+  return {
+    targetQuantity: 1,
+    maxUnitCost: null,
+    maxUnitCostCurrency: null,
+    estimatedShippingCost: null,
+    estimatedShippingCurrency: null,
+    estimatedDutiesTaxes: null,
+    estimatedDutiesTaxesCurrency: null,
+    otherSourcingCost: null,
+    otherSourcingCostCurrency: null,
+    maxLandedUnitCost: null,
+    maxLandedUnitCostCurrency: null,
+    preferredCondition: null,
+  };
+}
+
+function buildListingRecommendation(
+  listing: ApiListing,
+  competingOffers: RecommendationOffer[] = [],
+  currentOffer?: RecommendationOffer,
+  preferences: ShoppingPreferences | null = null,
+) {
+  return buildProductRecommendation({
+    currentOffer: currentOffer ?? listingRecommendationOffer(listing),
+    competingOffers,
+    ...(currentOffer &&
+    currentOffer.deliveredUnitCost !== null &&
+    competingOffers.some((offer) => offer.deliveredUnitCost !== null)
+      ? { preferredPriceBasis: "delivered_unit_cost" as const }
+      : {}),
     history: listing.priceHistory
       ? {
           basis: "marketplace_price",
@@ -1660,7 +1881,24 @@ function buildListingRecommendation(listing: ApiListing) {
           basis: "marketplace_price",
         }
       : null,
+    preferredMarketplaces: preferences?.preferredMarketplaces,
   });
+}
+
+function listingRecommendationOffer(listing: ApiListing): RecommendationOffer {
+  return {
+    id: listing.id ?? listingIdentity(listing.source, listing.externalId),
+    source: listing.source,
+    price: listing.price,
+    currency: listing.currency,
+    deliveredUnitCost: null,
+    deliveredUnitCostCurrency: null,
+    availability: listing.qualitySignals?.availability.rawStatus.value,
+    availabilityStatus: listing.qualitySignals?.availability.status.value,
+    availableQuantity: listing.qualitySignals?.availability.quantity.value,
+    condition: listing.condition,
+    qualitySignals: listing.qualitySignals,
+  };
 }
 
 function buildSourcingComparisonRecommendation(

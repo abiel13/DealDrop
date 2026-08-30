@@ -4,6 +4,7 @@ import type {
   ApiEnvelope,
   ApiErrorPayload,
   ApiListing,
+  ApiListingAlternatives,
   ApiListingProblemReportInput,
   ApiListingProblemReportResponse,
   ApiComparisonManualGroupInput,
@@ -94,6 +95,12 @@ export class DealDropApiClient {
 
   async getListing(listingId: string) {
     return this.request<ApiListing>(`/listings/${encodeURIComponent(listingId)}`);
+  }
+
+  async getListingAlternatives(listingId: string) {
+    return this.request<ApiListingAlternatives>(
+      `/listings/${encodeURIComponent(listingId)}/alternatives`,
+    );
   }
 
   async createProductCapture(input: ApiProductCaptureInput) {

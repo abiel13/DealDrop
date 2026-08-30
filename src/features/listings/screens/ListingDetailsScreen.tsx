@@ -23,11 +23,15 @@ import { trackProductEventNonBlocking } from "@/features/analytics/services/anal
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { getAccountLinks } from "@/features/profile/utils/legal-links";
+import { createWatchlist } from "@/features/watchlists/services/watchlist.service";
+import { ProductAlternativesCard } from "@/features/intelligence/components/ProductAlternativesCard";
 import { useTheme } from "@/providers/ThemeProvider";
 import { RecommendationCard } from "@/features/intelligence/components/RecommendationCard";
+import type { ApiAlternativeOffer, ApiSearchFilters } from "@/services/api";
 
 import {
   getListing,
+  getListingAlternatives,
   getListingErrorMessage,
   setListingFavorite,
 } from "../services/listing.service";
@@ -86,6 +90,7 @@ export function ListingDetailsScreen() {
     message: string;
   } | null>(null);
   const [reportSubmissionStarted, setReportSubmissionStarted] = useState(false);
+  const [alternativeTrackingMessage, setAlternativeTrackingMessage] = useState<string | null>(null);
   const listingQueryKey = ["listing", user?.id, listingId] as const;
   const accountLinks = getAccountLinks();
 
@@ -93,6 +98,12 @@ export function ListingDetailsScreen() {
     queryKey: listingQueryKey,
     queryFn: () => getListing(listingId!),
     enabled: Boolean(user && listingId),
+  });
+  const alternativesQuery = useQuery({
+    queryKey: ["listing-alternatives", user?.id, listingId],
+    queryFn: () => getListingAlternatives(listingId!),
+    enabled: Boolean(user && listingId),
+    staleTime: 2 * 60 * 1000,
   });
   const favoriteMutation = useMutation({
     mutationFn: (isFavorite: boolean) => setListingFavorite(listingId!, isFavorite),
@@ -140,6 +151,24 @@ export function ListingDetailsScreen() {
         message: "We couldn't send that report. Please try again or contact support.",
       });
       setReportSubmissionStarted(false);
+    },
+  });
+  const trackAlternativeMutation = useMutation({
+    mutationFn: (offer: ApiAlternativeOffer) => {
+      if (!listingQuery.data) {
+        throw new Error("The listing is unavailable.");
+      }
+
+      return createWatchlist(buildAlternativeWatchlistInput(listingQuery.data, offer));
+    },
+    onSuccess: (_watchlist, offer) => {
+      setAlternativeTrackingMessage(
+        `Now tracking this ${formatMarketplaceName(offer.source)} alternative.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["watchlists", user?.id] });
+    },
+    onError: () => {
+      setAlternativeTrackingMessage("We couldn't track this alternative. Please try again.");
     },
   });
 
@@ -218,6 +247,7 @@ export function ListingDetailsScreen() {
   }
 
   const listing = listingQuery.data;
+  const recommendation = alternativesQuery.data?.recommendation ?? listing.recommendation;
   const images = listing.images;
   const metadata = [
     listing.condition ? { label: "Condition", value: listing.condition } : null,
@@ -297,7 +327,49 @@ export function ListingDetailsScreen() {
 
         <PriceContext listing={listing} />
 
-        {listing.recommendation && <RecommendationCard recommendation={listing.recommendation} />}
+        {recommendation && <RecommendationCard recommendation={recommendation} />}
+
+        {alternativesQuery.isLoading && (
+          <Card padding="md" className="gap-2">
+            <AppText variant="title">Checking other marketplaces</AppText>
+            <AppText variant="bodySmall" className="text-text-secondary">
+              DealDrop is looking for equivalent offers and checking their purchase context.
+            </AppText>
+          </Card>
+        )}
+
+        {alternativesQuery.isError && (
+          <Card padding="md" className="gap-2">
+            <AppText variant="title">Alternatives unavailable</AppText>
+            <AppText variant="bodySmall" className="text-text-secondary">
+              We couldn&apos;t check other marketplaces right now. Your listing and recommendation
+              are still available.
+            </AppText>
+            <Button variant="outline" onPress={() => void alternativesQuery.refetch()}>
+              Try again
+            </Button>
+          </Card>
+        )}
+
+        {alternativesQuery.data && (
+          <ProductAlternativesCard
+            alternatives={alternativesQuery.data}
+            trackingOfferId={
+              trackAlternativeMutation.isPending
+                ? (trackAlternativeMutation.variables?.offerId ?? null)
+                : null
+            }
+            onTrackAlternative={(offer) => {
+              setAlternativeTrackingMessage(null);
+              trackAlternativeMutation.mutate(offer);
+            }}
+          />
+        )}
+        {alternativeTrackingMessage && (
+          <AppText variant="bodySmall" className="text-center text-primary">
+            {alternativeTrackingMessage}
+          </AppText>
+        )}
 
         {listing.seller_name && (
           <Card padding="md" className="gap-3">
@@ -627,6 +699,38 @@ function formatPriceRange(lowestPrice: number, highestPrice: number, currency: s
   }
 
   return lowest + " – " + formatListingPrice({ price: highestPrice, currency });
+}
+
+function buildAlternativeWatchlistInput(listing: Listing, offer: ApiAlternativeOffer) {
+  const identity = listing.product_identity;
+  const identifiers = identity?.identifiers ?? [];
+  const filters: ApiSearchFilters = {
+    ...(identifiers.length > 0
+      ? { aliases: identifiers.map((identifier) => identifier.value) }
+      : {}),
+    productIdentity: identity
+      ? {
+          title: identity.title ?? listing.title,
+          brand: identity.brand ?? undefined,
+          model: identity.model ?? undefined,
+          identifiers,
+          variant: identity.variant,
+          condition: offer.condition ?? identity.condition ?? undefined,
+        }
+      : {
+          title: listing.title,
+          condition: offer.condition ?? listing.condition ?? undefined,
+        },
+  };
+
+  return {
+    name: offer.title.slice(0, 120),
+    searchQuery: offer.title.slice(0, 200),
+    filters,
+    alertMode: "instant" as const,
+    marketplaceScope: "selected" as const,
+    marketplaceIds: [offer.source],
+  };
 }
 
 function Gallery({

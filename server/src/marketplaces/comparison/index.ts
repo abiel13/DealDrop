@@ -45,8 +45,8 @@ export function buildMarketplaceComparison(
     const group = automaticGroups.find(
       (candidate) =>
         compareProductIdentities(
-          productIdentityFromListing(candidate.listings[0]!),
-          productIdentityFromListing(listing),
+          comparisonIdentity(candidate.listings[0]!, options.allowConditionDifferences),
+          comparisonIdentity(listing, options.allowConditionDifferences),
         ).decision === "matched",
     );
 
@@ -321,6 +321,11 @@ function takeManualGroupListings(
 function identityMatchMethod(listing: MarketplaceListing): "identifier" | "model_title" {
   const identity = productIdentityFromListing(listing);
   return identity.identifiers.length > 0 || identity.model ? "identifier" : "model_title";
+}
+
+function comparisonIdentity(listing: MarketplaceListing, allowConditionDifferences = false) {
+  const identity = productIdentityFromListing(listing);
+  return allowConditionDifferences ? { ...identity, condition: null } : identity;
 }
 
 function createAutomaticGroupId(listings: MarketplaceListing[]) {
