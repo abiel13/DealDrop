@@ -10,7 +10,14 @@ import {
   type ComparisonCriteria,
   type ComparisonManualGroup,
   type MarketplaceComparisonOffer,
+  type MarketplaceProductComparison,
 } from "../marketplaces/comparison";
+import {
+  buildProductRecommendation,
+  type RecommendationHistory,
+  type RecommendationOffer,
+  type RecommendationTarget,
+} from "../intelligence";
 import {
   MARKETPLACE_IDS,
   type MarketplaceListing,
@@ -88,6 +95,7 @@ import type {
   ApiSourcingActivity,
   ApiSourcingNote,
   RawApiSourcingList,
+  RawApiSourcingListProduct,
   RawApiSupplier,
   RawApiSupplierShortlistHistory,
   RawApiWorkspaceMember,
@@ -364,7 +372,7 @@ export class MobileApiService {
     }
 
     const preferences = await this.loadShoppingPreferences(userId);
-    return toApiListing(result.listing, {
+    const listing = toApiListing(result.listing, {
       id: result.listing.id,
       matchedAt: result.matchedAt,
       isFavorite: result.isFavorite,
@@ -372,6 +380,11 @@ export class MobileApiService {
       priceTarget: result.priceTarget,
       ...(await this.getListingPriceOptions(result.listing, preferences)),
     });
+
+    return {
+      ...listing,
+      recommendation: buildListingRecommendation(listing),
+    };
   }
 
   async setListingFavorite(userId: string, listingId: string, isFavorite: boolean) {
@@ -878,6 +891,14 @@ export class MobileApiService {
     if (!comparisonState) {
       throw new ApiNotFoundError("The comparison workspace was not found.");
     }
+    const sourcingPriceHistory = this.dependencies.repository.getSourcingProductPriceHistory
+      ? await this.dependencies.repository.getSourcingProductPriceHistory(
+          userId,
+          workspaceId,
+          sourcingListId,
+          sourcingListProductId,
+        )
+      : null;
     const suppliers = this.dependencies.repository.getSuppliers
       ? await this.dependencies.repository.getSuppliers(userId, workspaceId)
       : [];
@@ -902,18 +923,31 @@ export class MobileApiService {
       })),
     });
 
-    return {
-      sourcingListProduct: toSourcingList(list).products.find(
-        (item) => item.id === sourcingListProductId,
-      )!,
-      searchQuery,
-      comparisons: comparison.comparisons.map((group) => ({
+    const apiSourcingProduct = toSourcingList(list).products.find(
+      (item) => item.id === sourcingListProductId,
+    )!;
+    const comparisons = comparison.comparisons.map((group) => {
+      const offers = group.offers.map((offer) => ({
+        ...offer,
+        savedSupplier: findSavedSupplier(offer, suppliers),
+      }));
+      return {
         ...group,
-        offers: group.offers.map((offer) => ({
-          ...offer,
-          savedSupplier: findSavedSupplier(offer, suppliers),
-        })),
-      })),
+        offers,
+        recommendation: buildSourcingComparisonRecommendation(
+          group,
+          offers,
+          product,
+          sourcingPriceHistory,
+          shoppingPreferences,
+        ),
+      };
+    });
+
+    return {
+      sourcingListProduct: apiSourcingProduct,
+      searchQuery,
+      comparisons,
       sources,
       partialFailures: response.partialFailures,
       shortlisted: comparisonState.shortlists.map(toApiComparisonShortlist),
@@ -1588,6 +1622,202 @@ function buildComparisonIdentifiers(product: {
   if (product.gtin) identifiers.push({ type: "ean", value: product.gtin });
   if (product.mpn) identifiers.push({ type: "part_number", value: product.mpn });
   return identifiers.slice(0, 1);
+}
+
+function buildListingRecommendation(listing: ApiListing) {
+  return buildProductRecommendation({
+    currentOffer: {
+      id: listing.id ?? listingIdentity(listing.source, listing.externalId),
+      source: listing.source,
+      price: listing.price,
+      currency: listing.currency,
+      deliveredUnitCost: null,
+      deliveredUnitCostCurrency: null,
+      availability: listing.qualitySignals?.availability.rawStatus.value,
+      availabilityStatus: listing.qualitySignals?.availability.status.value,
+      availableQuantity: listing.qualitySignals?.availability.quantity.value,
+      condition: listing.condition,
+      qualitySignals: listing.qualitySignals,
+    },
+    history: listing.priceHistory
+      ? {
+          basis: "marketplace_price",
+          status: listing.priceHistory.status,
+          observationCount: listing.priceHistory.observationCount,
+          lowestPrice: listing.priceHistory.lowestPrice,
+          highestPrice: listing.priceHistory.highestPrice,
+          medianPrice: listing.priceHistory.medianPrice,
+          averagePrice: listing.priceHistory.averagePrice,
+          currency: listing.priceHistory.currency,
+          firstObservedAt: listing.priceHistory.firstObservedAt,
+          lastObservedAt: listing.priceHistory.lastObservedAt,
+        }
+      : null,
+    targetPrice: listing.priceTarget?.currency
+      ? {
+          amount: listing.priceTarget.price,
+          currency: listing.priceTarget.currency,
+          basis: "marketplace_price",
+        }
+      : null,
+  });
+}
+
+function buildSourcingComparisonRecommendation(
+  group: MarketplaceProductComparison,
+  offers: MarketplaceComparisonOffer[],
+  product: RawApiSourcingListProduct,
+  history: ApiSourcingPriceHistory | null,
+  preferences: ShoppingPreferences | null,
+) {
+  const recommendationTarget = sourcingRecommendationTarget(product);
+  const currentOffer = selectRecommendationOffer(group, offers);
+  if (!currentOffer) return null;
+
+  return buildProductRecommendation({
+    currentOffer: toRecommendationOffer(currentOffer),
+    competingOffers: offers.map(toRecommendationOffer),
+    history: sourcingRecommendationHistory(
+      history,
+      currentOffer.source,
+      recommendationTarget.basis,
+    ),
+    targetPrice: recommendationTarget.targetPrice,
+    maximumPrice: recommendationTarget.maximumPrice,
+    preferredCondition: product.preferred_condition,
+    targetQuantity: product.target_quantity,
+    preferredMarketplaces: preferences?.preferredMarketplaces,
+  });
+}
+
+function selectRecommendationOffer(
+  group: MarketplaceProductComparison,
+  offers: MarketplaceComparisonOffer[],
+) {
+  const preferredIds = [
+    group.cheapestQualifyingLandedOfferId,
+    group.cheapestQualifyingOfferId,
+  ].filter((value): value is string => Boolean(value));
+  return (
+    preferredIds
+      .map((id) => offers.find((offer) => offer.offerId === id))
+      .find((offer): offer is MarketplaceComparisonOffer => Boolean(offer)) ??
+    offers.find((offer) => offer.qualification === "qualifies") ??
+    offers[0] ??
+    null
+  );
+}
+
+function toRecommendationOffer(offer: MarketplaceComparisonOffer): RecommendationOffer {
+  const delivered = offer.cost?.estimatedDeliveredUnitCost;
+  return {
+    id: offer.offerId,
+    source: offer.source,
+    price: offer.price,
+    currency: offer.currency,
+    deliveredUnitCost: delivered?.amount ?? offer.landedUnitCost,
+    deliveredUnitCostCurrency: delivered?.currency ?? offer.landedUnitCostCurrency,
+    costCompleteness: offer.cost?.completeness ?? null,
+    costMissingComponents: offer.cost?.missingComponents,
+    availableQuantity: offer.availableQuantity,
+    availability: offer.availability,
+    availabilityStatus: offer.qualitySignals?.availability.status.value,
+    condition: offer.condition,
+    qualitySignals: offer.qualitySignals,
+    supplierStatus: offer.savedSupplier?.status ?? null,
+    qualification: offer.qualification,
+  };
+}
+
+function sourcingRecommendationTarget(product: RawApiSourcingListProduct): {
+  basis: "marketplace_price" | "delivered_unit_cost";
+  targetPrice: RecommendationTarget | null;
+  maximumPrice: RecommendationTarget | null;
+} {
+  const maxLandedUnitCost = numericOrNull(product.max_landed_unit_cost);
+  const maxLandedUnitCostCurrency = normalizeCurrency(product.max_landed_unit_cost_currency);
+  if (maxLandedUnitCost !== null && maxLandedUnitCostCurrency) {
+    const target = {
+      amount: maxLandedUnitCost,
+      currency: maxLandedUnitCostCurrency,
+      basis: "delivered_unit_cost" as const,
+    };
+    return { basis: "delivered_unit_cost", targetPrice: null, maximumPrice: target };
+  }
+
+  const targetUnitCost = numericOrNull(product.target_unit_cost);
+  const targetUnitCostCurrency = normalizeCurrency(product.target_unit_cost_currency);
+  const maxUnitCost = numericOrNull(product.max_unit_cost);
+  const maxUnitCostCurrency = normalizeCurrency(product.max_unit_cost_currency);
+  return {
+    basis: "marketplace_price",
+    targetPrice:
+      targetUnitCost !== null && targetUnitCostCurrency
+        ? { amount: targetUnitCost, currency: targetUnitCostCurrency, basis: "marketplace_price" }
+        : null,
+    maximumPrice:
+      maxUnitCost !== null && maxUnitCostCurrency
+        ? { amount: maxUnitCost, currency: maxUnitCostCurrency, basis: "marketplace_price" }
+        : null,
+  };
+}
+
+function sourcingRecommendationHistory(
+  history: ApiSourcingPriceHistory | null,
+  source: string,
+  basis: "marketplace_price" | "delivered_unit_cost",
+): RecommendationHistory | null {
+  const observations = (history?.observations ?? [])
+    .filter((observation) => observation.source === source)
+    .map((observation) => {
+      const amount =
+        basis === "delivered_unit_cost" ? observation.landedUnitCost : observation.observedPrice;
+      const currency =
+        basis === "delivered_unit_cost" ? observation.landedUnitCostCurrency : observation.currency;
+      return { amount, currency, observedAt: observation.observedAt };
+    })
+    .filter(
+      (observation): observation is { amount: number; currency: string; observedAt: string } =>
+        observation.amount !== null &&
+        Number.isFinite(observation.amount) &&
+        Boolean(normalizeCurrency(observation.currency)),
+    )
+    .sort((left, right) => right.observedAt.localeCompare(left.observedAt));
+  const latestCurrency = normalizeCurrency(observations[0]?.currency);
+  if (!latestCurrency) return null;
+
+  const comparable = observations
+    .filter((observation) => normalizeCurrency(observation.currency) === latestCurrency)
+    .sort((left, right) => left.observedAt.localeCompare(right.observedAt));
+  const values = comparable.map((observation) => observation.amount);
+  const enoughHistory = values.length >= 3;
+  return {
+    basis,
+    status: enoughHistory ? "available" : "insufficient_history",
+    observationCount: values.length,
+    lowestPrice: values.length > 0 ? Math.min(...values) : null,
+    highestPrice: values.length > 0 ? Math.max(...values) : null,
+    medianPrice: enoughHistory ? medianValue(values) : null,
+    averagePrice: enoughHistory
+      ? values.reduce((sum, value) => sum + value, 0) / values.length
+      : null,
+    currency: latestCurrency,
+    firstObservedAt: comparable[0]?.observedAt ?? null,
+    lastObservedAt: comparable.at(-1)?.observedAt ?? null,
+  };
+}
+
+function medianValue(values: readonly number[]) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+    : (sorted[middle] ?? 0);
+}
+
+function normalizeCurrency(value: string | null | undefined) {
+  const normalized = value?.trim().toUpperCase();
+  return normalized && /^[A-Z]{3}$/.test(normalized) ? normalized : null;
 }
 
 function toComparisonCriteria(product: {

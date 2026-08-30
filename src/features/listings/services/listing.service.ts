@@ -40,6 +40,7 @@ function toListing(
     price_history: listing.priceHistory,
     price_target: listing.priceTarget,
     quality_signals: listing.qualitySignals,
+    recommendation: listing.recommendation,
     match_id: match?.id ?? null,
     match_status: match?.status ?? null,
     feedback: match?.feedback ?? null,
