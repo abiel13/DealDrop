@@ -15,23 +15,26 @@ import type { AmazonBusinessOfferRequest } from "./types";
 
 export class AmazonBusinessMarketplaceAdapter implements MarketplaceAdapter {
   readonly source = MARKETPLACE_IDS.amazonBusiness;
-  readonly capabilities: MarketplaceCapabilities = {
-    supportsPriceFiltering: true,
-    supportsLocation: false,
-    supportsRadius: false,
-    supportsCondition: false,
-    supportsPagination: true,
-    supportsProductIdentifiers: true,
-    supportsOffers: true,
-    supportsMerchantFilters: false,
-    supportsDeliveryInformation: true,
-  };
+  readonly capabilities: MarketplaceCapabilities;
 
   constructor(
     private readonly client: AmazonBusinessSearchClient,
     private readonly config: Pick<AmazonBusinessMarketplaceConfig, "currency" | "productRegion">,
     private readonly logger: WorkerLogger,
-  ) {}
+  ) {
+    this.capabilities = {
+      country: config.productRegion,
+      supportsPriceFiltering: true,
+      supportsLocation: false,
+      supportsRadius: false,
+      supportsCondition: false,
+      supportsPagination: true,
+      supportsProductIdentifiers: true,
+      supportsOffers: true,
+      supportsMerchantFilters: false,
+      supportsDeliveryInformation: true,
+    };
+  }
 
   async search(request: MarketplaceSearchRequest): Promise<MarketplaceSearchResponse> {
     try {

@@ -39,6 +39,14 @@ export interface Listing {
   feedback: "relevant" | "not_relevant" | null;
   product: ApiProductMetadata | null;
   relevance: ApiListingRelevance | null;
+  source_price?: number | null;
+  source_currency?: string | null;
+  converted_price?: number | null;
+  converted_currency?: string | null;
+  exchange_rate?: number | null;
+  exchange_rate_as_of?: string | null;
+  exchange_rate_source?: string | null;
+  conversion_status?: "not_needed" | "converted" | "unavailable" | "unsupported";
 }
 
 export interface ListingSearchResult {

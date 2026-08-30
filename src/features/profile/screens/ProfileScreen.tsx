@@ -23,12 +23,22 @@ import { usePremium } from "@/features/premium/hooks/PremiumProvider";
 import { usePro } from "@/features/pro/hooks/ProProvider";
 import { hasPremiumEntitlement } from "@/features/premium/services/premium.service";
 import { getPremiumErrorMessage } from "@/features/premium/utils/premium-errors";
+import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import { getWorkspaces } from "@/features/workspaces/services/workspace.service";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
-import { deleteAccount, getOrCreateProfile, updateProfileName } from "../services/profile.service";
+import type { ApiMarketplace, ApiShoppingPreferences } from "@/services/api";
+
+import {
+  deleteAccount,
+  getOrCreateProfile,
+  getShoppingMarketplaces,
+  getShoppingPreferences,
+  updateProfileName,
+  updateShoppingPreferences,
+} from "../services/profile.service";
 import { getAccountLinks } from "../utils/legal-links";
 
 function ProfileSkeleton() {
@@ -74,6 +84,7 @@ export function ProfileScreen() {
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [shoppingDraft, setShoppingDraft] = useState<ApiShoppingPreferences | null>(null);
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId);
 
@@ -94,6 +105,17 @@ export function ProfileScreen() {
     queryFn: getWorkspaces,
     enabled: Boolean(user && pro.access?.isPro),
   });
+  const shoppingPreferencesQuery = useQuery({
+    queryKey: ["shopping-preferences", user?.id],
+    queryFn: getShoppingPreferences,
+    enabled: Boolean(user),
+  });
+  const shoppingMarketplacesQuery = useQuery({
+    queryKey: ["marketplaces"],
+    queryFn: getShoppingMarketplaces,
+    enabled: Boolean(user),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const updateNameMutation = useMutation({
     mutationFn: (name: string) => updateProfileName(user!.id, name),
@@ -102,6 +124,15 @@ export function ProfileScreen() {
       setEditedName(profile.full_name ?? "");
     },
     onError: () => setActionError("We couldn't update your name. Please try again."),
+  });
+  const shoppingPreferencesMutation = useMutation({
+    mutationFn: (preferences: ApiShoppingPreferences) => updateShoppingPreferences(preferences),
+    onSuccess: (preferences) => {
+      queryClient.setQueryData(["shopping-preferences", user?.id], preferences);
+      setShoppingDraft(preferences);
+      setActionError(null);
+    },
+    onError: () => setActionError("We couldn't save your shopping preferences."),
   });
 
   if (!user) {
@@ -140,6 +171,9 @@ export function ProfileScreen() {
   const profile = profileQuery.data;
   const displayName = profile.full_name || user.email?.split("@")[0] || "DealDrop user";
   const nameValue = editedName ?? profile.full_name ?? displayName;
+  const shoppingPreferences = shoppingDraft ?? shoppingPreferencesQuery.data ?? null;
+  const shoppingMarketplaces =
+    shoppingMarketplacesQuery.data?.filter((marketplace) => marketplace.enabled) ?? [];
 
   async function openLink(url: string) {
     try {
@@ -395,6 +429,28 @@ export function ProfileScreen() {
             onPress={() => router.push(authRoutes.notifications)}
           />
           <Divider />
+          {shoppingPreferencesQuery.isError ? (
+            <AccountRow
+              icon="settings"
+              title="Shopping preferences unavailable"
+              subtitle="Tap to try again"
+              onPress={() => {
+                void shoppingPreferencesQuery.refetch();
+                void shoppingMarketplacesQuery.refetch();
+              }}
+            />
+          ) : shoppingPreferences ? (
+            <ShoppingPreferencesEditor
+              preferences={shoppingPreferences}
+              marketplaces={shoppingMarketplaces}
+              saving={shoppingPreferencesMutation.isPending}
+              onChange={setShoppingDraft}
+              onSave={(next) => shoppingPreferencesMutation.mutate(next)}
+            />
+          ) : (
+            <AppText variant="bodySmall">Loading shopping preferences…</AppText>
+          )}
+          <Divider />
           <ThemeRow />
         </AccountSection>
 
@@ -492,6 +548,121 @@ function AccountRow({
       </View>
       <AppIcon name="arrow-forward" size={18} color={theme.colors.textTertiary} />
     </Pressable>
+  );
+}
+
+function ShoppingPreferencesEditor({
+  preferences,
+  marketplaces,
+  saving,
+  onChange,
+  onSave,
+}: {
+  preferences: ApiShoppingPreferences;
+  marketplaces: ApiMarketplace[];
+  saving: boolean;
+  onChange: (preferences: ApiShoppingPreferences) => void;
+  onSave: (preferences: ApiShoppingPreferences) => void;
+}) {
+  const theme = useTheme();
+  const selectedMarketplaces =
+    preferences.preferredMarketplaces.length > 0
+      ? preferences.preferredMarketplaces
+      : marketplaces.map((marketplace) => marketplace.source);
+
+  function toggleMarketplace(source: ApiMarketplace["source"]) {
+    const nextMarketplaces = selectedMarketplaces.includes(source)
+      ? selectedMarketplaces.filter((selected) => selected !== source)
+      : [...selectedMarketplaces, source];
+    onChange({ ...preferences, preferredMarketplaces: nextMarketplaces });
+  }
+
+  return (
+    <View className="gap-4 py-4">
+      <View className="gap-1">
+        <AppText className="font-semibold text-text">Shopping preferences</AppText>
+        <AppText variant="caption">
+          Set the country, currency, and sources DealDrop should use for new searches.
+        </AppText>
+      </View>
+
+      <View className="flex-row gap-3">
+        <View className="flex-1">
+          <Input
+            label="Country"
+            value={preferences.country}
+            maxLength={2}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            onChangeText={(country) => onChange({ ...preferences, country: country.toUpperCase() })}
+          />
+        </View>
+        <View className="flex-1">
+          <Input
+            label="Currency"
+            value={preferences.preferredCurrency}
+            maxLength={3}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            onChangeText={(preferredCurrency) =>
+              onChange({ ...preferences, preferredCurrency: preferredCurrency.toUpperCase() })
+            }
+          />
+        </View>
+      </View>
+
+      <View className="gap-2">
+        <AppText variant="label">Preferred marketplaces</AppText>
+        <View className="flex-row flex-wrap gap-2">
+          {marketplaces.map((marketplace) => {
+            const selected = selectedMarketplaces.includes(marketplace.source);
+            return (
+              <Pressable
+                key={marketplace.source}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                className={`rounded-full px-3 py-2 ${selected ? "bg-primary" : "bg-surface-muted"}`}
+                onPress={() => toggleMarketplace(marketplace.source)}
+              >
+                <AppText
+                  variant="caption"
+                  className={selected ? "font-semibold text-white" : "text-text-secondary"}
+                >
+                  {formatMarketplaceName(marketplace.source)}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View className="flex-row items-center gap-3">
+        <View className="flex-1 gap-1">
+          <AppText className="font-semibold text-text">Buy internationally</AppText>
+          <AppText variant="caption">
+            Keep international sources and rank local sources first when disabled.
+          </AppText>
+        </View>
+        <Switch
+          accessibilityLabel="Allow international shopping"
+          value={preferences.willingToBuyInternationally}
+          onValueChange={(willingToBuyInternationally) =>
+            onChange({ ...preferences, willingToBuyInternationally })
+          }
+          trackColor={{ false: theme.colors.backgroundMuted, true: theme.colors.primary }}
+          thumbColor={theme.colors.surface}
+        />
+      </View>
+
+      <Button
+        variant="secondary"
+        loading={saving}
+        disabled={saving || selectedMarketplaces.length === 0}
+        onPress={() => onSave({ ...preferences, preferredMarketplaces: selectedMarketplaces })}
+      >
+        Save shopping preferences
+      </Button>
+    </View>
   );
 }
 

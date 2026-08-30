@@ -30,6 +30,7 @@ import type {
   ApiPushTokenRegistration,
   ApiSearchRequest,
   ApiSearchResult,
+  ApiShoppingPreferences,
   ApiSourcingList,
   ApiSourcingListImportInput,
   ApiSourcingListImportResult,
@@ -460,6 +461,17 @@ export class DealDropApiClient {
 
   async getNotificationPreferences() {
     return this.request<ApiNotificationPreferences>("/notifications/preferences");
+  }
+
+  async getShoppingPreferences() {
+    return this.request<ApiShoppingPreferences>("/preferences/shopping");
+  }
+
+  async updateShoppingPreferences(preferences: ApiShoppingPreferences) {
+    return this.request<ApiShoppingPreferences>("/preferences/shopping", {
+      method: "PATCH",
+      body: preferences,
+    });
   }
 
   async updateNotificationPreferences(preferences: ApiNotificationPreferences) {

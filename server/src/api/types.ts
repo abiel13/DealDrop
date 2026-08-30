@@ -29,6 +29,7 @@ import type {
   ProductCaptureStatusUpdate,
 } from "../product-capture/types";
 import type { ProductIdentitySnapshot } from "../product-identity";
+import type { ShoppingPreferences } from "../preferences/shopping";
 
 export interface ApiPagination {
   nextCursor: string | null;
@@ -115,6 +116,14 @@ export interface ApiListing {
   product: MarketplaceProductMetadata | null;
   relevance: MarketplaceListingRelevance | null;
   productIdentity?: ProductIdentitySnapshot | null;
+  sourcePrice?: number | null;
+  sourceCurrency?: string | null;
+  convertedPrice?: number | null;
+  convertedCurrency?: string | null;
+  exchangeRate?: number | null;
+  exchangeRateAsOf?: string | null;
+  exchangeRateSource?: string | null;
+  conversionStatus?: "not_needed" | "converted" | "unavailable" | "unsupported";
 }
 
 export interface ApiPriceHistorySummary {
@@ -627,6 +636,9 @@ export interface ApiNotificationPreferences {
   weeklySummaryEnabled: boolean;
 }
 
+export type ApiShoppingPreferences = ShoppingPreferences;
+export type ApiShoppingPreferencesInput = Omit<ApiShoppingPreferences, "updatedAt">;
+
 export interface ApiWeeklySummary {
   enabled: boolean;
   shouldShow: boolean;
@@ -958,6 +970,14 @@ export interface RawApiNotification {
   created_at: string;
 }
 
+export interface RawApiShoppingPreferences {
+  country: string | null;
+  preferred_currency: string | null;
+  preferred_marketplaces: string[] | null;
+  willing_to_buy_internationally: boolean | null;
+  updated_at: string | null;
+}
+
 export function toApiListing(
   listing: MarketplaceListing | RawApiListing,
   options: {
@@ -968,6 +988,14 @@ export function toApiListing(
     priceTarget?: ApiPriceTarget | null;
     productIdentity?: ProductIdentitySnapshot | null;
     productIdentityData?: Record<string, unknown>;
+    sourcePrice?: number | null;
+    sourceCurrency?: string | null;
+    convertedPrice?: number | null;
+    convertedCurrency?: string | null;
+    exchangeRate?: number | null;
+    exchangeRateAsOf?: string | null;
+    exchangeRateSource?: string | null;
+    conversionStatus?: ApiListing["conversionStatus"];
   } = {},
 ): ApiListing {
   const isNormalized = "externalId" in listing;
@@ -987,6 +1015,8 @@ export function toApiListing(
     description: listing.description,
     price: listing.price,
     currency: listing.currency,
+    sourcePrice: options.sourcePrice ?? listing.price,
+    sourceCurrency: options.sourceCurrency ?? listing.currency,
     url: listing.url,
     imageUrls: isNormalized
       ? listing.imageUrls
@@ -1003,6 +1033,20 @@ export function toApiListing(
     isFavorite: options.isFavorite ?? false,
     priceHistory: options.priceHistory ?? null,
     priceTarget: options.priceTarget ?? null,
+    ...(options.convertedPrice !== undefined ? { convertedPrice: options.convertedPrice } : {}),
+    ...(options.convertedCurrency !== undefined
+      ? { convertedCurrency: options.convertedCurrency }
+      : {}),
+    ...(options.exchangeRate !== undefined ? { exchangeRate: options.exchangeRate } : {}),
+    ...(options.exchangeRateAsOf !== undefined
+      ? { exchangeRateAsOf: options.exchangeRateAsOf }
+      : {}),
+    ...(options.exchangeRateSource !== undefined
+      ? { exchangeRateSource: options.exchangeRateSource }
+      : {}),
+    ...(options.conversionStatus !== undefined
+      ? { conversionStatus: options.conversionStatus }
+      : {}),
     product: isNormalized
       ? (listing.product ?? null)
       : isMarketplaceProductMetadata(listing.normalized_data)

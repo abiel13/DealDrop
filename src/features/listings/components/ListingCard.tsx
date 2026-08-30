@@ -7,6 +7,7 @@ import { useTheme } from "@/providers/ThemeProvider";
 
 import type { Listing } from "../types/listing.types";
 import {
+  formatConvertedListingPrice,
   formatListingPrice,
   formatListingRecency,
   formatMarketplaceName,
@@ -84,6 +85,12 @@ export function ListingCard({
           <AppText variant="heading" className="text-primary">
             {formatListingPrice(listing)}
           </AppText>
+
+          {formatConvertedListingPrice(listing) && (
+            <AppText variant="caption" className="text-text-secondary">
+              ≈ {formatConvertedListingPrice(listing)} in your preferred currency
+            </AppText>
+          )}
 
           <AppText variant="title" numberOfLines={2}>
             {listing.title}

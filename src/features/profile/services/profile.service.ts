@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { ensureProfile } from "@/features/auth/services/auth.service";
 import { supabase } from "@/lib/supabase";
+import { apiClient, type ApiMarketplace, type ApiShoppingPreferences } from "@/services/api";
 
 export interface ProfileRecord {
   id: string;
@@ -66,4 +67,19 @@ export async function deleteAccount() {
   if (error) {
     throw error;
   }
+}
+
+export async function getShoppingPreferences() {
+  const response = await apiClient.getShoppingPreferences();
+  return response.data;
+}
+
+export async function updateShoppingPreferences(preferences: ApiShoppingPreferences) {
+  const response = await apiClient.updateShoppingPreferences(preferences);
+  return response.data;
+}
+
+export async function getShoppingMarketplaces(): Promise<ApiMarketplace[]> {
+  const response = await apiClient.getMarketplaces();
+  return response.data;
 }

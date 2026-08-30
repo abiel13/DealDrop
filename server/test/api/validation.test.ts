@@ -8,6 +8,7 @@ import {
   parseBody,
   productCaptureSchema,
   searchBodySchema,
+  shoppingPreferencesSchema,
   sourcingListProductSchema,
   updateWatchlistSchema,
   watchlistFiltersSchema,
@@ -198,6 +199,33 @@ test("rejects excluded keyword arrays larger than the supported limit", () => {
     () =>
       parseBody(watchlistFiltersSchema, {
         excludedKeywords: Array.from({ length: 21 }, (_, index) => `term-${index}`),
+      }),
+    /request body is invalid/i,
+  );
+});
+
+test("validates shopping preferences without requiring a marketplace override", () => {
+  const preferences = parseBody(shoppingPreferencesSchema, {
+    country: "NG",
+    preferredCurrency: "NGN",
+    preferredMarketplaces: [],
+    willingToBuyInternationally: false,
+  });
+
+  assert.deepEqual(preferences, {
+    country: "NG",
+    preferredCurrency: "NGN",
+    preferredMarketplaces: [],
+    willingToBuyInternationally: false,
+  });
+
+  assert.throws(
+    () =>
+      parseBody(shoppingPreferencesSchema, {
+        country: "ZZ",
+        preferredCurrency: "USD",
+        preferredMarketplaces: [],
+        willingToBuyInternationally: true,
       }),
     /request body is invalid/i,
   );

@@ -103,6 +103,7 @@ export interface MarketplaceSearchResponse {
 }
 
 export interface MarketplaceCapabilities {
+  country?: string | null;
   supportsPriceFiltering: boolean;
   supportsLocation: boolean;
   supportsRadius: boolean;

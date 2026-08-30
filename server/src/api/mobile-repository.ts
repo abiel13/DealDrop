@@ -17,6 +17,7 @@ import type {
   ApiSupplierUpdateInput,
   ApiPriceTarget,
   ApiNotificationPreferences,
+  ApiShoppingPreferencesInput,
   ApiProductCaptureInput,
   ApiProductCaptureStatusUpdate,
   ApiProEntitlement,
@@ -37,6 +38,7 @@ import type {
   RawApiListing,
   RawApiMatch,
   RawApiNotification,
+  RawApiShoppingPreferences,
   RawApiSourcingList,
   RawApiSourcingActivity,
   RawApiSourcingNote,
@@ -245,6 +247,11 @@ export interface MobileApiRepositoryContract {
     userId: string,
     preferences: ApiNotificationPreferences,
   ): Promise<ApiNotificationPreferences>;
+  getShoppingPreferences?(userId: string): Promise<RawApiShoppingPreferences>;
+  updateShoppingPreferences?(
+    userId: string,
+    preferences: ApiShoppingPreferencesInput,
+  ): Promise<RawApiShoppingPreferences>;
   registerPushToken(
     userId: string,
     input: { expoPushToken: string; platform: "ios" | "android" | "web" },
@@ -2298,6 +2305,47 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       dailyAlertLimit: data.daily_alert_limit,
       weeklySummaryEnabled: data.weekly_summary_enabled,
     };
+  }
+
+  async getShoppingPreferences(userId: string): Promise<RawApiShoppingPreferences> {
+    const { data, error } = await this.client
+      .from("profiles")
+      .select(
+        "country,preferred_currency,preferred_marketplaces,willing_to_buy_internationally,updated_at",
+      )
+      .eq("id", userId)
+      .single<RawApiShoppingPreferences>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  async updateShoppingPreferences(
+    userId: string,
+    preferences: ApiShoppingPreferencesInput,
+  ): Promise<RawApiShoppingPreferences> {
+    const { data, error } = await this.client
+      .from("profiles")
+      .update({
+        country: preferences.country,
+        preferred_currency: preferences.preferredCurrency,
+        preferred_marketplaces: preferences.preferredMarketplaces,
+        willing_to_buy_internationally: preferences.willingToBuyInternationally,
+      })
+      .eq("id", userId)
+      .select(
+        "country,preferred_currency,preferred_marketplaces,willing_to_buy_internationally,updated_at",
+      )
+      .single<RawApiShoppingPreferences>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
   }
 
   async getWeeklySummary(userId: string) {

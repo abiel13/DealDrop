@@ -207,6 +207,14 @@ export interface ApiListing {
   product: ApiProductMetadata | null;
   relevance: ApiListingRelevance | null;
   productIdentity?: ApiProductIdentity | null;
+  sourcePrice?: number | null;
+  sourceCurrency?: string | null;
+  convertedPrice?: number | null;
+  convertedCurrency?: string | null;
+  exchangeRate?: number | null;
+  exchangeRateAsOf?: string | null;
+  exchangeRateSource?: string | null;
+  conversionStatus?: "not_needed" | "converted" | "unavailable" | "unsupported";
 }
 
 export interface ApiProductIdentity {
@@ -921,6 +929,14 @@ export interface ApiNotificationPreferences {
   timezone: string;
   dailyAlertLimit: number;
   weeklySummaryEnabled: boolean;
+}
+
+export interface ApiShoppingPreferences {
+  country: string;
+  preferredCurrency: string;
+  preferredMarketplaces: MarketplaceSource[];
+  willingToBuyInternationally: boolean;
+  updatedAt: string | null;
 }
 
 export type ApiProductEventName =

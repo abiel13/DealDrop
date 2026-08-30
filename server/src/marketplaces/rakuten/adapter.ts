@@ -19,6 +19,7 @@ export interface RakutenMarketplaceSearchClient {
 export class RakutenMarketplaceAdapter implements MarketplaceAdapter {
   readonly source = MARKETPLACE_IDS.rakuten;
   readonly capabilities: MarketplaceCapabilities = {
+    country: "JP",
     supportsPriceFiltering: true,
     supportsLocation: false,
     supportsRadius: false,

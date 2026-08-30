@@ -314,6 +314,10 @@ export function operationForRoute(
     return "notification_action";
   }
 
+  if (resource === "preferences" && resourceId === "shopping" && method === "PATCH") {
+    return "resource_mutation";
+  }
+
   if (
     (resource === "listing-reports" && method === "POST") ||
     (resource === "listings" && action === "favorite") ||
