@@ -245,15 +245,34 @@ export interface ApiProductIdentity {
 export type ApiPriceHistoryStatus = "available" | "insufficient_history" | "unavailable";
 export type ApiDealIndicator = "below_history" | "typical" | "above_history";
 
+export interface ApiPriceHistoryMarketplaceSummary {
+  marketplace: string;
+  status: ApiPriceHistoryStatus;
+  observationCount: number;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  medianPrice: number | null;
+  averagePrice: number | null;
+  currency: string | null;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  explanation: string;
+}
+
 export interface ApiPriceHistorySummary {
   status: ApiPriceHistoryStatus;
   observationCount: number;
   lowestPrice: number | null;
   highestPrice: number | null;
+  medianPrice: number | null;
   averagePrice: number | null;
   currency: string | null;
   firstObservedAt: string | null;
   lastObservedAt: string | null;
+  currentObservedPrice: number | null;
+  currentObservedCurrency: string | null;
+  currentObservedAt: string | null;
+  marketplaces: ApiPriceHistoryMarketplaceSummary[];
   dealIndicator: ApiDealIndicator | null;
   explanation: string;
 }

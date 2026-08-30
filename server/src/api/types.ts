@@ -14,7 +14,11 @@ import type {
 import type { MarketplaceDuplicateGroup } from "../listings/deduplication";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
 import type { DealDropSearchIntent } from "../listings/relevance";
-import type { DealIndicator, PriceHistoryStatus } from "../pricing/price-history";
+import type {
+  DealIndicator,
+  PriceHistoryMarketplaceSummary,
+  PriceHistoryStatus,
+} from "../pricing/price-history";
 import type {
   WatchlistAlertMode,
   WatchlistFilters,
@@ -131,10 +135,15 @@ export interface ApiPriceHistorySummary {
   observationCount: number;
   lowestPrice: number | null;
   highestPrice: number | null;
+  medianPrice: number | null;
   averagePrice: number | null;
   currency: string | null;
   firstObservedAt: string | null;
   lastObservedAt: string | null;
+  currentObservedPrice: number | null;
+  currentObservedCurrency: string | null;
+  currentObservedAt: string | null;
+  marketplaces: PriceHistoryMarketplaceSummary[];
   dealIndicator: DealIndicator | null;
   explanation: string;
 }

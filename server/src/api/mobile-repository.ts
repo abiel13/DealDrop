@@ -5,7 +5,11 @@ import type { ProductEventInput } from "../analytics/events";
 import { ListingRepository } from "../database/listing-repository";
 import type { MarketplaceComparisonOffer } from "../marketplaces/comparison/types";
 import type { MarketplaceListing, MarketplaceSource } from "../marketplaces/shared/types";
-import { summarizePriceHistory, type PriceHistorySummary } from "../pricing/price-history";
+import {
+  summarizePriceHistory,
+  summarizeProductPriceHistory,
+  type PriceHistorySummary,
+} from "../pricing/price-history";
 import { summarizeSourcingPriceHistory } from "../sourcing/price-history";
 import { PRO_FEATURES, PRO_LIMITS } from "./pro";
 import type { WatchlistFilters } from "../types/backend";
@@ -113,6 +117,13 @@ interface StoredPriceObservation {
   price: number;
   currency: string;
   observed_at: string;
+}
+
+interface StoredProductPriceObservation extends StoredPriceObservation {
+  marketplace_id: string;
+  shipping_price: number | string | null;
+  shipping_currency: string | null;
+  condition: string | null;
 }
 
 interface SourcingListImportRpcRow {
@@ -1652,17 +1663,42 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
 
     const latestMatch = matches?.[0];
     const watchlist = unwrap(latestMatch?.watchlist ?? null);
-    const priceHistory = summarizePriceHistory(
-      listing.price,
-      listing.currency,
-      (observations ?? [])
-        .map((observation) => ({
-          price: Number(observation.price),
-          currency: observation.currency,
-          observedAt: observation.observed_at,
-        }))
-        .filter((observation) => Number.isFinite(observation.price)),
-    );
+    let priceHistory: PriceHistorySummary;
+    if (listing.product_identity_id && listing.product_variant_id) {
+      const { data: productObservations, error: productObservationError } = await this.client
+        .from("product_price_observations")
+        .select(
+          "price,currency,observed_at,marketplace_id,shipping_price,shipping_currency,condition",
+        )
+        .eq("product_identity_id", listing.product_identity_id)
+        .eq("product_variant_id", listing.product_variant_id)
+        .order("observed_at", { ascending: false })
+        .returns<StoredProductPriceObservation[]>();
+
+      if (productObservationError) {
+        throw productObservationError;
+      }
+
+      priceHistory =
+        productObservations && productObservations.length > 0
+          ? summarizeProductPriceHistory(
+              productObservations
+                .map((observation) => ({
+                  price: Number(observation.price),
+                  currency: observation.currency,
+                  observedAt: observation.observed_at,
+                  marketplace: observation.marketplace_id,
+                  shippingPrice:
+                    observation.shipping_price === null ? null : Number(observation.shipping_price),
+                  shippingCurrency: observation.shipping_currency,
+                  condition: observation.condition,
+                }))
+                .filter((observation) => Number.isFinite(observation.price)),
+            )
+          : summarizeLegacyListingPriceHistory(listing, observations ?? []);
+    } else {
+      priceHistory = summarizeLegacyListingPriceHistory(listing, observations ?? []);
+    }
 
     return {
       listing,
@@ -2879,6 +2915,23 @@ function toPriceTarget(
 function normalizeCurrency(currency: string | null | undefined) {
   const normalized = currency?.trim().toUpperCase();
   return normalized || null;
+}
+
+function summarizeLegacyListingPriceHistory(
+  listing: RawApiListing,
+  observations: readonly StoredPriceObservation[],
+) {
+  return summarizePriceHistory(
+    listing.price,
+    listing.currency,
+    observations
+      .map((observation) => ({
+        price: Number(observation.price),
+        currency: observation.currency,
+        observedAt: observation.observed_at,
+      }))
+      .filter((observation) => Number.isFinite(observation.price)),
+  );
 }
 
 function normalizeSupplierName(name: string | null | undefined) {
