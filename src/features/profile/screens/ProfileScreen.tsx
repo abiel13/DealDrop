@@ -417,6 +417,13 @@ export function ProfileScreen() {
             subtitle="Organize saved products and deals into collections"
             onPress={() => router.push(authRoutes.dealRooms)}
           />
+          <Divider />
+          <AccountRow
+            icon="person"
+            title="Creator profile"
+            subtitle="Publish useful product collections under a shareable profile"
+            onPress={() => router.push(authRoutes.creatorProfile)}
+          />
         </AccountSection>
 
         {weeklySummaryQuery.data && shouldShowWeeklySummary(weeklySummaryQuery.data) && (

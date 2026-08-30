@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f0c1d" />
+    <meta
+      id="creator-description-meta"
+      name="description"
+      content="A public DealDrop creator profile and product collection."
+    />
+    <meta property="og:type" content="profile" />
+    <meta property="og:site_name" content="DealDrop" />
+    <meta id="creator-og-title" property="og:title" content="DealDrop creator" />
+    <meta
+      id="creator-og-description"
+      property="og:description"
+      content="Explore useful product collections from a DealDrop creator."
+    />
+    <meta id="creator-og-url" property="og:url" content="https://get-deal-drop.com/creator" />
+    <meta
+      id="creator-og-image"
+      property="og:image"
+      content="https://get-deal-drop.com/favicon.svg"
+    />
+    <link id="creator-canonical" rel="canonical" href="https://get-deal-drop.com/creator" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title id="creator-document-title">DealDrop creator</title>
+  </head>
+  <body class="public-creator-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="public-room-header">
+      <div class="public-room-header-inner">
+        <a class="public-room-brand" href="/" aria-label="DealDrop home">
+          <span class="public-room-brand-mark" aria-hidden="true">D</span>
+          <span>Deal<span>Drop</span></span>
+        </a>
+        <span class="public-room-header-note">Creator collections</span>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section id="creator-loading" class="public-room-state" aria-live="polite">
+        <div class="public-room-spinner" aria-hidden="true"></div>
+        <p class="eyebrow eyebrow-purple">DealDrop creator</p>
+        <h1>Loading these collections…</h1>
+        <p>Getting the latest product information ready.</p>
+      </section>
+
+      <section id="creator-error" class="public-room-state is-hidden" aria-live="assertive">
+        <p class="eyebrow eyebrow-purple">DealDrop creator</p>
+        <h1 id="creator-error-title">This creator profile is unavailable</h1>
+        <p id="creator-error-copy">
+          The profile may be private or no longer available. You can still explore DealDrop from the
+          homepage.
+        </p>
+        <a class="button button-dark" href="/">Visit DealDrop <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <div id="creator-view" class="is-hidden">
+        <section class="creator-hero">
+          <div class="creator-hero-inner">
+            <div id="creator-avatar" class="creator-avatar" aria-hidden="true">D</div>
+            <div class="creator-hero-copy">
+              <p class="creator-kicker">Curated on DealDrop</p>
+              <h1 id="creator-name">Creator</h1>
+              <p id="creator-bio" class="creator-bio is-hidden"></p>
+              <p id="creator-room-count" class="creator-room-count"></p>
+              <div class="public-room-actions">
+                <a class="button button-primary" href="/" data-creator-app-action data-deep-link=""
+                  >Open in DealDrop <span aria-hidden="true">↗</span></a
+                >
+                <a class="button button-quiet" href="#creator-collections"
+                  >Browse collections <span aria-hidden="true">↓</span></a
+                >
+              </div>
+              <p id="creator-app-note" class="public-room-app-note"></p>
+            </div>
+          </div>
+        </section>
+
+        <section id="creator-collections" class="creator-collections-section">
+          <div class="public-room-section-heading">
+            <div>
+              <p class="eyebrow eyebrow-purple">Public Deal Rooms</p>
+              <h2>Collections built to be useful.</h2>
+            </div>
+            <span id="creator-collection-count" class="public-room-count"></span>
+          </div>
+          <p class="creator-freshness-note">
+            Prices and availability show DealDrop's latest marketplace observations. Open a
+            marketplace before buying to confirm current details.
+          </p>
+          <div id="creator-collections-list" class="creator-collections-list"></div>
+        </section>
+
+        <section class="public-room-cta section-dark">
+          <div class="public-room-cta-inner">
+            <p class="eyebrow">Build your own shortlist</p>
+            <h2>Turn product research into a collection worth sharing.</h2>
+            <p>
+              Create a Deal Room, track the products, and keep marketplace information together.
+            </p>
+            <div class="public-room-actions">
+              <a
+                class="button button-primary"
+                href="/"
+                data-creator-app-action
+                data-deep-link="dealdrop://creator-profile"
+                >Create a creator profile <span aria-hidden="true">↗</span></a
+              >
+              <a class="button button-quiet" href="/"
+                >Learn about DealDrop <span aria-hidden="true">→</span></a
+              >
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="public-room-footer">
+      <a class="public-room-brand" href="/" aria-label="DealDrop home">
+        <span class="public-room-brand-mark" aria-hidden="true">D</span>
+        <span>Deal<span>Drop</span></span>
+      </a>
+      <span>Never miss the perfect deal.</span>
+      <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+    </footer>
+
+    <script src="/site-config.js"></script>
+    <script>
+      window.__DEALDROP_PUBLIC_CREATOR__ = null;
+    </script>
+    <script src="/creator/creator.js"></script>
+  </body>
+</html>

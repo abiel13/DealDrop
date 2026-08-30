@@ -216,6 +216,15 @@ export const updateDealRoomSchema = z
   .strict()
   .refine((input) => Object.keys(input).length > 0, "At least one room field is required.");
 
+export const upsertCreatorProfileSchema = z
+  .object({
+    displayName: z.string().trim().min(2).max(80),
+    avatarUrl: productCapturePublicUrl.nullable().optional(),
+    bio: z.string().trim().max(240).nullable().optional(),
+    isPublic: z.boolean().optional().default(true),
+  })
+  .strict();
+
 export const createDealRoomItemSchema = z
   .object({
     itemType: z.enum([

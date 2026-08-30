@@ -17,6 +17,7 @@ The routes are:
 - `/terms`
 - `/support`
 - `/deal-room/<public-slug>`
+- `/creator/<public-slug>`
 
 ## Cloudflare Pages
 
@@ -27,11 +28,12 @@ Create a separate Cloudflare Pages project connected to this repository with:
 - Build command: leave blank (or use `exit 0` if the UI requires a command)
 - Build output directory: `/`
 
-Cloudflare Pages Functions in `functions/` render public Deal Room metadata and seed the page with
-the public room response. Add a Pages environment variable named `DEALDROP_API_URL` containing the
-deployed API base URL, for example `https://api.example.com/api/v1`, before publishing room links.
-The API must allow the website origin in its exact `SERVER_ALLOWED_ORIGINS` value. The function only
-requests the unauthenticated public Deal Room endpoint; it never receives a user token.
+Cloudflare Pages Functions in `functions/` render public Deal Room and creator-profile metadata and
+seed each page with its public API response. Add a Pages environment variable named
+`DEALDROP_API_URL` containing the deployed API base URL, for example
+`https://api.example.com/api/v1`, before publishing room or creator links. The API must allow the
+website origin in its exact `SERVER_ALLOWED_ORIGINS` value. These functions only request
+unauthenticated public endpoints; they never receive a user token.
 
 The custom domain should only be attached after the Pages deployment is healthy. This site does not configure DNS, publish legal approval, or assume that `https://api.get-deal-drop.com/api/v1` exists.
 

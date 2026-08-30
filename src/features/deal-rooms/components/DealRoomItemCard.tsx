@@ -17,6 +17,8 @@ interface DealRoomItemCardProps {
   onMoveDown: () => void;
   onRemove: () => void;
   canRemove: boolean;
+  canReplace: boolean;
+  onReplace: () => void;
   canVote: boolean;
   canShortlist: boolean;
   onVote: () => void;
@@ -34,6 +36,8 @@ export function DealRoomItemCard({
   onMoveDown,
   onRemove,
   canRemove,
+  canReplace,
+  onReplace,
   canVote,
   canShortlist,
   onVote,
@@ -110,21 +114,22 @@ export function DealRoomItemCard({
         </View>
       </Pressable>
 
-      <View className="flex-row items-center justify-between gap-2 border-t border-border pt-3">
-        <View className="flex-row gap-2">
-          <ItemAction
-            label="Move up"
-            icon="sort"
-            disabled={disabled || !canMoveUp}
-            onPress={onMoveUp}
-          />
-          <ItemAction
-            label="Move down"
-            icon="sort"
-            disabled={disabled || !canMoveDown}
-            onPress={onMoveDown}
-          />
-        </View>
+      <View className="flex-row flex-wrap items-center gap-2 border-t border-border pt-3">
+        <ItemAction
+          label="Move up"
+          icon="sort"
+          disabled={disabled || !canMoveUp}
+          onPress={onMoveUp}
+        />
+        <ItemAction
+          label="Move down"
+          icon="sort"
+          disabled={disabled || !canMoveDown}
+          onPress={onMoveDown}
+        />
+        {canReplace && (
+          <ItemAction label="Replace" icon="refresh" disabled={disabled} onPress={onReplace} />
+        )}
         <ItemAction
           label="Remove"
           icon="delete"
@@ -146,7 +151,7 @@ function ItemAction({
   selected = false,
 }: {
   label: string;
-  icon: "check" | "delete" | "info" | "sort" | "star";
+  icon: "check" | "delete" | "info" | "refresh" | "sort" | "star";
   disabled: boolean;
   onPress: () => void;
   destructive?: boolean;

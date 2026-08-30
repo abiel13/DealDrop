@@ -28,6 +28,8 @@ export default function AppLayout() {
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen name="deal-room/[id]" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="creator-profile" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="creator/[slug]" options={{ animation: "slide_from_right" }} />
       <Stack.Screen
         name="sourcing-list/[id]/import"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
