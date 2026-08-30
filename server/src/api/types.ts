@@ -254,6 +254,7 @@ export interface ApiDealRoomItem {
 
 export interface ApiDealRoom {
   id: string;
+  publicSlug: string;
   name: string;
   description: string | null;
   coverImageUrl: string | null;
@@ -264,6 +265,25 @@ export interface ApiDealRoom {
   items: ApiDealRoomItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ApiPublicDealRoomItem {
+  title: string;
+  imageUrl: string | null;
+  currentPrice: number | null;
+  currency: string | null;
+  availability: ApiDealRoomItemAvailability;
+  source: MarketplaceSource | null;
+  url: string | null;
+}
+
+export interface ApiPublicDealRoom {
+  publicSlug: string;
+  name: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  ownerDisplayName: string | null;
+  items: ApiPublicDealRoomItem[];
 }
 
 export interface ApiDealRoomInput {
@@ -922,6 +942,7 @@ export interface RawApiDealRoomItem {
 
 export interface RawApiDealRoom {
   id: string;
+  public_slug: string;
   user_id: string;
   name: string;
   description: string | null;
@@ -933,6 +954,15 @@ export interface RawApiDealRoom {
   items: RawApiDealRoomItem[];
   created_at: string;
   updated_at: string;
+}
+
+export interface RawApiPublicDealRoom {
+  public_slug: string;
+  name: string;
+  description: string | null;
+  cover_image_url: string | null;
+  owner_display_name: string | null;
+  items: RawApiDealRoomItem[];
 }
 
 export interface RawApiDealRoomMember {

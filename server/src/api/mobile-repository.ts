@@ -60,6 +60,7 @@ import type {
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
   RawApiDealRoom,
+  RawApiPublicDealRoom,
   RawApiDealRoomActivity,
   RawApiDealRoomComment,
   RawApiDealRoomMember,
@@ -93,7 +94,7 @@ const SUPPLIER_HISTORY_COLUMNS =
 const PRODUCT_CAPTURE_COLUMNS =
   "id,user_id,capture_source,url,raw_text,barcode,barcode_format,image_reference,country,preferred_currency,status,normalized_product,candidate_products,missing_fields,failure_reason,created_at,updated_at,processed_at";
 const DEAL_ROOM_COLUMNS =
-  "id,user_id,name,description,cover_image_url,visibility,created_at,updated_at";
+  "id,user_id,public_slug,name,description,cover_image_url,visibility,created_at,updated_at";
 const DEAL_ROOM_ITEM_COLUMNS =
   "id,room_id,item_type,product_identity_id,listing_id,watchlist_id,is_shortlisted,shortlisted_at,shortlisted_by,sort_order,created_at,updated_at";
 const DEAL_ROOM_MEMBER_COLUMNS = "user_id,role,created_at";
@@ -187,6 +188,7 @@ export interface MobileApiRepositoryContract {
   getWorkspaceMembers(userId: string, workspaceId: string): Promise<RawApiWorkspaceMember[]>;
   getDealRooms(userId: string): Promise<RawApiDealRoom[]>;
   getDealRoom(userId: string | null, roomId: string): Promise<RawApiDealRoom | null>;
+  getPublicDealRoom(publicSlug: string): Promise<RawApiPublicDealRoom | null>;
   createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom>;
   updateDealRoom(
     userId: string,
@@ -777,6 +779,48 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       },
       userId,
     );
+  }
+
+  async getPublicDealRoom(publicSlug: string): Promise<RawApiPublicDealRoom | null> {
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .select(DEAL_ROOM_COLUMNS)
+      .eq("public_slug", publicSlug)
+      .eq("visibility", "public")
+      .maybeSingle<DealRoomRow>();
+    if (error) {
+      throw error;
+    }
+    if (!data) return null;
+
+    const [room, owner] = await Promise.all([
+      this.withDealRoomItems(
+        {
+          ...data,
+          role: "viewer",
+          is_member: false,
+          member_count: 0,
+        },
+        null,
+      ),
+      this.client
+        .from("profiles")
+        .select("full_name")
+        .eq("id", data.user_id)
+        .maybeSingle<{ full_name: string | null }>(),
+    ]);
+    if (owner.error) {
+      throw owner.error;
+    }
+
+    return {
+      public_slug: room.public_slug,
+      name: room.name,
+      description: room.description,
+      cover_image_url: room.cover_image_url,
+      owner_display_name: owner.data?.full_name ?? null,
+      items: room.items,
+    };
   }
 
   async createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom> {

@@ -5,7 +5,7 @@ This checklist covers the controls required before exposing the DealDrop API to 
 ## Deployment configuration
 
 - Keep `SUPABASE_SERVICE_ROLE_KEY`, marketplace credentials, and provider tokens in the server secret store. They must never be placed in Expo public variables, returned in API responses, or logged.
-- Set `NODE_ENV=production` and configure `SERVER_ALLOWED_ORIGINS` with exact `http` or `https` origins only when a web client is deployed. The production default is an empty allowlist; native requests do not require an `Origin` header.
+- Set `NODE_ENV=production` and configure `SERVER_ALLOWED_ORIGINS` with exact `http` or `https` origins only when a web client is deployed. For public Deal Room pages, include the exact website origins `https://get-deal-drop.com` and any separately used `https://www.get-deal-drop.com` origin. The production default is an empty allowlist; native requests do not require an `Origin` header.
 - Leave `API_TRUST_PROXY=false` unless the server is behind a trusted proxy that replaces `X-Forwarded-For`. When enabled, the first forwarded address is used for IP throttling.
 - Review the `API_RATE_LIMIT_*`, `API_MAX_*`, and `API_REQUEST_TIMEOUT_MS` values for the deployment size. Application limits are per process, so a multi-replica deployment must also enforce equivalent limits at the load balancer, API gateway, or WAF.
 

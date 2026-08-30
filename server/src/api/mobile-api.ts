@@ -63,6 +63,8 @@ import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
   ApiDealRoom,
+  ApiPublicDealRoom,
+  ApiPublicDealRoomItem,
   ApiDealRoomActivity,
   ApiDealRoomComment,
   ApiDealRoomInvitation,
@@ -119,6 +121,7 @@ import type {
   RawApiSourcingNote,
   RawApiProductCapture,
   RawApiDealRoom,
+  RawApiPublicDealRoom,
   RawApiDealRoomActivity,
   RawApiDealRoomComment,
   RawApiDealRoomMember,
@@ -1271,12 +1274,12 @@ export class MobileApiService {
   }
 
   async getPublicDealRoom(roomId: string) {
-    const room = await this.dependencies.repository.getDealRoom(null, roomId);
+    const room = await this.dependencies.repository.getPublicDealRoom(roomId);
     if (!room) {
       throw new ApiNotFoundError("The public Deal Room was not found.");
     }
 
-    return toDealRoom(room);
+    return toPublicDealRoom(room);
   }
 
   async createDealRoom(userId: string, input: ApiDealRoomInput) {
@@ -1843,6 +1846,7 @@ function toSourcingNote(note: RawApiSourcingNote): ApiSourcingNote {
 function toDealRoom(room: RawApiDealRoom): ApiDealRoom {
   return {
     id: room.id,
+    publicSlug: room.public_slug,
     name: room.name,
     description: room.description,
     coverImageUrl: room.cover_image_url,
@@ -1853,6 +1857,30 @@ function toDealRoom(room: RawApiDealRoom): ApiDealRoom {
     items: room.items.map(toDealRoomItem),
     createdAt: room.created_at,
     updatedAt: room.updated_at,
+  };
+}
+
+function toPublicDealRoom(room: RawApiPublicDealRoom): ApiPublicDealRoom {
+  return {
+    publicSlug: room.public_slug,
+    name: room.name,
+    description: room.description,
+    coverImageUrl: room.cover_image_url,
+    ownerDisplayName: room.owner_display_name,
+    items: room.items.map(toPublicDealRoomItem),
+  };
+}
+
+function toPublicDealRoomItem(item: RawApiDealRoomItem): ApiPublicDealRoomItem {
+  const publicItem = toDealRoomItem(item);
+  return {
+    title: publicItem.title,
+    imageUrl: publicItem.imageUrl,
+    currentPrice: publicItem.currentPrice,
+    currency: publicItem.currency,
+    availability: publicItem.availability,
+    source: publicItem.source,
+    url: publicItem.url,
   };
 }
 

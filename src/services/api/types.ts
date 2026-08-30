@@ -564,6 +564,7 @@ export interface ApiDealRoomItem {
 
 export interface ApiDealRoom {
   id: string;
+  publicSlug: string;
   name: string;
   description: string | null;
   coverImageUrl: string | null;
@@ -574,6 +575,25 @@ export interface ApiDealRoom {
   items: ApiDealRoomItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ApiPublicDealRoomItem {
+  title: string;
+  imageUrl: string | null;
+  currentPrice: number | null;
+  currency: string | null;
+  availability: ApiDealRoomItemAvailability;
+  source: MarketplaceSource | null;
+  url: string | null;
+}
+
+export interface ApiPublicDealRoom {
+  publicSlug: string;
+  name: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  ownerDisplayName: string | null;
+  items: ApiPublicDealRoomItem[];
 }
 
 export interface ApiDealRoomInput {

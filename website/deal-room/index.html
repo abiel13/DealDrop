@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f0c1d" />
+    <meta
+      id="room-description-meta"
+      name="description"
+      content="A public DealDrop Deal Room collection."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DealDrop" />
+    <meta id="room-og-title" property="og:title" content="DealDrop Deal Room" />
+    <meta
+      id="room-og-description"
+      property="og:description"
+      content="Explore a public DealDrop collection."
+    />
+    <meta id="room-og-url" property="og:url" content="https://get-deal-drop.com/deal-room" />
+    <meta id="room-og-image" property="og:image" content="https://get-deal-drop.com/favicon.svg" />
+    <link id="room-canonical" rel="canonical" href="https://get-deal-drop.com/deal-room" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title id="room-document-title">DealDrop Deal Room</title>
+  </head>
+  <body class="public-room-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="public-room-header">
+      <div class="public-room-header-inner">
+        <a class="public-room-brand" href="/" aria-label="DealDrop home">
+          <span class="public-room-brand-mark" aria-hidden="true">D</span>
+          <span>Deal<span>Drop</span></span>
+        </a>
+        <span class="public-room-header-note">Shared Deal Room</span>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section id="room-loading" class="public-room-state" aria-live="polite">
+        <div class="public-room-spinner" aria-hidden="true"></div>
+        <p class="eyebrow eyebrow-purple">DealDrop</p>
+        <h1>Loading this Deal Room…</h1>
+        <p>Getting the collection ready.</p>
+      </section>
+
+      <section id="room-error" class="public-room-state is-hidden" aria-live="assertive">
+        <p class="eyebrow eyebrow-purple">DealDrop</p>
+        <h1 id="room-error-title">This Deal Room is unavailable</h1>
+        <p id="room-error-copy">
+          The link may be private, expired, or no longer available. You can still explore DealDrop
+          from the homepage.
+        </p>
+        <a class="button button-dark" href="/">Visit DealDrop <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <div id="room-view" class="is-hidden">
+        <section class="public-room-hero">
+          <div class="public-room-hero-inner">
+            <div class="public-room-kicker"><span></span> A DealDrop collection</div>
+            <h1 id="room-name">Deal Room</h1>
+            <p id="room-description" class="public-room-description is-hidden"></p>
+            <p id="room-owner" class="public-room-owner is-hidden"></p>
+            <div class="public-room-actions">
+              <a
+                class="button button-primary"
+                href="dealdrop://deal-rooms"
+                data-deal-room-action
+                data-deep-link="dealdrop://deal-rooms"
+                >Open in DealDrop <span aria-hidden="true">↗</span></a
+              >
+              <a class="button button-quiet" href="#room-items"
+                >Explore products <span aria-hidden="true">↓</span></a
+              >
+            </div>
+            <p id="room-app-note" class="public-room-app-note"></p>
+          </div>
+        </section>
+
+        <section id="room-items" class="public-room-items-section">
+          <div class="public-room-section-heading">
+            <div>
+              <p class="eyebrow eyebrow-purple">The collection</p>
+              <h2 id="room-items-heading">Products worth a closer look</h2>
+            </div>
+            <span id="room-item-count" class="public-room-count"></span>
+          </div>
+          <div id="room-items-list" class="public-room-items"></div>
+        </section>
+
+        <section class="public-room-cta section-dark">
+          <div class="public-room-cta-inner">
+            <p class="eyebrow">Keep the search moving</p>
+            <h2>Save a product or create your own room.</h2>
+            <p>DealDrop keeps the products and deals you care about close at hand.</p>
+            <div class="public-room-actions">
+              <a
+                class="button button-primary"
+                href="dealdrop://deal-room-form"
+                data-deal-room-action
+                data-deep-link="dealdrop://deal-room-form"
+                >Create your own Deal Room <span aria-hidden="true">↗</span></a
+              >
+              <a class="button button-quiet" href="/"
+                >Learn about DealDrop <span aria-hidden="true">→</span></a
+              >
+            </div>
+            <p id="room-cta-note" class="public-room-app-note"></p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="public-room-footer">
+      <a class="public-room-brand" href="/" aria-label="DealDrop home">
+        <span class="public-room-brand-mark" aria-hidden="true">D</span>
+        <span>Deal<span>Drop</span></span>
+      </a>
+      <span>Never miss the perfect deal.</span>
+      <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+    </footer>
+
+    <script src="/site-config.js"></script>
+    <script>
+      window.__DEALDROP_PUBLIC_ROOM__ = null;
+    </script>
+    <script src="/deal-room/deal-room.js"></script>
+  </body>
+</html>

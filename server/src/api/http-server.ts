@@ -183,7 +183,7 @@ async function handleRequest(
       routeSegments[0] === "deal-rooms" &&
       routeSegments[1] === "public"
     ) {
-      assertResourceId(routeSegments[2]!);
+      assertPublicDealRoomSlug(routeSegments[2]!);
       const publicApi = options.mobileApi ?? createMobileApi(options, logger);
       sendSuccess(response, requestId, await publicApi.getPublicDealRoom(routeSegments[2]!));
       return;
@@ -1234,6 +1234,16 @@ function toApiError(error: unknown): ApiError {
 function assertResourceId(value: string) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
     throw new ApiError(400, "invalid_resource_id", "The resource ID is invalid.");
+  }
+}
+
+function assertPublicDealRoomSlug(value: string) {
+  if (!/^[a-f0-9]{24}$/.test(value)) {
+    throw new ApiError(
+      400,
+      "invalid_public_deal_room_slug",
+      "The public Deal Room link is invalid.",
+    );
   }
 }
 
