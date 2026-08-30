@@ -51,6 +51,27 @@ export interface MarketplaceListingRelevance {
   warnings: string[];
 }
 
+export type MarketplaceCostState = "known" | "estimated";
+
+export interface MarketplaceCostComponent {
+  amount: number;
+  currency: string;
+  state: MarketplaceCostState;
+}
+
+export interface MarketplaceDeliveredCost extends MarketplaceCostComponent {
+  includes: "all" | Array<"shipping" | "buyerFees" | "taxes" | "duties" | "otherCosts">;
+}
+
+export interface MarketplaceListingCost {
+  shipping?: MarketplaceCostComponent | null;
+  buyerFees?: MarketplaceCostComponent | null;
+  taxes?: MarketplaceCostComponent | null;
+  duties?: MarketplaceCostComponent | null;
+  otherCosts?: MarketplaceCostComponent | null;
+  delivered?: MarketplaceDeliveredCost | null;
+}
+
 export interface MarketplaceListing {
   source: MarketplaceSource;
   externalId: string;
@@ -69,6 +90,7 @@ export interface MarketplaceListing {
   postedAt: string | null;
   product?: MarketplaceProductMetadata;
   relevance?: MarketplaceListingRelevance;
+  cost?: MarketplaceListingCost;
   metadata?: Record<string, unknown>;
 }
 
@@ -113,6 +135,7 @@ export interface MarketplaceCapabilities {
   supportsOffers?: boolean;
   supportsMerchantFilters?: boolean;
   supportsDeliveryInformation?: boolean;
+  supportsDeliveredCost?: boolean;
 }
 
 export type MarketplaceErrorCategory =

@@ -174,6 +174,7 @@ export interface ApiMarketplaceCapabilities {
   supportsOffers?: boolean;
   supportsMerchantFilters?: boolean;
   supportsDeliveryInformation?: boolean;
+  supportsDeliveredCost?: boolean;
 }
 
 export interface ApiMarketplace {
@@ -650,6 +651,42 @@ export interface ApiSourcingActivity {
 export type ApiComparisonMatchMethod = "identifier" | "model_title" | "manual";
 export type ApiComparisonQualification = "qualifies" | "does_not_qualify" | "unknown";
 
+export interface ApiDeliveredCostComponent {
+  amount: number | null;
+  currency: string | null;
+  state: "known" | "estimated" | "unknown";
+  source: "marketplace" | "provider" | "user" | "unknown";
+  convertedAmount: number | null;
+  convertedCurrency: string | null;
+}
+
+export interface ApiDeliveredCost {
+  sourcePrice: ApiDeliveredCostComponent;
+  sourcePriceInCalculationCurrency: { amount: number; currency: string } | null;
+  calculationCurrency: string | null;
+  components: {
+    shipping: ApiDeliveredCostComponent;
+    buyerFees: ApiDeliveredCostComponent;
+    taxes: ApiDeliveredCostComponent;
+    duties: ApiDeliveredCostComponent;
+    otherCosts: ApiDeliveredCostComponent;
+  };
+  knownAdditionalCost: { amount: number; currency: string } | null;
+  estimatedDeliveredCost: { amount: number; currency: string } | null;
+  estimatedDeliveredUnitCost: { amount: number; currency: string } | null;
+  completeness: "complete" | "partial" | "currency_mismatch" | "unavailable";
+  missingComponents: string[];
+  isEstimate: boolean;
+  conversions: {
+    fromCurrency: string;
+    toCurrency: string;
+    rate: number;
+    observedAt: string;
+    source: string;
+  }[];
+  providerDeliveredCost: ApiDeliveredCostComponent | null;
+}
+
 export interface ApiComparisonOffer {
   source: MarketplaceSource;
   externalId: string;
@@ -667,6 +704,7 @@ export interface ApiComparisonOffer {
   shippingCurrency: string | null;
   landedUnitCost: number | null;
   landedUnitCostCurrency: string | null;
+  cost?: ApiDeliveredCost;
   condition: string | null;
   deliveryInformation: string | null;
   availability: string | null;
