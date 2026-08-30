@@ -1331,7 +1331,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
-      inviteUrl: `dealdrop://deal-room-invite?token=${encodeURIComponent(token)}`,
+      inviteUrl: `https://get-deal-drop.com/deal-room-invite?token=${encodeURIComponent(token)}`,
       expiresAt: invitation.expires_at,
     };
   }

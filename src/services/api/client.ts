@@ -46,6 +46,7 @@ import type {
   ApiSearchRequest,
   ApiSearchResult,
   ApiShoppingPreferences,
+  ApiShoppingPreferencesInput,
   ApiSourcingList,
   ApiSourcingListImportInput,
   ApiSourcingListImportResult,
@@ -623,7 +624,7 @@ export class DealDropApiClient {
     return this.request<ApiShoppingPreferences>("/preferences/shopping");
   }
 
-  async updateShoppingPreferences(preferences: ApiShoppingPreferences) {
+  async updateShoppingPreferences(preferences: ApiShoppingPreferencesInput) {
     return this.request<ApiShoppingPreferences>("/preferences/shopping", {
       method: "PATCH",
       body: preferences,

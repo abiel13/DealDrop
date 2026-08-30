@@ -10,4 +10,5 @@ export interface InputProps extends TextInputProps, VariantProps<typeof inputVar
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   className?: string;
+  inputClassName?: string;
 }

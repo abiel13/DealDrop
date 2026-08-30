@@ -17,23 +17,27 @@ The routes are:
 - `/terms`
 - `/support`
 - `/deal-room/<public-slug>`
+- `/deal-room-invite?token=<invitation-token>`
 - `/creator/<public-slug>`
 
-## Cloudflare Pages
+## Cloudflare Workers static assets
 
-Create a separate Cloudflare Pages project connected to this repository with:
+The repository's `website` directory is deployed by the `dealdrop` Worker service with:
 
 - Root directory: `website`
-- Framework preset: `None`
-- Build command: leave blank (or use `exit 0` if the UI requires a command)
-- Build output directory: `/`
+- Build command: none
+- Deploy command: `npx wrangler deploy`
 
-Cloudflare Pages Functions in `functions/` render public Deal Room and creator-profile metadata and
-seed each page with its public API response. Add a Pages environment variable named
-`DEALDROP_API_URL` containing the deployed API base URL, for example
-`https://api.example.com/api/v1`, before publishing room or creator links. The API must allow the
-website origin in its exact `SERVER_ALLOWED_ORIGINS` value. These functions only request
-unauthenticated public endpoints; they never receive a user token.
+`wrangler.jsonc` serves the directory as static assets and invokes `worker.js` for public Deal Room
+and creator-profile routes. The Worker renders the route metadata and seeds each page with its
+public API response. The source files in `functions/` are imported by that Worker and excluded from
+the public asset upload.
+
+The static invitation bridge at `/deal-room-invite` turns shared HTTPS invitation links into an app
+deep link with a store/site fallback. `DEALDROP_API_URL` is configured in `wrangler.jsonc` with the
+deployed API base URL. The API must allow the website origin in its exact `SERVER_ALLOWED_ORIGINS`
+value. These route handlers only request unauthenticated public endpoints; they never receive a
+user token.
 
 Public room merchant links use the API's `/merchant-links` redirect so clicks can be attributed to
 the room and creator context without exposing provider credentials. If no API URL is configured,

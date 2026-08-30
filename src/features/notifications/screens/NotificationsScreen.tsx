@@ -373,6 +373,7 @@ export function NotificationsScreen() {
           <View className="flex-row gap-3">
             <Input
               className="flex-1"
+              inputClassName="py-0"
               label="Starts"
               placeholder="22:00"
               value={schedulingDraft.quietHoursStart}
@@ -385,6 +386,7 @@ export function NotificationsScreen() {
             />
             <Input
               className="flex-1"
+              inputClassName="py-0"
               label="Ends"
               placeholder="07:00"
               value={schedulingDraft.quietHoursEnd}

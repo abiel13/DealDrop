@@ -29,7 +29,11 @@ import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
 import { supabase } from "@/lib/supabase";
 import { useTheme } from "@/providers/ThemeProvider";
 
-import type { ApiMarketplace, ApiShoppingPreferences } from "@/services/api";
+import type {
+  ApiMarketplace,
+  ApiShoppingPreferences,
+  ApiShoppingPreferencesInput,
+} from "@/services/api";
 
 import {
   deleteAccount,
@@ -126,7 +130,8 @@ export function ProfileScreen() {
     onError: () => setActionError("We couldn't update your name. Please try again."),
   });
   const shoppingPreferencesMutation = useMutation({
-    mutationFn: (preferences: ApiShoppingPreferences) => updateShoppingPreferences(preferences),
+    mutationFn: (preferences: ApiShoppingPreferencesInput) =>
+      updateShoppingPreferences(preferences),
     onSuccess: (preferences) => {
       queryClient.setQueryData(["shopping-preferences", user?.id], preferences);
       setShoppingDraft(preferences);
@@ -578,7 +583,7 @@ function ShoppingPreferencesEditor({
   marketplaces: ApiMarketplace[];
   saving: boolean;
   onChange: (preferences: ApiShoppingPreferences) => void;
-  onSave: (preferences: ApiShoppingPreferences) => void;
+  onSave: (preferences: ApiShoppingPreferencesInput) => void;
 }) {
   const theme = useTheme();
   const selectedMarketplaces =
@@ -674,7 +679,14 @@ function ShoppingPreferencesEditor({
         variant="secondary"
         loading={saving}
         disabled={saving || selectedMarketplaces.length === 0}
-        onPress={() => onSave({ ...preferences, preferredMarketplaces: selectedMarketplaces })}
+        onPress={() =>
+          onSave({
+            country: preferences.country,
+            preferredCurrency: preferences.preferredCurrency,
+            preferredMarketplaces: selectedMarketplaces,
+            willingToBuyInternationally: preferences.willingToBuyInternationally,
+          })
+        }
       >
         Save shopping preferences
       </Button>

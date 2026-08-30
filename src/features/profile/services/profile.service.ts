@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { ensureProfile } from "@/features/auth/services/auth.service";
 import { supabase } from "@/lib/supabase";
-import { apiClient, type ApiMarketplace, type ApiShoppingPreferences } from "@/services/api";
+import { apiClient, type ApiMarketplace, type ApiShoppingPreferencesInput } from "@/services/api";
 
 export interface ProfileRecord {
   id: string;
@@ -74,7 +74,7 @@ export async function getShoppingPreferences() {
   return response.data;
 }
 
-export async function updateShoppingPreferences(preferences: ApiShoppingPreferences) {
+export async function updateShoppingPreferences(preferences: ApiShoppingPreferencesInput) {
   const response = await apiClient.updateShoppingPreferences(preferences);
   return response.data;
 }

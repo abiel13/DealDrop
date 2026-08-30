@@ -1,2 +1,2 @@
-/deal-room/* /deal-room/index.html 200
-/creator/* /creator/index.html 200
+# Directory index handling is provided by Workers Static Assets.
+# Dynamic Deal Room and creator routes are handled by worker.js.

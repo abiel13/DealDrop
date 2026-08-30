@@ -32,6 +32,7 @@ export class EbayMarketplaceAdapter implements MarketplaceAdapter {
       supportsRadius: false,
       supportsCondition: true,
       supportsPagination: true,
+      supportsProductIdentifiers: true,
     };
   }
 

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers/ThemeProvider";
 import { KeyboardAwareFocusContext } from "../KeyboardAwareScrollView/keyboard-aware.context";
 
-import { InputProps } from "./Input.types";
+import type { InputProps } from "./Input.types";
 import { inputVariants } from "./Input.variants";
 
 export function Input({
@@ -15,6 +15,7 @@ export function Input({
   leftIcon,
   rightIcon,
   className,
+  inputClassName,
   editable = true,
   onBlur,
   onFocus,
@@ -40,7 +41,7 @@ export function Input({
         {leftIcon}
 
         <TextInput
-          className="flex-1 text-text"
+          className={cn("flex-1 text-text", inputClassName)}
           editable={editable}
           placeholderTextColor={theme.colors.textTertiary}
           onBlur={(event) => {

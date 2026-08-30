@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f0c1d" />
+    <meta
+      name="description"
+      content="Open a DealDrop Deal Room invitation and join the shared product collection."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>DealDrop Deal Room invitation</title>
+  </head>
+  <body class="public-room-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="public-room-header">
+      <div class="public-room-header-inner">
+        <a class="public-room-brand" href="/" aria-label="DealDrop home">
+          <span class="public-room-brand-mark" aria-hidden="true">D</span>
+          <span>Deal<span>Drop</span></span>
+        </a>
+        <span class="public-room-header-note">Deal Room invitation</span>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="public-room-state">
+        <p class="eyebrow eyebrow-purple">You’re invited</p>
+        <h1>Join a shared Deal Room.</h1>
+        <p>
+          Open this invitation in DealDrop to collaborate on products, compare options, and keep the
+          decision together.
+        </p>
+        <a id="invite-open" class="button button-dark" href="/"
+          >Open in DealDrop <span aria-hidden="true">↗</span></a
+        >
+        <p id="invite-note" class="public-room-app-note"></p>
+        <p id="invite-error" class="public-room-app-note is-hidden">
+          This invitation link is incomplete. Ask the owner to send a fresh link.
+        </p>
+      </section>
+    </main>
+
+    <footer class="public-room-footer">
+      <a class="public-room-brand" href="/" aria-label="DealDrop home">
+        <span class="public-room-brand-mark" aria-hidden="true">D</span>
+        <span>Deal<span>Drop</span></span>
+      </a>
+      <span>Never miss the perfect deal.</span>
+      <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+    </footer>
+
+    <script src="/site-config.js"></script>
+    <script src="/deal-room-invite/invite.js"></script>
+  </body>
+</html>

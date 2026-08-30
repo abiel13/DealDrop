@@ -31,7 +31,8 @@ export function DealRoomCollaboratorsCard({ room }: { room: DealRoom }) {
       setInviteError(null);
       void queryClient.invalidateQueries({ queryKey: ["deal-room-members", room.id] });
       void Share.share({
-        message: invitation.inviteUrl,
+        message: `Join ${room.name} on DealDrop:\n${invitation.inviteUrl}`,
+        url: invitation.inviteUrl,
         title: `Join ${room.name} on DealDrop`,
       }).catch((error: unknown) => setInviteError(getDealRoomErrorMessage(error)));
     },

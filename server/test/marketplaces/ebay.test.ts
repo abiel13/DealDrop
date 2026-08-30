@@ -117,6 +117,30 @@ test("builds eBay filters and pagination through the shared request model", () =
   );
 });
 
+test("passes product identifiers to eBay's GTIN search parameter", () => {
+  const request: MarketplaceSearchRequest = {
+    searchQuery: "012345678905",
+    filters: {},
+    productIdentifiers: [{ type: "upc", value: "012345678905" }],
+  };
+
+  const url = new URL(buildEbaySearchUrl(config, request));
+
+  assert.equal(url.searchParams.get("gtin"), "012345678905");
+  assert.equal(
+    new EbayMarketplaceAdapter(
+      {
+        async search() {
+          return { itemSummaries: [] };
+        },
+      },
+      config,
+      logger,
+    ).capabilities.supportsProductIdentifiers,
+    true,
+  );
+});
+
 test("searches through the common adapter and refreshes an expired token", async () => {
   const calls: string[] = [];
   const responses = [

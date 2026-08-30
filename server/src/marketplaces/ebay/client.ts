@@ -152,6 +152,12 @@ export function buildEbaySearchUrl(
     limit: String(Math.min(200, Math.max(1, request.pagination?.limit ?? config.pageSize))),
     offset: String(parseCursor(request.pagination?.cursor)),
   });
+  const identifier = request.productIdentifiers?.find(({ type }) =>
+    ["upc", "ean", "gtin", "isbn"].includes(type),
+  );
+  if (identifier) {
+    params.set("gtin", identifier.value);
+  }
   const filters = buildFilters(config, request.filters);
 
   if (filters.length > 0) {

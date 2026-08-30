@@ -112,14 +112,13 @@ export function BarcodeCaptureScreen() {
                 onBarcodeScanned={
                   hasScanned || captureMutation.isPending ? undefined : handleBarcodeScanned
                 }
-              >
-                <View pointerEvents="none" className="flex-1 items-center justify-center">
-                  <View className="h-52 w-[82%] rounded-3xl border-2 border-white" />
-                  <AppText className="absolute bottom-8 rounded-full bg-black/60 px-4 py-2 text-center text-white">
-                    Align the barcode inside the frame
-                  </AppText>
-                </View>
-              </CameraView>
+              />
+              <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
+                <View className="h-52 w-[82%] rounded-3xl border-2 border-white" />
+                <AppText className="absolute bottom-8 rounded-full bg-black/60 px-4 py-2 text-center text-white">
+                  Align the barcode inside the frame
+                </AppText>
+              </View>
             </View>
 
             {captureMutation.isPending && (

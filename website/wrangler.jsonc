@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dealdrop",
+  "main": "./worker.js",
+  "compatibility_date": "2026-08-28",
+  "observability": {
+    "enabled": true,
+  },
+  "vars": {
+    "DEALDROP_API_URL": "https://api.get-deal-drop.com/api/v1",
+  },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/deal-room", "/deal-room/*", "/creator", "/creator/*"],
+  },
+}

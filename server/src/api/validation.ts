@@ -670,8 +670,16 @@ export const notificationPreferencesSchema = z
     newMatchEnabled: z.boolean(),
     dealRoomUpdatesEnabled: z.boolean().optional(),
     quietHoursEnabled: z.boolean(),
-    quietHoursStart: z.string().trim().nullable(),
-    quietHoursEnd: z.string().trim().nullable(),
+    quietHoursStart: z
+      .string()
+      .trim()
+      .transform((value) => value || null)
+      .nullable(),
+    quietHoursEnd: z
+      .string()
+      .trim()
+      .transform((value) => value || null)
+      .nullable(),
     timezone: z.string().trim().min(1).max(100),
     dailyAlertLimit: z.number().int().min(1).max(100),
     weeklySummaryEnabled: z.boolean(),
@@ -727,7 +735,9 @@ export const shoppingPreferencesSchema = z
         message: "preferredMarketplaces must not contain duplicates.",
       }),
     willingToBuyInternationally: z.boolean(),
-    updatedAt: z.string().datetime().nullable().optional(),
+    // Older clients sent the read-only timestamp returned by GET. It is ignored
+    // by the update path, so accept and strip it for backwards compatibility.
+    updatedAt: z.unknown().optional(),
   })
   .strict()
   .transform(({ updatedAt: _updatedAt, ...preferences }) => preferences);

@@ -302,6 +302,39 @@ test("rejects invalid quiet hours and timezones", () => {
   );
 });
 
+test("normalizes empty quiet-hour fields when quiet hours are disabled", () => {
+  const preferences = parseBody(notificationPreferencesSchema, {
+    pushEnabled: true,
+    newMatchEnabled: true,
+    quietHoursEnabled: false,
+    quietHoursStart: "  ",
+    quietHoursEnd: "",
+    timezone: "UTC",
+    dailyAlertLimit: 10,
+    weeklySummaryEnabled: true,
+  });
+
+  assert.equal(preferences.quietHoursStart, null);
+  assert.equal(preferences.quietHoursEnd, null);
+});
+
+test("ignores a legacy shopping preference timestamp on update", () => {
+  const preferences = parseBody(shoppingPreferencesSchema, {
+    country: "NG",
+    preferredCurrency: "NGN",
+    preferredMarketplaces: [],
+    willingToBuyInternationally: false,
+    updatedAt: "2026-08-30 01:29:21+00",
+  });
+
+  assert.deepEqual(preferences, {
+    country: "NG",
+    preferredCurrency: "NGN",
+    preferredMarketplaces: [],
+    willingToBuyInternationally: false,
+  });
+});
+
 test("requires a future time when snoozing a watchlist", () => {
   const snoozedUntil = new Date(Date.now() + 60_000).toISOString();
   const parsed = parseBody(updateWatchlistSchema, {

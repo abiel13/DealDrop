@@ -1346,6 +1346,8 @@ export interface ApiShoppingPreferences {
   updatedAt: string | null;
 }
 
+export type ApiShoppingPreferencesInput = Omit<ApiShoppingPreferences, "updatedAt">;
+
 export type ApiProductEventName =
   | "account_activated"
   | "first_watchlist_created"
