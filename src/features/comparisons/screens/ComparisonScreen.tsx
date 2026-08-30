@@ -28,6 +28,7 @@ import type {
   ApiComparisonShortlist,
   ApiProductComparison,
 } from "@/services/api";
+import { buildMerchantLinkUrl } from "@/services/merchant-links";
 
 import {
   createComparisonManualGroup,
@@ -225,7 +226,13 @@ export function ComparisonScreen() {
               }
               onOpenOffer={(offer) => {
                 setLinkError(null);
-                void Linking.openURL(offer.url).catch(() => {
+                void Linking.openURL(
+                  buildMerchantLinkUrl({
+                    merchantUrl: offer.url,
+                    marketplace: offer.source,
+                    listingId: offer.listingId,
+                  }),
+                ).catch(() => {
                   setLinkError("This source link could not be opened.");
                 });
               }}

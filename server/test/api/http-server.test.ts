@@ -6,6 +6,12 @@ import test from "node:test";
 import { createHttpServer } from "../../src/api/http-server";
 import type { MarketplaceAdapter } from "../../src/marketplaces/shared/adapter";
 import { MARKETPLACE_IDS } from "../../src/marketplaces/shared/types";
+import { MerchantLinkService } from "../../src/merchant-links/service";
+import type {
+  MerchantAttributionRecorder,
+  MerchantLinkClickEvent,
+  PublicPageOpenedEvent,
+} from "../../src/merchant-links/types";
 import { buildOperationalHealthSnapshot } from "../../src/operations/health";
 import type { WorkerLogger } from "../../src/types/backend";
 
@@ -14,6 +20,19 @@ const logger: WorkerLogger = {
   warn() {},
   error() {},
 };
+
+class AttributionRecorder implements MerchantAttributionRecorder {
+  clicks: MerchantLinkClickEvent[] = [];
+  pages: PublicPageOpenedEvent[] = [];
+
+  async recordMerchantLinkClicked(event: MerchantLinkClickEvent) {
+    this.clicks.push(event);
+  }
+
+  async recordPublicPageOpened(event: PublicPageOpenedEvent) {
+    this.pages.push(event);
+  }
+}
 
 test("GET /marketplaces exposes enabled adapters and capabilities", async () => {
   const ebayAdapter: MarketplaceAdapter = {
@@ -61,6 +80,49 @@ test("GET /marketplaces exposes enabled adapters and capabilities", async () => 
         ?.supportsPagination,
       true,
     );
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+
+test("merchant link route records clicks and redirects to the original URL by default", async () => {
+  const recorder = new AttributionRecorder();
+  const server = createHttpServer(logger, {
+    merchantLinkService: new MerchantLinkService({
+      recorder,
+      affiliates: {},
+      logger,
+    }),
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address() as AddressInfo;
+    const params = new URLSearchParams({
+      marketplace: MARKETPLACE_IDS.ebay,
+      url: "https://www.ebay.com/itm/123456789",
+      room: "0123456789abcdef01234567",
+      creator: "fedcba9876543210fedcba98",
+    });
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/merchant-links?${params.toString()}`,
+      { redirect: "manual" },
+    );
+
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "https://www.ebay.com/itm/123456789");
+    assert.equal(recorder.clicks.length, 1);
+    assert.equal(recorder.clicks[0]?.dealRoomSlug, "0123456789abcdef01234567");
+    assert.equal(recorder.clicks[0]?.creatorSlug, "fedcba9876543210fedcba98");
+
+    const invalidResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/merchant-links?marketplace=${MARKETPLACE_IDS.ebay}&url=${encodeURIComponent("https://example.com/not-ebay")}`,
+      { redirect: "manual" },
+    );
+    assert.equal(invalidResponse.status, 400);
   } finally {
     server.close();
     await once(server, "close");

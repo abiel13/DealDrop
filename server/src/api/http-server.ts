@@ -4,6 +4,9 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { getMarketplaceCatalog, type MarketplaceAdapterRegistry } from "../marketplaces/catalog";
 import { MarketplaceError } from "../marketplaces/shared/errors";
 import { MarketplaceSearchCoordinatorError } from "../marketplaces/search/errors";
+import { isMarketplaceSource } from "../merchant-links/policies";
+import { MerchantLinkValidationError } from "../merchant-links/service-errors";
+import type { MerchantLinkService } from "../merchant-links/service";
 import type { WorkerLogger } from "../types/backend";
 import type { ApiSupplierFilters } from "./types";
 import type { RequestAuthenticator } from "./auth";
@@ -78,6 +81,7 @@ export interface HttpServerOptions {
   repository?: MobileApiRepositoryContract;
   mobileApi?: MobileApiService;
   health?: HealthProvider;
+  merchantLinkService?: MerchantLinkService;
   security?: ApiSecurityOptions;
 }
 
@@ -178,6 +182,22 @@ async function handleRequest(
     }
 
     const routeSegments = path.slice(`${API_PREFIX}/`.length).split("/").filter(Boolean);
+    if (method === "GET" && routeSegments.length === 1 && routeSegments[0] === "merchant-links") {
+      const merchantLinkService = options.merchantLinkService;
+      if (!merchantLinkService) {
+        throw new ApiError(503, "merchant_links_unavailable", "Merchant links are not configured.");
+      }
+
+      const rateLimit = enforceRateLimit(rateLimiter, "general", security, [
+        `ip:${requestClientAddress(request, security.trustProxy)}`,
+      ]);
+      setRateLimitHeaders(response, rateLimit);
+      const resolution = await merchantLinkService.resolveAndRecord(parseMerchantLinkContext(url));
+      response.writeHead(302, { Location: resolution.destinationUrl });
+      response.end();
+      return;
+    }
+
     if (
       method === "GET" &&
       routeSegments.length === 3 &&
@@ -186,7 +206,14 @@ async function handleRequest(
     ) {
       assertPublicDealRoomSlug(routeSegments[2]!);
       const publicApi = options.mobileApi ?? createMobileApi(options, logger);
-      sendSuccess(response, requestId, await publicApi.getPublicDealRoom(routeSegments[2]!));
+      const publicSlug = routeSegments[2]!;
+      const room = await publicApi.getPublicDealRoom(publicSlug);
+      await options.merchantLinkService?.recordPublicPageOpened({
+        pageType: "deal_room",
+        pageSlug: publicSlug,
+        dealRoomSlug: publicSlug,
+      });
+      sendSuccess(response, requestId, room);
       return;
     }
 
@@ -198,7 +225,14 @@ async function handleRequest(
     ) {
       assertPublicCreatorSlug(routeSegments[2]!);
       const publicApi = options.mobileApi ?? createMobileApi(options, logger);
-      sendSuccess(response, requestId, await publicApi.getPublicCreatorProfile(routeSegments[2]!));
+      const publicSlug = routeSegments[2]!;
+      const creator = await publicApi.getPublicCreatorProfile(publicSlug);
+      await options.merchantLinkService?.recordPublicPageOpened({
+        pageType: "creator_profile",
+        pageSlug: publicSlug,
+        creatorSlug: publicSlug,
+      });
+      sendSuccess(response, requestId, creator);
       return;
     }
 
@@ -1272,6 +1306,10 @@ function toApiError(error: unknown): ApiError {
     });
   }
 
+  if (error instanceof MerchantLinkValidationError) {
+    return new ApiValidationError(error.message);
+  }
+
   return new ApiError(500, "internal_error", "An unexpected server error occurred.");
 }
 
@@ -1299,6 +1337,46 @@ function assertPublicCreatorSlug(value: string) {
       "The public creator profile link is invalid.",
     );
   }
+}
+
+function parseMerchantLinkContext(url: URL) {
+  const source = url.searchParams.get("marketplace")?.trim() ?? "";
+  const merchantUrl = url.searchParams.get("url")?.trim() ?? "";
+  if (!isMarketplaceSource(source)) {
+    throw new ApiValidationError("The selected marketplace is not supported.");
+  }
+  if (!merchantUrl) {
+    throw new ApiValidationError("A merchant URL is required.");
+  }
+
+  const roomSlug = optionalPublicSlug(url.searchParams.get("room"), "room");
+  const creatorSlug = optionalPublicSlug(url.searchParams.get("creator"), "creator");
+  const productIdentityId = optionalResourceId(url.searchParams.get("product"));
+  const listingId = optionalResourceId(url.searchParams.get("listing"));
+
+  return {
+    source,
+    merchantUrl,
+    dealRoomSlug: roomSlug,
+    creatorSlug,
+    productIdentityId,
+    listingId,
+  };
+}
+
+function optionalPublicSlug(value: string | null, parameter: string) {
+  const normalized = value?.trim() || null;
+  if (normalized && !/^[a-f0-9]{24}$/.test(normalized)) {
+    throw new ApiValidationError(`The ${parameter} attribution value is invalid.`);
+  }
+
+  return normalized;
+}
+
+function optionalResourceId(value: string | null) {
+  const normalized = value?.trim() || null;
+  if (normalized) assertResourceId(normalized);
+  return normalized;
 }
 
 function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {

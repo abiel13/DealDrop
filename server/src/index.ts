@@ -5,7 +5,9 @@ import { MobileApiRepository } from "./api/mobile-repository";
 import { loadServerConfig } from "./config/env";
 import { loadServerEnvironment } from "./config/load-env";
 import { createServerDatabaseClient } from "./database/client";
+import { MerchantAttributionRepository } from "./database/merchant-attribution-repository";
 import { errorContext, logger } from "./lib/logger";
+import { MerchantLinkService } from "./merchant-links/service";
 import { createSupabaseHealthProvider } from "./operations/health";
 import {
   createWatchlistMonitoringRuntime,
@@ -25,6 +27,13 @@ async function main() {
     requireAdapter: false,
   });
   const repository = new MobileApiRepository(databaseClient);
+  const merchantLinkService = new MerchantLinkService({
+    recorder: new MerchantAttributionRepository(databaseClient),
+    // Affiliate adapters are intentionally empty until DealDrop has approved
+    // participation and a provider-specific URL builder for a marketplace.
+    affiliates: {},
+    logger,
+  });
   const mobileApi = new MobileApiService({
     adapters: runtime.adapters,
     logger,
@@ -35,6 +44,7 @@ async function main() {
     authenticator: new SupabaseRequestAuthenticator(databaseClient),
     mobileApi,
     repository,
+    merchantLinkService,
     security: config.apiSecurity,
     health: createSupabaseHealthProvider({
       client: databaseClient,

@@ -197,7 +197,8 @@
     actions.className = "creator-collection-actions";
     var open = document.createElement("a");
     open.className = "button button-small button-dark";
-    open.href = "/deal-room/" + encodeURIComponent(room.publicSlug);
+    var roomParams = new URLSearchParams({ creator: creator.publicSlug });
+    open.href = "/deal-room/" + encodeURIComponent(room.publicSlug) + "?" + roomParams.toString();
     open.textContent = "Open collection ↗";
     actions.appendChild(open);
     var save = document.createElement("a");

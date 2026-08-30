@@ -84,6 +84,8 @@ test("public Deal Room endpoint resolves an opaque slug and strips private field
       ownerDisplayName: "Abiel",
       items: [
         {
+          productIdentityId: null,
+          listingId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
           title: "Compact camera",
           imageUrl: "https://images.example.test/camera.jpg",
           currentPrice: 249.99,

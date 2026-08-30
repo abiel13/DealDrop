@@ -35,6 +35,11 @@ seed each page with its public API response. Add a Pages environment variable na
 website origin in its exact `SERVER_ALLOWED_ORIGINS` value. These functions only request
 unauthenticated public endpoints; they never receive a user token.
 
+Public room merchant links use the API's `/merchant-links` redirect so clicks can be attributed to
+the room and creator context without exposing provider credentials. If no API URL is configured,
+the page keeps using the original merchant URL. Affiliate adapters are disabled until DealDrop has
+approved participation and a provider-specific server-side URL builder.
+
 The custom domain should only be attached after the Pages deployment is healthy. This site does not configure DNS, publish legal approval, or assume that `https://api.get-deal-drop.com/api/v1` exists.
 
 ## Configuration
