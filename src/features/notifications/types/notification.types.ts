@@ -21,6 +21,7 @@ export interface NotificationPage {
 export interface NotificationPreferences {
   push_enabled: boolean;
   new_match_enabled: boolean;
+  deal_room_updates_enabled: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;

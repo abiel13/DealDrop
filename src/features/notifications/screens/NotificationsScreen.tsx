@@ -150,9 +150,10 @@ export function NotificationsScreen() {
     );
   }
 
-  const preferences = preferencesQuery.data ?? {
+  const preferences: NotificationPreferences = preferencesQuery.data ?? {
     push_enabled: true,
     new_match_enabled: true,
+    deal_room_updates_enabled: true,
     quiet_hours_enabled: false,
     quiet_hours_start: null,
     quiet_hours_end: null,
@@ -321,6 +322,19 @@ export function NotificationsScreen() {
               value={preferences.new_match_enabled}
               disabled={!preferences.push_enabled || preferencesMutation.isPending}
               onValueChange={(value) => updatePreferences({ new_match_enabled: value })}
+            />
+          </View>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 pr-4">
+              <AppText variant="label">Deal Room updates</AppText>
+              <AppText variant="bodySmall">
+                Notify me when a shared room product changes price or availability.
+              </AppText>
+            </View>
+            <Switch
+              value={preferences.deal_room_updates_enabled}
+              disabled={!preferences.push_enabled || preferencesMutation.isPending}
+              onValueChange={(value) => updatePreferences({ deal_room_updates_enabled: value })}
             />
           </View>
           <View className="flex-row items-center justify-between">

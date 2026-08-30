@@ -228,6 +228,12 @@ export type ApiDealRoomRole = "owner" | "contributor" | "viewer";
 export type ApiDealRoomItemType =
   "product" | "saved_product" | "marketplace_listing" | "tracked_product" | "selected_deal";
 export type ApiDealRoomItemAvailability = "available" | "unavailable" | "unknown";
+export type ApiDealRoomLiveUpdateType =
+  | "initial"
+  | "price_changed"
+  | "availability_changed"
+  | "listing_unavailable"
+  | "better_alternative";
 
 export interface ApiDealRoomItem {
   id: string;
@@ -243,6 +249,16 @@ export interface ApiDealRoomItem {
   availability: ApiDealRoomItemAvailability;
   source: MarketplaceSource | null;
   url: string | null;
+  priceChange?: number | null;
+  priceChangePercent?: number | null;
+  priceChangedAt?: string | null;
+  availabilityChangedAt?: string | null;
+  lastUpdateType?: ApiDealRoomLiveUpdateType;
+  lastChangedAt?: string | null;
+  betterAlternativeSource?: MarketplaceSource | null;
+  betterAlternativePrice?: number | null;
+  betterAlternativeCurrency?: string | null;
+  betterAlternativeUrl?: string | null;
   watchlistName: string | null;
   isShortlisted: boolean;
   voteCount: number;
@@ -277,6 +293,16 @@ export interface ApiPublicDealRoomItem {
   availability: ApiDealRoomItemAvailability;
   source: MarketplaceSource | null;
   url: string | null;
+  priceChange?: number | null;
+  priceChangePercent?: number | null;
+  priceChangedAt?: string | null;
+  availabilityChangedAt?: string | null;
+  lastUpdateType?: ApiDealRoomLiveUpdateType;
+  lastChangedAt?: string | null;
+  betterAlternativeSource?: MarketplaceSource | null;
+  betterAlternativePrice?: number | null;
+  betterAlternativeCurrency?: string | null;
+  betterAlternativeUrl?: string | null;
 }
 
 export interface ApiPublicDealRoom {
@@ -823,6 +849,7 @@ export interface ApiNotification {
 export interface ApiNotificationPreferences {
   pushEnabled: boolean;
   newMatchEnabled: boolean;
+  dealRoomUpdatesEnabled?: boolean;
   quietHoursEnabled: boolean;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
@@ -958,6 +985,7 @@ export interface RawApiDealRoomItem {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  live_update?: RawApiDealRoomItemLiveUpdate | null;
   listing?: RawApiListing | null;
   current_listing?: RawApiListing | null;
   watchlist?: RawApiWatchlist | null;
@@ -965,6 +993,34 @@ export interface RawApiDealRoomItem {
     id: string;
     canonical_title: string;
   } | null;
+}
+
+export interface RawApiDealRoomItemLiveUpdate {
+  room_item_id: string;
+  listing_id: string | null;
+  product_identity_id: string | null;
+  title: string;
+  image_url: string | null;
+  current_price: number | string | null;
+  currency: string | null;
+  availability: ApiDealRoomItemAvailability;
+  source_marketplace_id: MarketplaceSource | null;
+  url: string | null;
+  better_alternative_listing_id: string | null;
+  better_alternative_source: MarketplaceSource | null;
+  better_alternative_price: number | string | null;
+  better_alternative_currency: string | null;
+  better_alternative_url: string | null;
+  previous_price: number | string | null;
+  price_change: number | string | null;
+  price_change_percent: number | string | null;
+  price_changed_at: string | null;
+  availability_changed_at: string | null;
+  last_update_type: ApiDealRoomLiveUpdateType;
+  last_changed_at: string | null;
+  last_notified_at: string | null;
+  last_notified_type: ApiDealRoomLiveUpdateType | null;
+  observed_at: string;
 }
 
 export interface RawApiDealRoom {

@@ -82,11 +82,40 @@ export function DealRoomItemCard({
             </AppText>
             <AppText
               variant="caption"
-              className={item.availability === "available" ? "text-primary" : "text-text-secondary"}
+              className={
+                item.availability === "available"
+                  ? "text-primary"
+                  : item.availability === "unavailable"
+                    ? "text-error"
+                    : "text-text-secondary"
+              }
             >
               {formatAvailability(item.availability)}
             </AppText>
           </View>
+          {item.lastUpdateType === "price_changed" &&
+            typeof item.priceChangePercent === "number" && (
+              <AppText
+                variant="caption"
+                className={
+                  typeof item.priceChange === "number" && item.priceChange < 0
+                    ? "text-primary"
+                    : "text-error"
+                }
+              >
+                {typeof item.priceChange === "number" && item.priceChange < 0
+                  ? "Price dropped "
+                  : "Price increased "}
+                {Math.abs(item.priceChangePercent * 100).toFixed(1)}% since the last meaningful
+                update
+              </AppText>
+            )}
+          {item.betterAlternativeSource && typeof item.betterAlternativePrice === "number" && (
+            <AppText variant="caption" className="text-primary">
+              Lower-priced alternative on {formatSource(item.betterAlternativeSource)}:{" "}
+              {formatPrice(item.betterAlternativePrice, item.betterAlternativeCurrency)}
+            </AppText>
+          )}
           <View className="flex-row flex-wrap items-center gap-2">
             {canVote && (
               <ItemAction
@@ -220,7 +249,7 @@ function formatSource(source: string) {
   return source.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function formatPrice(price: number | null, currency: string | null) {
+function formatPrice(price: number | null, currency: string | null | undefined) {
   if (price === null) {
     return "Price unavailable";
   }

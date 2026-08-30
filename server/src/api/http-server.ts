@@ -12,6 +12,7 @@ import type { ApiSupplierFilters } from "./types";
 import type { RequestAuthenticator } from "./auth";
 import {
   ApiConcurrencyError,
+  ApiAuthenticationError,
   ApiError,
   ApiNotFoundError,
   ApiRateLimitError,
@@ -83,6 +84,8 @@ export interface HttpServerOptions {
   health?: HealthProvider;
   merchantLinkService?: MerchantLinkService;
   security?: ApiSecurityOptions;
+  revenueCatWebhookAuthToken?: string;
+  revenueCatWebhookHandler?: (payload: unknown) => Promise<boolean>;
 }
 
 function json(
@@ -150,6 +153,23 @@ async function handleRequest(
     path = url.pathname;
     logger.info("HTTP request started", { method, path, requestId });
 
+    if (method === "POST" && path === `${API_PREFIX}/webhooks/revenuecat`) {
+      if (!options.revenueCatWebhookHandler || !options.revenueCatWebhookAuthToken) {
+        throw new ApiError(503, "webhook_unavailable", "RevenueCat webhooks are not configured.");
+      }
+
+      const authorization = request.headers.authorization;
+      if (authorization !== `Bearer ${options.revenueCatWebhookAuthToken}`) {
+        throw new ApiAuthenticationError("The RevenueCat webhook authorization is invalid.");
+      }
+
+      const handled = await options.revenueCatWebhookHandler(
+        await readJsonBody(request, security.maxBodyBytes),
+      );
+      json(response, 200, { received: true, handled });
+      return;
+    }
+
     if (method === "GET" && (path === "/health/live" || path === `${API_PREFIX}/health/live`)) {
       json(response, 200, createLivenessHealth());
       return;
@@ -208,11 +228,13 @@ async function handleRequest(
       const publicApi = options.mobileApi ?? createMobileApi(options, logger);
       const publicSlug = routeSegments[2]!;
       const room = await publicApi.getPublicDealRoom(publicSlug);
-      await options.merchantLinkService?.recordPublicPageOpened({
-        pageType: "deal_room",
-        pageSlug: publicSlug,
-        dealRoomSlug: publicSlug,
-      });
+      if (url.searchParams.get("refresh") !== "1") {
+        await options.merchantLinkService?.recordPublicPageOpened({
+          pageType: "deal_room",
+          pageSlug: publicSlug,
+          dealRoomSlug: publicSlug,
+        });
+      }
       sendSuccess(response, requestId, room);
       return;
     }
@@ -227,11 +249,13 @@ async function handleRequest(
       const publicApi = options.mobileApi ?? createMobileApi(options, logger);
       const publicSlug = routeSegments[2]!;
       const creator = await publicApi.getPublicCreatorProfile(publicSlug);
-      await options.merchantLinkService?.recordPublicPageOpened({
-        pageType: "creator_profile",
-        pageSlug: publicSlug,
-        creatorSlug: publicSlug,
-      });
+      if (url.searchParams.get("refresh") !== "1") {
+        await options.merchantLinkService?.recordPublicPageOpened({
+          pageType: "creator_profile",
+          pageSlug: publicSlug,
+          creatorSlug: publicSlug,
+        });
+      }
       sendSuccess(response, requestId, creator);
       return;
     }
@@ -484,6 +508,16 @@ async function routeProtectedRequest(
 
   if (method === "GET" && resource === "pro" && resourceId === "entitlement" && !action) {
     sendSuccess(response, requestId, await api.getProEntitlement(userId));
+    return;
+  }
+
+  if (
+    method === "POST" &&
+    resource === "pro" &&
+    resourceId === "entitlement" &&
+    action === "sync"
+  ) {
+    sendSuccess(response, requestId, await api.syncProEntitlement(userId));
     return;
   }
 

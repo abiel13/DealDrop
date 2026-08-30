@@ -218,6 +218,31 @@ test("records an exhausted source failure while completing unrelated monitoring"
   ]);
 });
 
+test("refreshes Deal Room state inside the existing monitoring run", async () => {
+  let refreshCalled = false;
+  const repository = createRepository([], {
+    async refreshDealRoomLiveUpdates(observedAt) {
+      refreshCalled = Boolean(observedAt);
+      return { rooms: 1, items: 2, changed: 1, notifications: 1 };
+    },
+  });
+
+  const result = await runWatchlistMonitoringWorker({
+    availableSources: [MARKETPLACE_IDS.ebay],
+    config,
+    coordinator: {
+      async search() {
+        return response(MARKETPLACE_IDS.ebay);
+      },
+    },
+    logger,
+    repository,
+  });
+
+  assert.equal(refreshCalled, true);
+  assert.equal(result.failures.length, 0);
+});
+
 function createRepository(
   watchlists: MarketplaceWatchlist[],
   overrides: Partial<WatchlistMonitoringRepository> = {},

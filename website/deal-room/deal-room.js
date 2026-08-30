@@ -102,6 +102,16 @@
     return "Availability unknown";
   }
 
+  function formatPriceChange(item) {
+    var percent = Number(item.priceChangePercent);
+    if (!Number.isFinite(percent) || percent === 0 || item.lastUpdateType !== "price_changed") {
+      return "";
+    }
+
+    var direction = percent < 0 ? "Price dropped " : "Price increased ";
+    return direction + Math.abs(percent * 100).toFixed(1) + "% since the last meaningful update";
+  }
+
   function getFallbackUrl() {
     if (config.appUrl) return config.appUrl;
     var agent = navigator.userAgent || "";
@@ -205,6 +215,26 @@
     availability.textContent = formatAvailability(item.availability);
     content.appendChild(availability);
 
+    var priceChange = formatPriceChange(item);
+    if (priceChange) {
+      var priceChangeCopy = document.createElement("p");
+      priceChangeCopy.className =
+        "public-room-item-change" + (Number(item.priceChange) < 0 ? " is-positive" : "");
+      priceChangeCopy.textContent = priceChange;
+      content.appendChild(priceChangeCopy);
+    }
+
+    if (item.betterAlternativeSource && item.betterAlternativePrice !== null) {
+      var alternative = document.createElement("p");
+      alternative.className = "public-room-item-change is-positive";
+      alternative.textContent =
+        "Lower-priced alternative on " +
+        formatSource(item.betterAlternativeSource) +
+        " · " +
+        formatPrice(item.betterAlternativePrice, item.betterAlternativeCurrency);
+      content.appendChild(alternative);
+    }
+
     if (item.recommendation && item.recommendation.decision) {
       var recommendation = document.createElement("p");
       recommendation.className = "public-room-item-recommendation";
@@ -280,6 +310,32 @@
     setHidden(error, false);
   }
 
+  function fetchRoom(slug, isRefresh) {
+    var apiUrl = getApiUrl();
+    var suffix = isRefresh ? "?refresh=1" : "";
+    return fetch(apiUrl + "/deal-rooms/public/" + encodeURIComponent(slug) + suffix, {
+      headers: { Accept: "application/json" },
+    }).then(function (response) {
+      if (response.status === 404) throw new Error("not_found");
+      if (!response.ok) throw new Error("unavailable");
+      return response.json();
+    });
+  }
+
+  function startLiveRefresh(slug) {
+    if (!getApiUrl()) return;
+    window.setInterval(function () {
+      if (document.visibilityState === "hidden") return;
+      fetchRoom(slug, true)
+        .then(function (payload) {
+          if (payload && payload.data) renderRoom(payload.data);
+        })
+        .catch(function () {
+          // Keep the last known room state visible when a background refresh is unavailable.
+        });
+    }, 60000);
+  }
+
   function loadRoom() {
     var slug = getSlug();
     if (!/^[a-f0-9]{24}$/.test(slug)) {
@@ -292,6 +348,7 @@
 
     if (initialRoom) {
       renderRoom(initialRoom);
+      startLiveRefresh(slug);
       return;
     }
 
@@ -304,17 +361,11 @@
       return;
     }
 
-    fetch(apiUrl + "/deal-rooms/public/" + encodeURIComponent(slug), {
-      headers: { Accept: "application/json" },
-    })
-      .then(function (response) {
-        if (response.status === 404) throw new Error("not_found");
-        if (!response.ok) throw new Error("unavailable");
-        return response.json();
-      })
+    fetchRoom(slug, false)
       .then(function (payload) {
         if (!payload || !payload.data) throw new Error("unavailable");
         renderRoom(payload.data);
+        startLiveRefresh(slug);
       })
       .catch(function (loadError) {
         if (loadError && loadError.message === "not_found") {

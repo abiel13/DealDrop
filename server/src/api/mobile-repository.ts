@@ -13,6 +13,7 @@ import {
 } from "../pricing/price-history";
 import { summarizeSourcingPriceHistory } from "../sourcing/price-history";
 import { PRO_FEATURES, PRO_LIMITS } from "./pro";
+import type { RevenueCatProEntitlement } from "../billing/revenuecat";
 import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiComparisonManualGroupInput,
@@ -68,6 +69,7 @@ import type {
   RawApiDealRoomComment,
   RawApiDealRoomMember,
   RawApiDealRoomItem,
+  RawApiDealRoomItemLiveUpdate,
   RawApiSupplier,
   RawApiSupplierShortlistHistory,
   RawApiWatchlist,
@@ -100,6 +102,8 @@ const DEAL_ROOM_COLUMNS =
   "id,user_id,public_slug,name,description,cover_image_url,visibility,created_at,updated_at";
 const DEAL_ROOM_ITEM_COLUMNS =
   "id,room_id,item_type,product_identity_id,listing_id,watchlist_id,is_shortlisted,shortlisted_at,shortlisted_by,sort_order,created_at,updated_at";
+const DEAL_ROOM_LIVE_STATE_COLUMNS =
+  "room_item_id,listing_id,product_identity_id,title,image_url,current_price,currency,availability,source_marketplace_id,url,better_alternative_listing_id,better_alternative_source,better_alternative_price,better_alternative_currency,better_alternative_url,previous_price,price_change,price_change_percent,price_changed_at,availability_changed_at,last_update_type,last_changed_at,last_notified_at,last_notified_type,observed_at";
 const DEAL_ROOM_MEMBER_COLUMNS = "user_id,role,created_at";
 const DEAL_ROOM_COMMENT_COLUMNS = "id,item_id,user_id,body,created_at,updated_at";
 const DEAL_ROOM_ACTIVITY_COLUMNS = "id,room_id,item_id,actor_id,event_type,metadata,created_at";
@@ -267,6 +271,10 @@ export interface MobileApiRepositoryContract {
   ): Promise<RawApiProductCapture | null>;
   getProductCapture?(userId: string, captureId: string): Promise<RawApiProductCapture | null>;
   getProEntitlement?(userId: string, workspaceId?: string): Promise<ApiProEntitlement>;
+  syncProSubscriptionEntitlement?(
+    userId: string,
+    entitlement: RevenueCatProEntitlement | null,
+  ): Promise<void>;
   createListingProblemReport(
     userId: string,
     requestId: string,
@@ -571,6 +579,71 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       features: [...PRO_FEATURES],
       limits: PRO_LIMITS,
     };
+  }
+
+  async syncProSubscriptionEntitlement(
+    userId: string,
+    entitlement: RevenueCatProEntitlement | null,
+  ): Promise<void> {
+    const { data: existing, error: existingError } = await this.client
+      .from("pro_entitlements")
+      .select("id")
+      .eq("user_id", userId)
+      .is("workspace_id", null)
+      .eq("plan", "pro")
+      .eq("source", "subscription")
+      .maybeSingle<{ id: string }>();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (!entitlement) {
+      if (!existing) {
+        return;
+      }
+
+      const { error } = await this.client
+        .from("pro_entitlements")
+        .update({ revoked_at: new Date().toISOString() })
+        .eq("id", existing.id);
+      if (error) {
+        throw error;
+      }
+      return;
+    }
+
+    const values = {
+      user_id: userId,
+      workspace_id: null,
+      plan: "pro",
+      source: "subscription",
+      starts_at: entitlement.startsAt,
+      expires_at: entitlement.expiresAt,
+      revoked_at: null,
+      metadata: {
+        provider: "revenuecat",
+        productIdentifier: entitlement.productIdentifier,
+        store: entitlement.store,
+        environment: entitlement.environment,
+      },
+    };
+
+    if (existing) {
+      const { error } = await this.client
+        .from("pro_entitlements")
+        .update(values)
+        .eq("id", existing.id);
+      if (error) {
+        throw error;
+      }
+      return;
+    }
+
+    const { error } = await this.client.from("pro_entitlements").insert(values);
+    if (error) {
+      throw error;
+    }
   }
 
   async getWorkspaces(userId: string): Promise<StoredWorkspace[]> {
@@ -3087,12 +3160,13 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     const { data, error } = await this.client
       .from("notification_preferences")
       .select(
-        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
+        "push_enabled,new_match_enabled,deal_room_updates_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
       )
       .eq("user_id", userId)
       .maybeSingle<{
         push_enabled: boolean;
         new_match_enabled: boolean;
+        deal_room_updates_enabled?: boolean;
         quiet_hours_enabled: boolean;
         quiet_hours_start: string | null;
         quiet_hours_end: string | null;
@@ -3107,6 +3181,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return {
       pushEnabled: data?.push_enabled ?? true,
       newMatchEnabled: data?.new_match_enabled ?? true,
+      dealRoomUpdatesEnabled: data?.deal_room_updates_enabled ?? true,
       quietHoursEnabled: data?.quiet_hours_enabled ?? false,
       quietHoursStart: data?.quiet_hours_start ?? null,
       quietHoursEnd: data?.quiet_hours_end ?? null,
@@ -3124,6 +3199,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
           user_id: userId,
           push_enabled: preferences.pushEnabled,
           new_match_enabled: preferences.newMatchEnabled,
+          deal_room_updates_enabled: preferences.dealRoomUpdatesEnabled ?? true,
           quiet_hours_enabled: preferences.quietHoursEnabled,
           quiet_hours_start: preferences.quietHoursStart,
           quiet_hours_end: preferences.quietHoursEnd,
@@ -3134,11 +3210,12 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         { onConflict: "user_id" },
       )
       .select(
-        "push_enabled,new_match_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
+        "push_enabled,new_match_enabled,deal_room_updates_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone,daily_alert_limit,weekly_summary_enabled",
       )
       .single<{
         push_enabled: boolean;
         new_match_enabled: boolean;
+        deal_room_updates_enabled: boolean;
         quiet_hours_enabled: boolean;
         quiet_hours_start: string | null;
         quiet_hours_end: string | null;
@@ -3153,6 +3230,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     return {
       pushEnabled: data.push_enabled,
       newMatchEnabled: data.new_match_enabled,
+      dealRoomUpdatesEnabled: data.deal_room_updates_enabled ?? true,
       quietHoursEnabled: data.quiet_hours_enabled,
       quietHoursStart: data.quiet_hours_start,
       quietHoursEnd: data.quiet_hours_end,
@@ -3466,18 +3544,30 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     }
 
     const itemIds = rows.map((row) => row.id);
-    const { data: votes, error: votesError } = await this.client
-      .from("deal_room_item_votes")
-      .select("item_id,user_id")
-      .in("item_id", itemIds)
-      .returns<Array<{ item_id: string; user_id: string }>>();
+    const [{ data: votes, error: votesError }, { data: liveUpdates, error: liveUpdateError }] =
+      await Promise.all([
+        this.client
+          .from("deal_room_item_votes")
+          .select("item_id,user_id")
+          .in("item_id", itemIds)
+          .returns<Array<{ item_id: string; user_id: string }>>(),
+        this.client
+          .from("deal_room_item_live_states")
+          .select(DEAL_ROOM_LIVE_STATE_COLUMNS)
+          .in("room_item_id", itemIds)
+          .returns<RawApiDealRoomItemLiveUpdate[]>(),
+      ]);
     if (votesError) throw votesError;
+    if (liveUpdateError) throw liveUpdateError;
     const votesByItem = new Map<string, Array<{ user_id: string }>>();
     for (const vote of votes ?? []) {
       const itemVotes = votesByItem.get(vote.item_id) ?? [];
       itemVotes.push(vote);
       votesByItem.set(vote.item_id, itemVotes);
     }
+    const liveUpdateByItemId = new Map(
+      (liveUpdates ?? []).map((liveUpdate) => [liveUpdate.room_item_id, liveUpdate]),
+    );
 
     const listingIds = [
       ...new Set(rows.flatMap((row) => (row.listing_id ? [row.listing_id] : []))),
@@ -3604,6 +3694,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       product_identity: row.product_identity_id
         ? (identityById.get(row.product_identity_id) ?? null)
         : null,
+      live_update: liveUpdateByItemId.get(row.id) ?? null,
     }));
   }
 

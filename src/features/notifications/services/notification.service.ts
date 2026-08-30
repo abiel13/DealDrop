@@ -21,6 +21,7 @@ import type {
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   push_enabled: true,
   new_match_enabled: true,
+  deal_room_updates_enabled: true,
   quiet_hours_enabled: false,
   quiet_hours_start: null,
   quiet_hours_end: null,
@@ -47,6 +48,7 @@ function toPreferences(preferences: ApiNotificationPreferences): NotificationPre
   return {
     push_enabled: preferences.pushEnabled,
     new_match_enabled: preferences.newMatchEnabled,
+    deal_room_updates_enabled: preferences.dealRoomUpdatesEnabled ?? true,
     quiet_hours_enabled: preferences.quietHoursEnabled,
     quiet_hours_start: preferences.quietHoursStart,
     quiet_hours_end: preferences.quietHoursEnd,
@@ -82,6 +84,7 @@ export async function updateNotificationPreferences(preferences: NotificationPre
   const response = await apiClient.updateNotificationPreferences({
     pushEnabled: preferences.push_enabled,
     newMatchEnabled: preferences.new_match_enabled,
+    dealRoomUpdatesEnabled: preferences.deal_room_updates_enabled,
     quietHoursEnabled: preferences.quiet_hours_enabled,
     quietHoursStart: preferences.quiet_hours_start,
     quietHoursEnd: preferences.quiet_hours_end,
