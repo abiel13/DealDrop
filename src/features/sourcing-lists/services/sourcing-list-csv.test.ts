@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ApiSourcingList } from "@/services/api";
+import type { ApiSourcingList, ApiSourcingSummary } from "@/services/api";
 
 import {
   buildSourcingCsvReport,
   createSourcingListCsv,
+  createSourcingSummaryCsv,
   createSourcingListCsvTemplate,
   fingerprintCsv,
   parseSourcingListCsv,
@@ -73,6 +74,8 @@ test("exports a sourcing list and a reusable CSV template", () => {
     workspaceId: "workspace-1",
     name: "Camera restock",
     status: "active",
+    targetBudget: null,
+    targetBudgetCurrency: null,
     products: [
       {
         id: "product-1",
@@ -112,6 +115,8 @@ test("exports a sourcing list and a reusable CSV template", () => {
         marketplaceIds: ["ebay"],
         notes: "Include a case",
         requiredBy: null,
+        assignedTo: null,
+        workflowStatus: "searching",
         createdAt: "2026-08-01T00:00:00.000Z",
         updatedAt: "2026-08-01T00:00:00.000Z",
       },
@@ -135,4 +140,50 @@ test("exports a sourcing list and a reusable CSV template", () => {
   assert.match(template, /Example camera tripod/);
   assert.equal(fingerprintCsv(exported), fingerprintCsv(exported));
   assert.notEqual(fingerprintCsv(exported), fingerprintCsv(template));
+});
+
+test("exports selected sourcing results with explicit cost fields", () => {
+  const summary: ApiSourcingSummary = {
+    totalProductsRequested: 1,
+    productsWithQualifyingResults: 1,
+    productsStillBeingSearched: 0,
+    productsShortlisted: 1,
+    productsCompleted: 0,
+    totalRequestedQuantity: 4,
+    currentEstimatedSourcingCost: 100,
+    currentEstimatedSourcingCostCurrency: "USD",
+    targetBudget: 120,
+    targetBudgetCurrency: "USD",
+    budgetVariance: 20,
+    potentialSavings: 20,
+    costDataComplete: true,
+    unknownCostProducts: 0,
+    currencyMismatch: false,
+    exportRows: [
+      {
+        sourcingListProductId: "product-1",
+        sku: "TRIPOD-1",
+        product: "Camera, tripod",
+        quantity: 4,
+        selectedSupplier: "Example seller",
+        marketplace: "ebay",
+        unitCost: 25,
+        unitCostCurrency: "USD",
+        estimatedLandedCost: null,
+        estimatedLandedCostCurrency: null,
+        totalCost: 100,
+        totalCostCurrency: "USD",
+        url: "https://example.com/offer",
+        status: "shortlisted",
+        notes: "Include a case",
+        costBasis: "unit_price",
+        isEstimate: true,
+      },
+    ],
+  };
+
+  const exported = createSourcingSummaryCsv(summary);
+  assert.match(exported, /selected supplier,marketplace,unit cost/);
+  assert.match(exported, /TRIPOD-1,\"Camera, tripod\",4,Example seller,ebay,25,USD/);
+  assert.match(exported, /https:\/\/example\.com\/offer,shortlisted,Include a case,unit_price,yes/);
 });

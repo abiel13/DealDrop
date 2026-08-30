@@ -1,16 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { KeyboardAwareFocusContext } from "./keyboard-aware.context";
 import {
-  findNodeHandle,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  UIManager,
   type KeyboardAvoidingViewProps,
   type ScrollViewProps,
 } from "react-native";
-
-type LayoutHandler = NonNullable<ScrollViewProps["onLayout"]>;
 
 export interface KeyboardAwareScrollViewProps extends ScrollViewProps {
   behavior?: KeyboardAvoidingViewProps["behavior"];
@@ -19,51 +16,39 @@ export interface KeyboardAwareScrollViewProps extends ScrollViewProps {
   keyboardVerticalOffset?: number;
 }
 
-export function useKeyboardAwareFocus(
-  getScrollableNode: () => number | null,
-  scrollTo: (offset: number) => void,
-) {
-  const viewportHeight = useRef(0);
+export function useKeyboardAwareFocus(scrollToFocusedInput: (target: number) => void) {
   const focusedTarget = useRef<number | null>(null);
   const focusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (focusTimeout.current) {
-        clearTimeout(focusTimeout.current);
-      }
-    };
-  }, []);
-
-  function scheduleScroll() {
+  const scheduleScroll = useCallback(() => {
     if (focusTimeout.current) {
       clearTimeout(focusTimeout.current);
     }
 
-    focusTimeout.current = setTimeout(measureFocusedInput, 120);
-  }
+    focusTimeout.current = setTimeout(() => {
+      const target = focusedTarget.current;
+      if (target) {
+        scrollToFocusedInput(target);
+      }
+    }, 160);
+  }, [scrollToFocusedInput]);
 
-  function measureFocusedInput() {
-    const target = focusedTarget.current;
-    const scrollableNode = getScrollableNode();
-    const height = viewportHeight.current;
-    if (!target || !scrollableNode || !height) return;
-
-    UIManager.measureLayout(
-      target,
-      scrollableNode,
-      () => undefined,
-      (_left, top, _width, inputHeight) => {
-        const margin = 32;
-        const visibleBottom = height - margin;
-        if (top < margin) {
-          scrollTo(Math.max(0, top - margin));
-        } else if (top + inputHeight > visibleBottom) {
-          scrollTo(Math.max(0, top - height + inputHeight + margin));
-        }
-      },
+  useEffect(() => {
+    const keyboardEvents =
+      Platform.OS === "ios"
+        ? (["keyboardDidShow", "keyboardDidChangeFrame"] as const)
+        : (["keyboardDidShow"] as const);
+    const subscriptions = keyboardEvents.map((eventName) =>
+      Keyboard.addListener(eventName, scheduleScroll),
     );
-  }
+
+    return () => {
+      subscriptions.forEach((subscription) => subscription.remove());
+      if (focusTimeout.current) {
+        clearTimeout(focusTimeout.current);
+      }
+    };
+  }, [scheduleScroll]);
 
   const onFocus = (target: number) => {
     if (!target) return;
@@ -78,14 +63,7 @@ export function useKeyboardAwareFocus(
     }
   };
 
-  const onLayout: LayoutHandler = (event) => {
-    viewportHeight.current = event.nativeEvent.layout.height;
-    if (focusedTarget.current) {
-      scheduleScroll();
-    }
-  };
-
-  return { onBlur, onFocus, onLayout };
+  return { onBlur, onFocus };
 }
 
 export function KeyboardAwareScrollView({
@@ -97,9 +75,8 @@ export function KeyboardAwareScrollView({
   ...scrollViewProps
 }: KeyboardAwareScrollViewProps) {
   const scrollViewRef = useRef<ScrollView>(null);
-  const focusHandlers = useKeyboardAwareFocus(
-    () => findNodeHandle(scrollViewRef.current),
-    (offset) => scrollViewRef.current?.scrollTo({ y: offset, animated: true }),
+  const focusHandlers = useKeyboardAwareFocus((target) =>
+    scrollViewRef.current?.scrollResponderScrollNativeHandleToKeyboard(target, 32, true),
   );
 
   return (
@@ -114,10 +91,7 @@ export function KeyboardAwareScrollView({
           ref={scrollViewRef}
           className={className}
           contentContainerClassName={contentContainerClassName}
-          onLayout={(event) => {
-            focusHandlers.onLayout(event);
-            onLayout?.(event);
-          }}
+          onLayout={onLayout}
         />
       </KeyboardAvoidingView>
     </KeyboardAwareFocusContext.Provider>

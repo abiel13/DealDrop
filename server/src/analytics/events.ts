@@ -14,6 +14,9 @@ export const PRODUCT_EVENT_NAMES = [
   "watchlist_paused",
   "watchlist_resumed",
   "watchlist_completed",
+  "pro_upgrade_viewed",
+  "pro_upgrade_cta_tapped",
+  "pro_feature_used",
 ] as const;
 
 export type ProductEventName = (typeof PRODUCT_EVENT_NAMES)[number];
@@ -40,6 +43,9 @@ const PROPERTY_KEYS: Record<ProductEventName, readonly string[]> = {
   watchlist_paused: ["watchlistId"],
   watchlist_resumed: ["watchlistId"],
   watchlist_completed: ["watchlistId"],
+  pro_upgrade_viewed: ["surface"],
+  pro_upgrade_cta_tapped: ["surface"],
+  pro_feature_used: ["feature"],
 };
 
 const propertyValueSchema = z.union([

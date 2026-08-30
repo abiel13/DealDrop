@@ -1,5 +1,11 @@
 import { apiClient } from "@/services/api";
-import type { ApiSourcingPriceHistory } from "@/services/api";
+import type {
+  ApiSourcingActivity,
+  ApiSourcingListUpdateInput,
+  ApiSourcingNote,
+  ApiSourcingPriceHistory,
+  ApiSourcingSummary,
+} from "@/services/api";
 
 import type {
   SourcingList,
@@ -7,7 +13,6 @@ import type {
   SourcingListImportInput,
   SourcingListImportResult,
   SourcingListProductInput,
-  SourcingListStatus,
 } from "../types/sourcing-list.types";
 
 export async function getSourcingLists(workspaceId: string): Promise<SourcingList[]> {
@@ -23,6 +28,14 @@ export async function getSourcingList(
   return response.data;
 }
 
+export async function getSourcingSummary(
+  workspaceId: string,
+  sourcingListId: string,
+): Promise<ApiSourcingSummary> {
+  const response = await apiClient.getSourcingSummary(workspaceId, sourcingListId);
+  return response.data;
+}
+
 export async function createSourcingList(
   workspaceId: string,
   input: SourcingListInput,
@@ -34,7 +47,7 @@ export async function createSourcingList(
 export async function updateSourcingList(
   workspaceId: string,
   sourcingListId: string,
-  input: { name?: string; status?: SourcingListStatus },
+  input: ApiSourcingListUpdateInput,
 ): Promise<SourcingList> {
   const response = await apiClient.updateSourcingList(workspaceId, sourcingListId, input);
   return response.data;
@@ -67,6 +80,21 @@ export async function addSourcingListProduct(
   return response.data;
 }
 
+export async function updateSourcingListProduct(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  input: Partial<SourcingListProductInput>,
+): Promise<SourcingList> {
+  const response = await apiClient.updateSourcingListProduct(
+    workspaceId,
+    sourcingListId,
+    productId,
+    input,
+  );
+  return response.data;
+}
+
 export async function getSourcingProductPriceHistory(
   workspaceId: string,
   sourcingListId: string,
@@ -77,6 +105,43 @@ export async function getSourcingProductPriceHistory(
     sourcingListId,
     productId,
   );
+  return response.data;
+}
+
+export async function getSourcingActivity(
+  workspaceId: string,
+  sourcingListId: string,
+): Promise<ApiSourcingActivity[]> {
+  const response = await apiClient.getSourcingActivity(workspaceId, sourcingListId);
+  return response.data;
+}
+
+export async function getSourcingNotes(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  shortlistId?: string,
+): Promise<ApiSourcingNote[]> {
+  const response = await apiClient.getSourcingNotes(
+    workspaceId,
+    sourcingListId,
+    productId,
+    shortlistId,
+  );
+  return response.data;
+}
+
+export async function createSourcingNote(
+  workspaceId: string,
+  sourcingListId: string,
+  productId: string,
+  body: string,
+  comparisonShortlistId?: string,
+): Promise<ApiSourcingNote> {
+  const response = await apiClient.createSourcingNote(workspaceId, sourcingListId, productId, {
+    body,
+    comparisonShortlistId,
+  });
   return response.data;
 }
 

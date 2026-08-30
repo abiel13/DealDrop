@@ -5,6 +5,7 @@ import test from "node:test";
 
 import { createHttpServer } from "../../src/api/http-server";
 import { ApiAuthenticationError } from "../../src/api/errors";
+import { MobileApiService } from "../../src/api/mobile-api";
 import type {
   MobileApiRepositoryContract,
   Page,
@@ -13,8 +14,11 @@ import type {
   StoredMatch,
 } from "../../src/api/mobile-repository";
 import type {
+  ApiProductCaptureInput,
+  ApiProductCaptureStatusUpdate,
   RawApiListing,
   RawApiNotification,
+  RawApiProductCapture,
   RawApiSourcingList,
   RawApiWatchlist,
   RawApiWorkspace,
@@ -38,6 +42,89 @@ const logger: WorkerLogger = {
   warn() {},
   error() {},
 };
+
+test("product capture has one authenticated backend entry point and preserves its source", async () => {
+  let storedCapture: RawApiProductCapture | null = null;
+  const repository = {
+    async createProductCapture(userId: string, input: ApiProductCaptureInput) {
+      storedCapture = {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        user_id: userId,
+        capture_source: input.captureSource,
+        url: input.url ?? null,
+        raw_text: input.rawText ?? null,
+        barcode: input.barcode ?? null,
+        image_reference: input.imageReference ?? null,
+        country: input.country,
+        preferred_currency: input.preferredCurrency,
+        status: "processing",
+        normalized_product: null,
+        missing_fields: [],
+        failure_reason: null,
+        created_at: "2026-08-24T00:00:00.000Z",
+        updated_at: "2026-08-24T00:00:00.000Z",
+        processed_at: null,
+      };
+      return storedCapture;
+    },
+    async updateProductCapture(
+      _userId: string,
+      _captureId: string,
+      update: ApiProductCaptureStatusUpdate,
+    ) {
+      if (!storedCapture) return null;
+      storedCapture = {
+        ...storedCapture,
+        status: update.status,
+        normalized_product: update.normalizedProduct,
+        missing_fields: update.missingFields,
+        failure_reason: update.failureReason,
+        processed_at: update.processedAt,
+      };
+      return storedCapture;
+    },
+    async getProductCapture(userId: string, captureId: string) {
+      return storedCapture?.user_id === userId && storedCapture.id === captureId
+        ? storedCapture
+        : null;
+    },
+  } as unknown as MobileApiRepositoryContract;
+  const api = new MobileApiService({ adapters: {}, repository, logger });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    mobileApi: api,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const input = {
+      captureSource: "screenshot",
+      imageReference: "capture://image-1",
+      country: "NG",
+      preferredCurrency: "NGN",
+    } satisfies ApiProductCaptureInput;
+    const createResponse = await fetch(`${baseUrl}/api/v1/product-captures`, {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token", "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const createBody = (await createResponse.json()) as {
+      data: { captureSource: string; status: string; normalizedProduct: unknown };
+    };
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(createBody.data.captureSource, "screenshot");
+    assert.equal(createBody.data.status, "needs_confirmation");
+    assert.ok(createBody.data.normalizedProduct);
+
+    const getResponse = await fetch(`${baseUrl}/api/v1/product-captures/${storedCapture?.id}`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    assert.equal(getResponse.status, 200);
+  } finally {
+    await close(server);
+  }
+});
 
 test("protected mobile API endpoints require a valid Bearer token", async () => {
   const server = createHttpServer(logger, {
@@ -65,6 +152,59 @@ test("protected mobile API endpoints require a valid Bearer token", async () => 
     assert.equal(response.status, 401);
     assert.equal(body.error.code, "unauthorized");
     assert.ok(body.meta.requestId);
+  } finally {
+    await close(server);
+  }
+});
+
+test("Pro entitlement is readable while workspace APIs reject non-Pro access", async () => {
+  const repository = createRepository({
+    async getProEntitlement(userId, workspaceId) {
+      assert.equal(userId, USER_ID);
+      assert.equal(workspaceId, undefined);
+      return {
+        isPro: false,
+        plan: "free",
+        source: null,
+        startsAt: null,
+        expiresAt: null,
+        workspaceId: null,
+        features: [],
+        limits: null,
+      };
+    },
+  });
+  const server = createHttpServer(logger, {
+    authenticator: validAuthenticator,
+    repository,
+  });
+  const baseUrl = await listen(server);
+
+  try {
+    const entitlementResponse = await fetch(`${baseUrl}/api/v1/pro/entitlement`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const entitlementBody = (await entitlementResponse.json()) as {
+      data: { isPro: boolean; plan: string };
+    };
+    assert.equal(entitlementResponse.status, 200);
+    assert.deepEqual(entitlementBody.data, {
+      isPro: false,
+      plan: "free",
+      source: null,
+      startsAt: null,
+      expiresAt: null,
+      workspaceId: null,
+      features: [],
+      limits: null,
+    });
+
+    const workspaceResponse = await fetch(`${baseUrl}/api/v1/workspaces`, {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const workspaceBody = (await workspaceResponse.json()) as { error: { code: string } };
+    assert.equal(workspaceResponse.status, 403);
+    assert.equal(workspaceBody.error.code, "pro_required");
   } finally {
     await close(server);
   }
@@ -980,6 +1120,8 @@ function sourcingList(): RawApiSourcingList {
     created_by: USER_ID,
     name: "Q4 Phone Inventory",
     status: "active",
+    target_budget: "7200.00",
+    target_budget_currency: "USD",
     created_at: "2026-08-09T00:00:00.000Z",
     updated_at: "2026-08-09T00:00:00.000Z",
     products: [

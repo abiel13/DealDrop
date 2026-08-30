@@ -80,6 +80,7 @@
     "server:worker:watchlists:prod": "node server/dist/workers/watchlist-monitoring/cli.js",
     "worker:watchlists": "tsx server/src/workers/watchlist-monitoring/cli.ts",
     "verify:premium-config": "tsx scripts/verify-premium-config.ts",
+    "pro:grant-pilot": "tsx scripts/grant-pro-pilot.ts",
     "verify:production-config": "tsx scripts/verify-production-config.ts",
     "lint": "expo lint",
     "format": "prettier . --write",

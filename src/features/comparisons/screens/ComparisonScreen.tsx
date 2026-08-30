@@ -1,4 +1,4 @@
-import { Linking, Pressable, ScrollView, View } from "react-native";
+import { Linking, Pressable, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,13 +7,24 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
+import { createSupplier } from "@/features/suppliers/services/supplier.service";
+import {
+  createSourcingNote,
+  getSourcingNotes,
+} from "@/features/sourcing-lists/services/sourcing-list.service";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
-import type { ApiComparisonOffer, ApiProductComparison } from "@/services/api";
+import type {
+  ApiComparisonOffer,
+  ApiComparisonShortlist,
+  ApiProductComparison,
+} from "@/services/api";
 
 import {
   createComparisonManualGroup,
@@ -45,6 +56,7 @@ export function ComparisonScreen() {
         return shortlistComparisonOffer(workspaceId ?? "", {
           sourcingListProductId: productId,
           offer: { ...offer, isShortlisted: true },
+          supplierId: offer.savedSupplier?.id ?? null,
         });
       }
 
@@ -54,6 +66,24 @@ export function ComparisonScreen() {
       }
       await removeComparisonShortlist(workspaceId ?? "", saved.id);
       return null;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-summary", workspaceId, sourcingListId],
+      });
+    },
+  });
+  const saveSupplierMutation = useMutation({
+    mutationFn: (offer: ApiComparisonOffer) => {
+      if (!offer.sellerName) {
+        throw new Error("This offer does not include a seller name.");
+      }
+      return createSupplier(workspaceId ?? "", {
+        name: offer.sellerName,
+        marketplace: offer.source,
+        marketplaceSellerId: offer.sellerId ?? null,
+      });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -100,9 +130,11 @@ export function ComparisonScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-5 px-5 pb-10 pt-6"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
@@ -176,10 +208,17 @@ export function ComparisonScreen() {
             <ComparisonGroupCard
               key={group.id}
               group={group}
+              shortlisted={comparison.shortlisted}
+              workspaceId={workspaceId}
+              sourcingListId={sourcingListId}
+              productId={productId}
               linkError={linkError}
               selectedOfferIds={selectedOfferIds}
               shortlistPendingOfferId={
                 shortlistMutation.isPending ? shortlistMutation.variables?.offer.offerId : null
+              }
+              saveSupplierPendingOfferId={
+                saveSupplierMutation.isPending ? saveSupplierMutation.variables?.offerId : null
               }
               onOpenOffer={(offer) => {
                 setLinkError(null);
@@ -197,6 +236,7 @@ export function ComparisonScreen() {
               onToggleShortlist={(offer) =>
                 shortlistMutation.mutate({ offer, next: !offer.isShortlisted })
               }
+              onSaveSupplier={(offer) => saveSupplierMutation.mutate(offer)}
             />
           ))
         )}
@@ -205,27 +245,39 @@ export function ComparisonScreen() {
         {mutationError && (
           <AppText variant="error">{getComparisonErrorMessage(mutationError)}</AppText>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 function ComparisonGroupCard({
   group,
+  shortlisted,
+  workspaceId,
+  sourcingListId,
+  productId,
   linkError,
   selectedOfferIds,
   shortlistPendingOfferId,
+  saveSupplierPendingOfferId,
   onOpenOffer,
   onSelectOffer,
   onToggleShortlist,
+  onSaveSupplier,
 }: {
   group: ApiProductComparison;
+  shortlisted: ApiComparisonShortlist[];
+  workspaceId: string | null;
+  sourcingListId: string;
+  productId: string;
   linkError: string | null;
   selectedOfferIds: string[];
   shortlistPendingOfferId: string | null;
+  saveSupplierPendingOfferId: string | null;
   onOpenOffer: (offer: ApiComparisonOffer) => void;
   onSelectOffer: (offer: ApiComparisonOffer) => void;
   onToggleShortlist: (offer: ApiComparisonOffer) => void;
+  onSaveSupplier: (offer: ApiComparisonOffer) => void;
 }) {
   return (
     <Card padding="md" className="gap-4">
@@ -290,6 +342,11 @@ function ComparisonGroupCard({
               {offer.qualification === "qualifies" && <Badge label="Qualifies" />}
               {offer.qualification === "unknown" && <Badge label="Criteria unknown" muted />}
               {offer.isShortlisted && <Badge label="Shortlisted" />}
+              {offer.savedSupplier?.status === "preferred" && <Badge label="Preferred supplier" />}
+              {offer.savedSupplier?.status === "avoid" && <Badge label="Avoid supplier" muted />}
+              {offer.savedSupplier?.status === "unreviewed" && (
+                <Badge label="Saved supplier" muted />
+              )}
               {isSelected && <Badge label="Selected" />}
             </View>
 
@@ -338,11 +395,99 @@ function ComparisonGroupCard({
                 Open source
               </Button>
             </View>
+            {!offer.savedSupplier && offer.sellerName && (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={saveSupplierPendingOfferId === offer.offerId}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onSaveSupplier(offer);
+                }}
+              >
+                Save seller to suppliers
+              </Button>
+            )}
+            {offer.isShortlisted && (
+              <ShortlistNotes
+                workspaceId={workspaceId ?? ""}
+                sourcingListId={sourcingListId}
+                productId={productId}
+                shortlistId={shortlistIdForOffer(shortlisted, offer.offerId)}
+              />
+            )}
           </Pressable>
         );
       })}
       {linkError && <AppText variant="error">{linkError}</AppText>}
     </Card>
+  );
+}
+
+function ShortlistNotes({
+  workspaceId,
+  sourcingListId,
+  productId,
+  shortlistId,
+}: {
+  workspaceId: string;
+  sourcingListId: string;
+  productId: string;
+  shortlistId: string | null;
+}) {
+  const [body, setBody] = useState("");
+  const queryClient = useQueryClient();
+  const notesQuery = useQuery({
+    queryKey: ["shortlist-notes", workspaceId, productId, shortlistId],
+    queryFn: () =>
+      getSourcingNotes(workspaceId, sourcingListId, productId, shortlistId ?? undefined),
+    enabled: Boolean(shortlistId),
+  });
+  const mutation = useMutation({
+    mutationFn: () =>
+      createSourcingNote(
+        workspaceId,
+        sourcingListId,
+        productId,
+        body.trim(),
+        shortlistId ?? undefined,
+      ),
+    onSuccess: () => {
+      setBody("");
+      void queryClient.invalidateQueries({
+        queryKey: ["shortlist-notes", workspaceId, productId, shortlistId],
+      });
+    },
+  });
+
+  if (!shortlistId) return null;
+  return (
+    <View className="gap-2 border-t border-border pt-2" onStartShouldSetResponder={() => true}>
+      <AppText variant="caption">Internal offer notes</AppText>
+      {notesQuery.data?.map((note) => (
+        <AppText key={note.id} variant="bodySmall">
+          {note.authorName ?? "Team member"}: {note.body}
+        </AppText>
+      ))}
+      <Input
+        placeholder="Add a note about this offer"
+        value={body}
+        onChangeText={setBody}
+        multiline
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!body.trim()}
+        loading={mutation.isPending}
+        onPress={(event) => {
+          event.stopPropagation();
+          mutation.mutate();
+        }}
+      >
+        Add offer note
+      </Button>
+    </View>
   );
 }
 
@@ -361,6 +506,10 @@ function Badge({ label, muted = false }: { label: string; muted?: boolean }) {
 function selectedOffers(groups: ApiProductComparison[], selectedOfferIds: string[]) {
   const selected = new Set(selectedOfferIds);
   return groups.flatMap((group) => group.offers.filter((offer) => selected.has(offer.offerId)));
+}
+
+function shortlistIdForOffer(shortlisted: ApiComparisonShortlist[], offerId: string) {
+  return shortlisted.find((item) => item.offer.offerId === offerId)?.id ?? null;
 }
 
 function formatMoney(amount: number | null, currency: string | null) {

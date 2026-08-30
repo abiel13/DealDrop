@@ -11,6 +11,11 @@ import type {
   ApiComparisonResult,
   ApiComparisonShortlistInput,
   ApiComparisonShortlist,
+  ApiSupplier,
+  ApiSupplierFilters,
+  ApiSupplierInput,
+  ApiSupplierShortlistHistory,
+  ApiSupplierUpdateInput,
   ApiListingQuery,
   ApiMatchQuery,
   ApiMarketplace,
@@ -18,6 +23,9 @@ import type {
   ApiNotification,
   ApiNotificationQuery,
   ApiNotificationPreferences,
+  ApiProductCapture,
+  ApiProductCaptureInput,
+  ApiProEntitlement,
   ApiProductEventInput,
   ApiPushTokenRegistration,
   ApiSearchRequest,
@@ -28,12 +36,17 @@ import type {
   ApiSourcingListInput,
   ApiSourcingListProductInput,
   ApiSourcingPriceHistory,
+  ApiSourcingSummary,
   ApiSourcingListUpdateInput,
   ApiWatchlist,
   ApiWatchlistInput,
   ApiWeeklySummary,
   ApiWorkspace,
+  ApiWorkspaceMember,
+  ApiWorkspaceRole,
   ApiWorkspaceInput,
+  ApiSourcingActivity,
+  ApiSourcingNote,
 } from "./types";
 
 type AccessTokenProvider = () => Promise<string | null>;
@@ -82,6 +95,17 @@ export class DealDropApiClient {
     return this.request<ApiListing>(`/listings/${encodeURIComponent(listingId)}`);
   }
 
+  async createProductCapture(input: ApiProductCaptureInput) {
+    return this.request<ApiProductCapture>("/product-captures", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async getProductCapture(captureId: string) {
+    return this.request<ApiProductCapture>(`/product-captures/${encodeURIComponent(captureId)}`);
+  }
+
   async setListingFavorite(listingId: string, isFavorite: boolean) {
     return this.request<{ updated: boolean }>(
       `/listings/${encodeURIComponent(listingId)}/favorite`,
@@ -112,6 +136,10 @@ export class DealDropApiClient {
     return this.request<ApiWorkspace[]>("/workspaces");
   }
 
+  async getProEntitlement() {
+    return this.request<ApiProEntitlement>("/pro/entitlement");
+  }
+
   async getWorkspace(workspaceId: string) {
     return this.request<ApiWorkspace>(`/workspaces/${encodeURIComponent(workspaceId)}`);
   }
@@ -121,6 +149,22 @@ export class DealDropApiClient {
       method: "POST",
       body: input,
     });
+  }
+
+  async getWorkspaceMembers(workspaceId: string) {
+    return this.request<ApiWorkspaceMember[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members`,
+    );
+  }
+
+  async inviteWorkspaceMember(
+    workspaceId: string,
+    input: { email: string; role: Exclude<ApiWorkspaceRole, "owner"> },
+  ) {
+    return this.request<ApiWorkspaceMember>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/members/invite`,
+      { method: "POST", body: input },
+    );
   }
 
   async getSourcingLists(
@@ -138,6 +182,45 @@ export class DealDropApiClient {
   async getSourcingList(workspaceId: string, sourcingListId: string) {
     return this.request<ApiSourcingList>(
       `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}`,
+    );
+  }
+
+  async getSourcingSummary(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingSummary>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/summary`,
+    );
+  }
+
+  async getSourcingActivity(workspaceId: string, sourcingListId: string) {
+    return this.request<ApiSourcingActivity[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/activity`,
+    );
+  }
+
+  async getSourcingNotes(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    shortlistId?: string,
+  ) {
+    const query = shortlistId ? `?shortlistId=${encodeURIComponent(shortlistId)}` : "";
+    return this.request<ApiSourcingNote[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/notes${query}`,
+    );
+  }
+
+  async createSourcingNote(
+    workspaceId: string,
+    sourcingListId: string,
+    productId: string,
+    input: { body: string; comparisonShortlistId?: string | null },
+  ) {
+    return this.request<ApiSourcingNote>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/sourcing-lists/${encodeURIComponent(sourcingListId)}/products/${encodeURIComponent(productId)}/notes`,
+      {
+        method: "POST",
+        body: { sourcingListProductId: productId, ...input },
+      },
     );
   }
 
@@ -180,6 +263,44 @@ export class DealDropApiClient {
     return this.request<{ deleted: boolean }>(
       `/workspaces/${encodeURIComponent(workspaceId)}/comparisons/groups/${encodeURIComponent(groupId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async getSuppliers(workspaceId: string, filters: ApiSupplierFilters = {}) {
+    const params = new URLSearchParams();
+    if (filters.query) params.set("query", filters.query);
+    if (filters.marketplace) params.set("marketplace", filters.marketplace);
+    if (filters.status) params.set("status", filters.status);
+    const query = params.toString();
+    return this.request<ApiSupplier[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers${query ? `?${query}` : ""}`,
+    );
+  }
+
+  async createSupplier(workspaceId: string, input: ApiSupplierInput) {
+    return this.request<ApiSupplier>(`/workspaces/${encodeURIComponent(workspaceId)}/suppliers`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async updateSupplier(workspaceId: string, supplierId: string, input: ApiSupplierUpdateInput) {
+    return this.request<ApiSupplier>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async deleteSupplier(workspaceId: string, supplierId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async getSupplierShortlistHistory(workspaceId: string, supplierId: string) {
+    return this.request<ApiSupplierShortlistHistory[]>(
+      `/workspaces/${encodeURIComponent(workspaceId)}/suppliers/${encodeURIComponent(supplierId)}/history`,
     );
   }
 

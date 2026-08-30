@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Loading } from "@/components/ui/Loading";
+import { Input } from "@/components/ui/Input";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import {
@@ -19,20 +21,45 @@ import {
 } from "@/features/auth/routes";
 import { AppHeader } from "@/features/navigation/components";
 import { useWorkspaceStore } from "@/features/workspaces/store/workspace.store";
-import type { ApiSourcingListProduct } from "@/services/api";
+import {
+  getWorkspace,
+  getWorkspaceMembers,
+} from "@/features/workspaces/services/workspace.service";
+import type {
+  ApiSourcingActivity,
+  ApiSourcingListProduct,
+  ApiSourcingList,
+  ApiSourcingListProductInput,
+  ApiSourcingSummary,
+  ApiSourcingWorkflowStatus,
+  ApiWorkspaceMember,
+} from "@/services/api";
 
 import {
   duplicateSourcingList,
+  createSourcingNote,
+  getSourcingActivity,
+  getSourcingNotes,
   getSourcingList,
+  getSourcingSummary,
   getSourcingListErrorMessage,
+  updateSourcingListProduct,
   updateSourcingList,
 } from "../services/sourcing-list.service";
 import { shareCsvFile } from "../services/csv-file.service";
-import { createSourcingListCsv } from "../services/sourcing-list-csv";
+import { createSourcingSummaryCsv } from "../services/sourcing-list-csv";
 import { calculateSourcingEconomics } from "../services/sourcing-economics";
 import type { SourcingListStatus } from "../types/sourcing-list.types";
 
 const statuses: SourcingListStatus[] = ["active", "paused", "completed"];
+const workflowStatuses: ApiSourcingWorkflowStatus[] = [
+  "searching",
+  "shortlisted",
+  "ready_to_buy",
+  "ordered",
+  "skipped",
+  "completed",
+];
 
 export function SourcingListDetailScreen() {
   const router = useRouter();
@@ -46,6 +73,26 @@ export function SourcingListDetailScreen() {
   const query = useQuery({
     queryKey: ["sourcing-list", workspaceId, sourcingListId],
     queryFn: () => getSourcingList(workspaceId ?? "", sourcingListId),
+    enabled: Boolean(user && workspaceId && sourcingListId),
+  });
+  const workspaceQuery = useQuery({
+    queryKey: ["workspace", workspaceId],
+    queryFn: () => getWorkspace(workspaceId ?? ""),
+    enabled: Boolean(user && workspaceId),
+  });
+  const membersQuery = useQuery({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => getWorkspaceMembers(workspaceId ?? ""),
+    enabled: Boolean(user && workspaceId),
+  });
+  const activityQuery = useQuery({
+    queryKey: ["sourcing-activity", workspaceId, sourcingListId],
+    queryFn: () => getSourcingActivity(workspaceId ?? "", sourcingListId),
+    enabled: Boolean(user && workspaceId && sourcingListId),
+  });
+  const summaryQuery = useQuery({
+    queryKey: ["sourcing-summary", workspaceId, sourcingListId],
+    queryFn: () => getSourcingSummary(workspaceId ?? "", sourcingListId),
     enabled: Boolean(user && workspaceId && sourcingListId),
   });
   const updateMutation = useMutation({
@@ -91,7 +138,11 @@ export function SourcingListDetailScreen() {
     setExporting(true);
     setExportError(null);
     try {
-      await shareCsvFile(`${safeFilename(list.name)}.csv`, createSourcingListCsv(list));
+      if (!summaryQuery.data) throw new Error("Sourcing summary is not available.");
+      await shareCsvFile(
+        `${safeFilename(list.name)}-sourcing-results.csv`,
+        createSourcingSummaryCsv(summaryQuery.data),
+      );
     } catch {
       setExportError("We couldn't export this sourcing list. Please try again.");
     } finally {
@@ -101,9 +152,10 @@ export function SourcingListDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         className="flex-1"
         contentContainerClassName="grow gap-5 px-5 pb-8 pt-6"
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
@@ -143,6 +195,12 @@ export function SourcingListDetailScreen() {
           </AppText>
         </Card>
 
+        <SourcingSummaryCard
+          summary={summaryQuery.data}
+          isLoading={summaryQuery.isLoading}
+          hasError={summaryQuery.isError}
+        />
+
         <Card padding="md" className="gap-3">
           <AppText variant="label">Spreadsheet tools</AppText>
           <View className="flex-row gap-2">
@@ -158,7 +216,8 @@ export function SourcingListDetailScreen() {
               size="sm"
               variant="secondary"
               className="flex-1 px-2"
-              loading={exporting}
+              loading={exporting || summaryQuery.isLoading}
+              disabled={!summaryQuery.data}
               onPress={() => void exportList()}
             >
               Export CSV
@@ -229,6 +288,21 @@ export function SourcingListDetailScreen() {
               <AppText variant="bodySmall">Keywords: {product.keywords.join(", ")}</AppText>
             )}
             {product.notes && <AppText variant="bodySmall">{product.notes}</AppText>}
+            <ProductWorkflowCard
+              workspaceId={workspaceId}
+              sourcingListId={list.id}
+              product={product}
+              members={membersQuery.data ?? []}
+              canEdit={
+                workspaceQuery.data?.role === "owner" || workspaceQuery.data?.role === "buyer"
+              }
+              onUpdated={(updatedList) =>
+                queryClient.setQueryData(
+                  ["sourcing-list", workspaceId, sourcingListId],
+                  updatedList,
+                )
+              }
+            />
             <View className="flex-row gap-2">
               <Button
                 size="sm"
@@ -249,8 +323,252 @@ export function SourcingListDetailScreen() {
             </View>
           </Card>
         ))}
-      </ScrollView>
+        {activityQuery.data && activityQuery.data.length > 0 && (
+          <Card padding="md" className="gap-3">
+            <AppText variant="label">Recent sourcing activity</AppText>
+            {activityQuery.data.slice(0, 12).map((activity) => (
+              <ActivityRow key={activity.id} activity={activity} />
+            ))}
+          </Card>
+        )}
+      </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+function SourcingSummaryCard({
+  summary,
+  isLoading,
+  hasError,
+}: {
+  summary: ApiSourcingSummary | undefined;
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card padding="md" className="gap-2">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="bodySmall">Calculating from saved sourcing results…</AppText>
+      </Card>
+    );
+  }
+
+  if (hasError || !summary) {
+    return (
+      <Card padding="md" className="gap-2">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="bodySmall">
+          The summary is unavailable right now. Saved sourcing work is unchanged.
+        </AppText>
+      </Card>
+    );
+  }
+
+  const budgetCurrency =
+    summary.targetBudgetCurrency ?? summary.currentEstimatedSourcingCostCurrency;
+  return (
+    <Card padding="md" className="gap-3">
+      <View className="flex-row items-center justify-between gap-3">
+        <AppText variant="label">Sourcing summary</AppText>
+        <AppText variant="caption">From saved DealDrop data</AppText>
+      </View>
+      <View className="flex-row gap-3">
+        <SummaryMetric label="Products" value={String(summary.totalProductsRequested)} />
+        <SummaryMetric label="Qualifying" value={String(summary.productsWithQualifyingResults)} />
+        <SummaryMetric label="Shortlisted" value={String(summary.productsShortlisted)} />
+      </View>
+      <View className="flex-row gap-3">
+        <SummaryMetric label="Still searching" value={String(summary.productsStillBeingSearched)} />
+        <SummaryMetric label="Completed" value={String(summary.productsCompleted)} />
+        <SummaryMetric label="Requested units" value={String(summary.totalRequestedQuantity)} />
+      </View>
+      <AppText variant="bodySmall">
+        Current estimated sourcing cost:{" "}
+        {formatCost(
+          summary.currentEstimatedSourcingCost,
+          summary.currentEstimatedSourcingCostCurrency,
+        )}
+        {!summary.costDataComplete && " (partial)"}
+      </AppText>
+      {summary.targetBudget !== null && (
+        <AppText variant="bodySmall">
+          Target budget: {formatCost(summary.targetBudget, summary.targetBudgetCurrency)}
+        </AppText>
+      )}
+      {summary.budgetVariance !== null && budgetCurrency && (
+        <AppText variant="bodySmall">
+          Budget position: {summary.budgetVariance >= 0 ? "under" : "over"} by{" "}
+          {formatCost(Math.abs(summary.budgetVariance), budgetCurrency)}
+        </AppText>
+      )}
+      {summary.potentialSavings !== null && (
+        <AppText variant="bodySmall">
+          Potential savings against budget: {formatCost(summary.potentialSavings, budgetCurrency)}
+        </AppText>
+      )}
+      {summary.unknownCostProducts > 0 && (
+        <AppText variant="caption">
+          {summary.unknownCostProducts} product
+          {summary.unknownCostProducts === 1 ? "" : "s"} lack enough selected cost data for a
+          complete total.
+        </AppText>
+      )}
+      {summary.currencyMismatch && (
+        <AppText variant="caption">
+          Costs use different currencies, so they are not silently combined.
+        </AppText>
+      )}
+    </Card>
+  );
+}
+
+function SummaryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-1 gap-1">
+      <AppText variant="caption">{label}</AppText>
+      <AppText variant="title">{value}</AppText>
+    </View>
+  );
+}
+
+function ProductWorkflowCard({
+  workspaceId,
+  sourcingListId,
+  product,
+  members,
+  canEdit,
+  onUpdated,
+}: {
+  workspaceId: string;
+  sourcingListId: string;
+  product: ApiSourcingListProduct;
+  members: ApiWorkspaceMember[];
+  canEdit: boolean;
+  onUpdated: (list: ApiSourcingList) => void;
+}) {
+  const [note, setNote] = useState("");
+  const queryClient = useQueryClient();
+  const notesQuery = useQuery({
+    queryKey: ["sourcing-notes", workspaceId, sourcingListId, product.id],
+    queryFn: () => getSourcingNotes(workspaceId, sourcingListId, product.id),
+  });
+  const updateMutation = useMutation({
+    mutationFn: (input: Partial<ApiSourcingListProductInput>) =>
+      updateSourcingListProduct(workspaceId, sourcingListId, product.id, input),
+    onSuccess: (list) => {
+      onUpdated(list);
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-activity", workspaceId, sourcingListId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-summary", workspaceId, sourcingListId],
+      });
+    },
+  });
+  const noteMutation = useMutation({
+    mutationFn: () => createSourcingNote(workspaceId, sourcingListId, product.id, note.trim()),
+    onSuccess: () => {
+      setNote("");
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-notes", workspaceId, sourcingListId, product.id],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["sourcing-activity", workspaceId, sourcingListId],
+      });
+    },
+  });
+
+  return (
+    <Card padding="sm" className="gap-3 bg-surface-muted">
+      <AppText variant="label">Team workflow</AppText>
+      <View className="flex-row flex-wrap gap-2">
+        {workflowStatuses.map((status) => (
+          <Button
+            key={status}
+            size="sm"
+            variant={product.workflowStatus === status ? "primary" : "outline"}
+            disabled={!canEdit || updateMutation.isPending}
+            loading={
+              updateMutation.isPending && updateMutation.variables?.workflowStatus === status
+            }
+            onPress={() => updateMutation.mutate({ workflowStatus: status })}
+            className="px-2"
+          >
+            {formatWorkflowStatus(status)}
+          </Button>
+        ))}
+      </View>
+      <AppText variant="bodySmall">
+        Assigned to:{" "}
+        {members.find((member) => member.userId === product.assignedTo)?.fullName ??
+          members.find((member) => member.userId === product.assignedTo)?.email ??
+          "Unassigned"}
+      </AppText>
+      {canEdit && (
+        <View className="flex-row flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={product.assignedTo === null ? "secondary" : "outline"}
+            onPress={() => updateMutation.mutate({ assignedTo: null })}
+          >
+            Unassigned
+          </Button>
+          {members
+            .filter((member) => member.role !== "viewer")
+            .map((member) => (
+              <Button
+                key={member.userId}
+                size="sm"
+                variant={product.assignedTo === member.userId ? "secondary" : "outline"}
+                onPress={() => updateMutation.mutate({ assignedTo: member.userId })}
+              >
+                {member.fullName ?? member.email ?? "Member"}
+              </Button>
+            ))}
+        </View>
+      )}
+      {notesQuery.data?.map((item) => (
+        <View key={item.id} className="gap-1 border-t border-border pt-2">
+          <AppText variant="caption">{item.authorName ?? "Team member"}</AppText>
+          <AppText variant="bodySmall">{item.body}</AppText>
+        </View>
+      ))}
+      {canEdit && (
+        <View className="gap-2">
+          <Input
+            label="Internal note"
+            placeholder="Add context for the team"
+            value={note}
+            onChangeText={setNote}
+            multiline
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!note.trim()}
+            loading={noteMutation.isPending}
+            onPress={() => noteMutation.mutate()}
+          >
+            Add note
+          </Button>
+        </View>
+      )}
+    </Card>
+  );
+}
+
+function ActivityRow({ activity }: { activity: ApiSourcingActivity }) {
+  return (
+    <View className="flex-row items-start gap-2 border-t border-border pt-2">
+      <View className="flex-1 gap-1">
+        <AppText variant="bodySmall">
+          {activity.actorName ?? "Team member"} · {formatActivityType(activity.eventType)}
+        </AppText>
+        <AppText variant="caption">{formatActivityMetadata(activity.metadata)}</AppText>
+      </View>
+      <AppText variant="caption">{formatActivityDate(activity.createdAt)}</AppText>
+    </View>
   );
 }
 
@@ -378,6 +696,25 @@ function formatMarketplaceName(source: string) {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function formatWorkflowStatus(status: ApiSourcingWorkflowStatus) {
+  return status.replaceAll("_", " ");
+}
+
+function formatActivityType(eventType: ApiSourcingActivity["eventType"]) {
+  return eventType.replaceAll("_", " ");
+}
+
+function formatActivityMetadata(metadata: Record<string, unknown>) {
+  const values = Object.entries(metadata)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => `${key.replaceAll(/([A-Z])/g, " $1").toLowerCase()}: ${String(value)}`);
+  return values.join(" · ") || "Sourcing activity recorded";
+}
+
+function formatActivityDate(value: string) {
+  return new Date(value).toLocaleDateString();
 }
 
 function safeFilename(name: string) {

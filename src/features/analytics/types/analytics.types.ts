@@ -25,6 +25,9 @@ export type AnalyticsEventProperties = {
   watchlist_paused: AnalyticsProperties & { watchlistId: string };
   watchlist_resumed: AnalyticsProperties & { watchlistId: string };
   watchlist_completed: AnalyticsProperties & { watchlistId: string };
+  pro_upgrade_viewed: AnalyticsProperties & { surface: string };
+  pro_upgrade_cta_tapped: AnalyticsProperties & { surface: string };
+  pro_feature_used: AnalyticsProperties & { feature: string };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventProperties;

@@ -22,7 +22,9 @@ import {
   type ValidatedWatchlistMarketplaceSelection,
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
-import { ApiError, ApiNotFoundError, ApiValidationError } from "./errors";
+import { identifyProductCapture } from "../product-capture/identify";
+import { ApiError, ApiNotFoundError, ApiProRequiredError, ApiValidationError } from "./errors";
+import { EMPTY_PRO_ENTITLEMENT } from "./pro";
 import { encodeApiCursor } from "./pagination";
 import type {
   MatchQueryOptions,
@@ -33,9 +35,17 @@ import type {
 import { toApiListing } from "./types";
 import type {
   ApiMarketplace,
+  ApiProductCapture,
+  ApiProductCaptureInput,
+  ApiProEntitlement,
   ApiComparisonManualGroupInput,
   ApiComparisonResult,
   ApiComparisonShortlistInput,
+  ApiSupplier,
+  ApiSupplierFilters,
+  ApiSupplierInput,
+  ApiSupplierShortlistHistory,
+  ApiSupplierUpdateInput,
   ApiMatch,
   ApiListingProblemReport,
   ListingProblemReportInput,
@@ -50,11 +60,22 @@ import type {
   ApiSourcingListProductUpdateInput,
   ApiSourcingListUpdateInput,
   ApiSourcingPriceHistory,
+  ApiSourcingSummary,
   ApiWatchlist,
   ApiWeeklySummary,
   ApiWorkspace,
   ApiWorkspaceInput,
+  ApiWorkspaceMember,
+  ApiWorkspaceMemberInput,
+  ApiSourcingActivity,
+  ApiSourcingNote,
   RawApiSourcingList,
+  RawApiSupplier,
+  RawApiSupplierShortlistHistory,
+  RawApiWorkspaceMember,
+  RawApiSourcingActivity,
+  RawApiSourcingNote,
+  RawApiProductCapture,
   RawApiWatchlist,
 } from "./types";
 
@@ -143,6 +164,101 @@ export class MobileApiService {
     await this.dependencies.repository.recordProductEvent(userId, input);
   }
 
+  async createProductCapture(
+    userId: string,
+    input: ApiProductCaptureInput,
+  ): Promise<ApiProductCapture> {
+    const repository = this.dependencies.repository;
+    if (!repository.createProductCapture || !repository.updateProductCapture) {
+      throw new ApiError(
+        503,
+        "capture_unavailable",
+        "Product capture is not available on this server yet.",
+      );
+    }
+
+    const created = await repository.createProductCapture.call(repository, userId, input);
+
+    try {
+      const identification = identifyProductCapture(input);
+      const updated = await repository.updateProductCapture.call(repository, userId, created.id, {
+        ...identification,
+        processedAt: new Date().toISOString(),
+      });
+
+      if (!updated) {
+        throw new ApiNotFoundError("The product capture could not be updated.");
+      }
+
+      this.dependencies.logger.info("Product capture processed", {
+        captureId: created.id,
+        captureSource: input.captureSource,
+        status: identification.status,
+      });
+      return toApiProductCapture(updated);
+    } catch (error) {
+      const failed = await this.finalizeProductCaptureFailure(userId, created.id, input, error);
+      if (failed) {
+        return toApiProductCapture(failed);
+      }
+
+      throw error;
+    }
+  }
+
+  async getProductCapture(userId: string, captureId: string): Promise<ApiProductCapture> {
+    const getCapture = this.dependencies.repository.getProductCapture;
+    if (!getCapture) {
+      throw new ApiError(
+        503,
+        "capture_unavailable",
+        "Product capture is not available on this server yet.",
+      );
+    }
+
+    const capture = await getCapture.call(this.dependencies.repository, userId, captureId);
+    if (!capture) {
+      throw new ApiNotFoundError("The product capture was not found.");
+    }
+
+    return toApiProductCapture(capture);
+  }
+
+  private async finalizeProductCaptureFailure(
+    userId: string,
+    captureId: string,
+    input: ApiProductCaptureInput,
+    error: unknown,
+  ): Promise<RawApiProductCapture | null> {
+    this.dependencies.logger.error("Product capture processing failed", {
+      captureId,
+      captureSource: input.captureSource,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+
+    const updateCapture = this.dependencies.repository.updateProductCapture;
+    if (!updateCapture) {
+      return null;
+    }
+
+    try {
+      return await updateCapture.call(this.dependencies.repository, userId, captureId, {
+        status: "failed",
+        normalizedProduct: null,
+        missingFields: [],
+        failureReason: "The product capture could not be processed.",
+        processedAt: new Date().toISOString(),
+      });
+    } catch (finalizationError) {
+      this.dependencies.logger.error("Product capture failure state could not be saved", {
+        captureId,
+        captureSource: input.captureSource,
+        error: finalizationError instanceof Error ? finalizationError.message : "unknown_error",
+      });
+      return null;
+    }
+  }
+
   async createListingProblemReport(
     userId: string,
     requestId: string,
@@ -169,6 +285,29 @@ export class MobileApiService {
     return workspaces.map(toWorkspace);
   }
 
+  async getProEntitlement(userId: string, workspaceId?: string): Promise<ApiProEntitlement> {
+    const entitlement = this.dependencies.repository.getProEntitlement;
+    if (!entitlement) {
+      return EMPTY_PRO_ENTITLEMENT;
+    }
+
+    return entitlement.call(this.dependencies.repository, userId, workspaceId);
+  }
+
+  async requireProAccess(userId: string, workspaceId?: string) {
+    if (!this.dependencies.repository.getProEntitlement) {
+      // Keeps lightweight repository fakes and older deployments compatible while
+      // the entitlement migration is rolled out. The production repository
+      // always implements this check before returning workspace data.
+      return;
+    }
+
+    const entitlement = await this.getProEntitlement(userId, workspaceId);
+    if (!entitlement.isPro) {
+      throw new ApiProRequiredError();
+    }
+  }
+
   async getWorkspace(userId: string, workspaceId: string): Promise<ApiWorkspace> {
     const workspace = await this.dependencies.repository.getWorkspace(userId, workspaceId);
     if (!workspace) {
@@ -181,6 +320,30 @@ export class MobileApiService {
   async createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<ApiWorkspace> {
     const workspace = await this.dependencies.repository.createWorkspace(userId, input);
     return toWorkspace(workspace);
+  }
+
+  async getWorkspaceMembers(userId: string, workspaceId: string): Promise<ApiWorkspaceMember[]> {
+    return (await this.dependencies.repository.getWorkspaceMembers(userId, workspaceId)).map(
+      toWorkspaceMember,
+    );
+  }
+
+  async inviteWorkspaceMember(
+    userId: string,
+    workspaceId: string,
+    input: ApiWorkspaceMemberInput,
+  ): Promise<ApiWorkspaceMember> {
+    const member = await this.dependencies.repository.inviteWorkspaceMember(
+      userId,
+      workspaceId,
+      input,
+    );
+    if (!member) {
+      throw new ApiNotFoundError(
+        "The workspace was not found, you are not the owner, or the user has not created a DealDrop account.",
+      );
+    }
+    return toWorkspaceMember(member);
   }
 
   async getSourcingLists(
@@ -215,6 +378,20 @@ export class MobileApiService {
       throw new ApiNotFoundError("The sourcing list was not found.");
     }
     return toSourcingList(list);
+  }
+
+  async getSourcingSummary(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingSummary> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingSummary) {
+      throw new ApiError(503, "api_unavailable", "Sourcing summaries are not configured.");
+    }
+    const summary = await repository.getSourcingSummary(userId, workspaceId, sourcingListId);
+    if (!summary) throw new ApiNotFoundError("The sourcing list was not found.");
+    return summary;
   }
 
   async createSourcingList(userId: string, workspaceId: string, input: ApiSourcingListInput) {
@@ -354,6 +531,53 @@ export class MobileApiService {
     }
   }
 
+  async getSourcingNotes(
+    userId: string,
+    workspaceId: string,
+    productId: string,
+    shortlistId?: string,
+  ): Promise<ApiSourcingNote[]> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingNotes) {
+      throw new ApiError(503, "api_unavailable", "Sourcing notes are not configured.");
+    }
+    const notes = await repository.getSourcingNotes(userId, workspaceId, productId, shortlistId);
+    if (!notes) throw new ApiNotFoundError("The sourcing product was not found.");
+    return notes.map(toSourcingNote);
+  }
+
+  async createSourcingNote(
+    userId: string,
+    workspaceId: string,
+    input: {
+      sourcingListProductId?: string | null;
+      comparisonShortlistId?: string | null;
+      body: string;
+    },
+  ): Promise<ApiSourcingNote> {
+    const repository = this.dependencies.repository;
+    if (!repository.createSourcingNote) {
+      throw new ApiError(503, "api_unavailable", "Sourcing notes are not configured.");
+    }
+    const note = await repository.createSourcingNote(userId, workspaceId, input);
+    if (!note) throw new ApiNotFoundError("The workspace was not found or cannot be edited.");
+    return toSourcingNote(note);
+  }
+
+  async getSourcingActivity(
+    userId: string,
+    workspaceId: string,
+    sourcingListId: string,
+  ): Promise<ApiSourcingActivity[]> {
+    const repository = this.dependencies.repository;
+    if (!repository.getSourcingActivity) {
+      throw new ApiError(503, "api_unavailable", "Sourcing activity is not configured.");
+    }
+    const activity = await repository.getSourcingActivity(userId, workspaceId, sourcingListId);
+    if (!activity) throw new ApiNotFoundError("The sourcing list was not found.");
+    return activity.map(toSourcingActivity);
+  }
+
   async getSourcingProductPriceHistory(
     userId: string,
     workspaceId: string,
@@ -425,6 +649,9 @@ export class MobileApiService {
     if (!comparisonState) {
       throw new ApiNotFoundError("The comparison workspace was not found.");
     }
+    const suppliers = this.dependencies.repository.getSuppliers
+      ? await this.dependencies.repository.getSuppliers(userId, workspaceId)
+      : [];
 
     const comparison = buildMarketplaceComparison(
       response.listings,
@@ -446,12 +673,69 @@ export class MobileApiService {
         (item) => item.id === sourcingListProductId,
       )!,
       searchQuery,
-      comparisons: comparison.comparisons,
+      comparisons: comparison.comparisons.map((group) => ({
+        ...group,
+        offers: group.offers.map((offer) => ({
+          ...offer,
+          savedSupplier: findSavedSupplier(offer, suppliers),
+        })),
+      })),
       sources,
       partialFailures: response.partialFailures,
       shortlisted: comparisonState.shortlists.map(toApiComparisonShortlist),
       manualGroups: comparisonState.manualGroups.map(toApiComparisonManualGroup),
     };
+  }
+
+  async getSuppliers(userId: string, workspaceId: string, filters: ApiSupplierFilters = {}) {
+    const repository = this.supplierRepository();
+    const suppliers = await repository.getSuppliers(userId, workspaceId, filters);
+    return suppliers.map(toApiSupplier);
+  }
+
+  async createSupplier(userId: string, workspaceId: string, input: ApiSupplierInput) {
+    const supplier = await this.supplierRepository().createSupplier(userId, workspaceId, input);
+    if (!supplier) {
+      throw new ApiNotFoundError("The workspace was not found or cannot be edited.");
+    }
+    return toApiSupplier(supplier);
+  }
+
+  async updateSupplier(
+    userId: string,
+    workspaceId: string,
+    supplierId: string,
+    input: ApiSupplierUpdateInput,
+  ) {
+    const supplier = await this.supplierRepository().updateSupplier(
+      userId,
+      workspaceId,
+      supplierId,
+      input,
+    );
+    if (!supplier) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+    return toApiSupplier(supplier);
+  }
+
+  async deleteSupplier(userId: string, workspaceId: string, supplierId: string) {
+    const deleted = await this.supplierRepository().deleteSupplier(userId, workspaceId, supplierId);
+    if (!deleted) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+  }
+
+  async getSupplierShortlistHistory(userId: string, workspaceId: string, supplierId: string) {
+    const history = await this.supplierRepository().getSupplierShortlistHistory(
+      userId,
+      workspaceId,
+      supplierId,
+    );
+    if (!history) {
+      throw new ApiNotFoundError("The supplier was not found in this workspace.");
+    }
+    return history.map(toApiSupplierShortlistHistory);
   }
 
   async shortlistComparisonOffer(
@@ -745,6 +1029,7 @@ export class MobileApiService {
       updateSourcingListProduct: repository.updateSourcingListProduct.bind(repository),
       deleteSourcingListProduct: repository.deleteSourcingListProduct.bind(repository),
       getSourcingProductPriceHistory: repository.getSourcingProductPriceHistory?.bind(repository),
+      getSourcingSummary: repository.getSourcingSummary?.bind(repository),
     };
   }
 
@@ -766,6 +1051,27 @@ export class MobileApiService {
       deleteComparisonShortlist: repository.deleteComparisonShortlist.bind(repository),
       createComparisonManualGroup: repository.createComparisonManualGroup.bind(repository),
       deleteComparisonManualGroup: repository.deleteComparisonManualGroup.bind(repository),
+    };
+  }
+
+  private supplierRepository() {
+    const repository = this.dependencies.repository;
+    if (
+      !repository.getSuppliers ||
+      !repository.createSupplier ||
+      !repository.updateSupplier ||
+      !repository.deleteSupplier ||
+      !repository.getSupplierShortlistHistory
+    ) {
+      throw new ApiError(503, "api_unavailable", "Supplier support is not configured.");
+    }
+
+    return {
+      getSuppliers: repository.getSuppliers.bind(repository),
+      createSupplier: repository.createSupplier.bind(repository),
+      updateSupplier: repository.updateSupplier.bind(repository),
+      deleteSupplier: repository.deleteSupplier.bind(repository),
+      getSupplierShortlistHistory: repository.getSupplierShortlistHistory.bind(repository),
     };
   }
 
@@ -830,6 +1136,26 @@ function toWatchlist(watchlist: RawApiWatchlist): ApiWatchlist {
   };
 }
 
+function toApiProductCapture(capture: RawApiProductCapture): ApiProductCapture {
+  return {
+    id: capture.id,
+    captureSource: capture.capture_source,
+    url: capture.url,
+    rawText: capture.raw_text,
+    barcode: capture.barcode,
+    imageReference: capture.image_reference,
+    country: capture.country,
+    preferredCurrency: capture.preferred_currency,
+    status: capture.status,
+    normalizedProduct: capture.normalized_product,
+    missingFields: capture.missing_fields,
+    failureReason: capture.failure_reason,
+    createdAt: capture.created_at,
+    updatedAt: capture.updated_at,
+    processedAt: capture.processed_at,
+  };
+}
+
 function toWorkspace(workspace: StoredWorkspace): ApiWorkspace {
   return {
     id: workspace.id,
@@ -841,6 +1167,42 @@ function toWorkspace(workspace: StoredWorkspace): ApiWorkspace {
     role: workspace.role,
     createdAt: workspace.created_at,
     updatedAt: workspace.updated_at,
+  };
+}
+
+function toWorkspaceMember(member: RawApiWorkspaceMember): ApiWorkspaceMember {
+  return {
+    userId: member.user_id,
+    email: member.email,
+    fullName: member.full_name,
+    role: member.role,
+    createdAt: member.created_at,
+  };
+}
+
+function toSourcingNote(note: RawApiSourcingNote): ApiSourcingNote {
+  return {
+    id: note.id,
+    sourcingListProductId: note.sourcing_list_product_id,
+    comparisonShortlistId: note.comparison_shortlist_id,
+    authorId: note.author_id,
+    authorName: note.author?.full_name ?? note.author?.email ?? null,
+    body: note.body,
+    createdAt: note.created_at,
+    updatedAt: note.updated_at,
+  };
+}
+
+function toSourcingActivity(activity: RawApiSourcingActivity): ApiSourcingActivity {
+  return {
+    id: activity.id,
+    actorId: activity.actor_id,
+    actorName: activity.actor?.full_name ?? activity.actor?.email ?? null,
+    sourcingListId: activity.sourcing_list_id,
+    sourcingListProductId: activity.sourcing_list_product_id,
+    eventType: activity.event_type,
+    metadata: activity.metadata,
+    createdAt: activity.created_at,
   };
 }
 
@@ -892,6 +1254,8 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
       product.sourcing_list_product_marketplaces?.map((item) => item.marketplace_id) ?? [],
     notes: product.notes,
     requiredBy: product.required_by,
+    assignedTo: product.assigned_to,
+    workflowStatus: product.workflow_status,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
   }));
@@ -906,6 +1270,8 @@ function toSourcingList(list: RawApiSourcingList): ApiSourcingList {
     workspaceId: list.workspace_id,
     name: list.name,
     status: list.status,
+    targetBudget: list.target_budget === null ? null : Number(list.target_budget),
+    targetBudgetCurrency: list.target_budget_currency,
     products,
     progress: {
       totalProducts: products.length,
@@ -976,9 +1342,66 @@ function toApiComparisonShortlist(
   return {
     id: item.id,
     sourcingListProductId: item.sourcing_list_product_id,
+    supplierId: item.supplier_id,
     offer: item.offer_snapshot as unknown as MarketplaceComparisonOffer,
     createdAt: item.created_at,
   };
+}
+
+function toApiSupplier(item: RawApiSupplier): ApiSupplier {
+  return {
+    id: item.id,
+    workspaceId: item.workspace_id,
+    name: item.name,
+    marketplace: item.marketplace_id,
+    marketplaceSellerId: item.marketplace_seller_id,
+    supplierUrl: item.supplier_url,
+    notes: item.notes,
+    tags: item.tags,
+    status: item.status,
+    internalContactInfo: item.internal_contact_info,
+    typicalLeadTimeDays: item.typical_lead_time_days,
+    minimumOrderQuantity: item.minimum_order_quantity,
+    shortlistedCount: item.shortlisted_count,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+  };
+}
+
+function toApiSupplierShortlistHistory(
+  item: RawApiSupplierShortlistHistory,
+): ApiSupplierShortlistHistory {
+  return {
+    id: item.id,
+    supplierId: item.supplier_id,
+    sourcingListProductId: item.sourcing_list_product_id,
+    marketplace: item.marketplace_id,
+    externalId: item.external_id,
+    listingId: item.listing_id,
+    offer: item.offer_snapshot as unknown as import("./types").ApiComparisonOffer,
+    firstShortlistedAt: item.first_shortlisted_at,
+    lastShortlistedAt: item.last_shortlisted_at,
+  };
+}
+
+function findSavedSupplier(
+  offer: MarketplaceComparisonOffer,
+  suppliers: RawApiSupplier[],
+): { id: string; name: string; status: RawApiSupplier["status"] } | null {
+  const sellerName = normalizeSupplierName(offer.sellerName);
+  const match = suppliers.find(
+    (supplier) =>
+      (offer.sellerId && supplier.marketplace_seller_id === offer.sellerId) ||
+      (sellerName !== null &&
+        supplier.marketplace_seller_id === null &&
+        normalizeSupplierName(supplier.name) === sellerName),
+  );
+  return match ? { id: match.id, name: match.name, status: match.status } : null;
+}
+
+function normalizeSupplierName(name: string | null | undefined) {
+  const normalized = name?.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  return normalized || null;
 }
 
 function toApiComparisonManualGroup(

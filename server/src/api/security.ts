@@ -288,6 +288,10 @@ export function operationForRoute(
     return "event_capture";
   }
 
+  if (resource === "product-captures" && method === "POST") {
+    return "resource_mutation";
+  }
+
   if (resource === "watchlists" && (method === "POST" || resourceId)) {
     return method === "GET" ? "general" : "watchlist_mutation";
   }

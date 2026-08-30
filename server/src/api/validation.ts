@@ -14,6 +14,53 @@ import type { WatchlistFilters } from "../types/backend";
 
 const finiteNumber = z.number().refine(Number.isFinite, "must be a finite number");
 
+const productCaptureText = (maxLength: number) =>
+  z.string().trim().min(1).max(maxLength).nullable().optional();
+
+export const productCaptureSchema = z
+  .object({
+    captureSource: z.enum([
+      "pasted_url",
+      "share_sheet",
+      "browser_extension",
+      "barcode",
+      "screenshot",
+      "product_photo",
+    ]),
+    url: z
+      .string()
+      .trim()
+      .url()
+      .max(2_048)
+      .refine((value) => /^https?:\/\//i.test(value), "url must use HTTP or HTTPS.")
+      .nullable()
+      .optional(),
+    rawText: productCaptureText(10_000),
+    barcode: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9 -]{2,63}$/)
+      .nullable()
+      .optional(),
+    imageReference: productCaptureText(2_048),
+    country: z.string().trim().min(2).max(100),
+    preferredCurrency: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{3}$/)
+      .transform((currency) => currency.toUpperCase()),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (!input.url && !input.rawText && !input.barcode && !input.imageReference) {
+      context.addIssue({
+        code: "custom",
+        message: "At least one product capture input is required.",
+        path: ["captureSource"],
+      });
+    }
+  });
+
 export const createWorkspaceSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
@@ -204,6 +251,10 @@ const sourcingListProductShape = {
     .refine((date) => !Number.isNaN(Date.parse(`${date}T00:00:00.000Z`)), "requiredBy is invalid")
     .nullable()
     .optional(),
+  assignedTo: z.string().uuid().nullable().optional(),
+  workflowStatus: z
+    .enum(["searching", "shortlisted", "ready_to_buy", "ordered", "skipped", "completed"])
+    .optional(),
 };
 
 export const sourcingListProductSchema = z.object(sourcingListProductShape).strict();
@@ -212,6 +263,8 @@ export const createSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
     status: z.enum(["active", "paused", "completed"]).default("active"),
+    targetBudget: sourcingMoneySchema,
+    targetBudgetCurrency: sourcingCurrencySchema,
     products: z.array(sourcingListProductSchema).min(1).max(100),
   })
   .strict();
@@ -220,11 +273,14 @@ export const updateSourcingListSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
     status: z.enum(["active", "paused", "completed"]).optional(),
+    targetBudget: sourcingMoneySchema,
+    targetBudgetCurrency: sourcingCurrencySchema,
   })
   .strict()
+  .refine((value) => Object.keys(value).length > 0, "At least one sourcing list field is required.")
   .refine(
-    (value) => Object.keys(value).length > 0,
-    "At least one sourcing list field is required.",
+    (value) => value.targetBudgetCurrency === undefined || value.targetBudget !== undefined,
+    "targetBudget is required when changing targetBudgetCurrency.",
   );
 
 export const duplicateSourcingListSchema = z
@@ -238,6 +294,25 @@ export const updateSourcingListProductSchema = z
   .refine(
     (value) => Object.keys(value).length > 0,
     "At least one sourcing list product field is required.",
+  );
+
+export const inviteWorkspaceMemberSchema = z
+  .object({
+    email: z.string().trim().email().max(320),
+    role: z.enum(["buyer", "viewer"]).default("buyer"),
+  })
+  .strict();
+
+export const createSourcingNoteSchema = z
+  .object({
+    sourcingListProductId: z.string().uuid().nullable().optional(),
+    comparisonShortlistId: z.string().uuid().nullable().optional(),
+    body: z.string().trim().min(1).max(2_000),
+  })
+  .strict()
+  .refine(
+    (value) => Boolean(value.sourcingListProductId || value.comparisonShortlistId),
+    "A sourcing product or shortlisted offer is required.",
   );
 
 export const importSourcingListProductsSchema = z
@@ -436,6 +511,7 @@ const comparisonOfferSchema = z
     listingId: z.string().uuid().nullable(),
     title: z.string().trim().min(1).max(300),
     sellerName: z.string().trim().max(200).nullable(),
+    sellerId: z.string().trim().max(300).nullable().optional(),
     price: finiteNumber.nonnegative().nullable(),
     currency: z
       .string()
@@ -463,6 +539,14 @@ const comparisonOfferSchema = z
     qualification: z.enum(["qualifies", "does_not_qualify", "unknown"]),
     qualificationReasons: z.array(z.string().trim().min(1).max(200)).max(10),
     isShortlisted: z.boolean(),
+    savedSupplier: z
+      .object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(200),
+        status: z.enum(["preferred", "avoid", "unreviewed"]),
+      })
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -477,8 +561,28 @@ export const comparisonShortlistSchema = z
   .object({
     sourcingListProductId: z.string().uuid(),
     offer: comparisonOfferSchema,
+    supplierId: z.string().uuid().nullable().optional(),
   })
   .strict();
+
+export const createSupplierSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    marketplace: z.enum(
+      Object.values(MARKETPLACE_IDS) as [MarketplaceSource, ...MarketplaceSource[]],
+    ),
+    marketplaceSellerId: z.string().trim().max(300).nullable().optional(),
+    supplierUrl: z.string().url().nullable().optional(),
+    notes: z.string().trim().max(2000).nullable().optional(),
+    tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
+    status: z.enum(["preferred", "avoid", "unreviewed"]).optional(),
+    internalContactInfo: z.string().trim().max(1000).nullable().optional(),
+    typicalLeadTimeDays: z.number().int().nonnegative().max(3650).nullable().optional(),
+    minimumOrderQuantity: z.number().int().nonnegative().max(1_000_000_000).nullable().optional(),
+  })
+  .strict();
+
+export const updateSupplierSchema = createSupplierSchema.partial();
 
 export const comparisonManualGroupSchema = z
   .object({

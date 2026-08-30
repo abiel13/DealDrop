@@ -20,6 +20,7 @@ import { shouldShowWeeklySummary } from "@/features/analytics/utils/weekly-summa
 import { authRoutes } from "@/features/auth/routes";
 import { getAuthErrorMessage } from "@/features/auth/services/auth.service";
 import { usePremium } from "@/features/premium/hooks/PremiumProvider";
+import { usePro } from "@/features/pro/hooks/ProProvider";
 import { hasPremiumEntitlement } from "@/features/premium/services/premium.service";
 import { getPremiumErrorMessage } from "@/features/premium/utils/premium-errors";
 import { getWorkspaces } from "@/features/workspaces/services/workspace.service";
@@ -63,6 +64,7 @@ export function ProfileScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const premium = usePremium();
+  const pro = usePro();
   const theme = useTheme();
   const accountLinks = getAccountLinks();
   const [editedName, setEditedName] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function ProfileScreen() {
   const workspacesQuery = useQuery({
     queryKey: ["workspaces", user?.id],
     queryFn: getWorkspaces,
-    enabled: Boolean(user),
+    enabled: Boolean(user && pro.access?.isPro),
   });
 
   const updateNameMutation = useMutation({
@@ -320,7 +322,14 @@ export function ProfileScreen() {
         {actionMessage && <AppText className="text-primary">{actionMessage}</AppText>}
 
         <AccountSection title="Business sourcing">
-          {workspacesQuery.isError ? (
+          {!pro.access?.isPro ? (
+            <AccountRow
+              icon="storefront"
+              title="Explore DealDrop Pro"
+              subtitle="Source across marketplaces with a professional workspace"
+              onPress={() => router.push(authRoutes.proUpgrade)}
+            />
+          ) : workspacesQuery.isError ? (
             <AccountRow
               icon="storefront"
               title="Workspace unavailable"

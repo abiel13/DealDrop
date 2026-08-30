@@ -6,6 +6,7 @@ import {
   listingProblemReportSchema,
   parseSearchQuery,
   parseBody,
+  productCaptureSchema,
   searchBodySchema,
   sourcingListProductSchema,
   updateWatchlistSchema,
@@ -24,6 +25,58 @@ test("accepts identifier-only searches and parses supported URL identifier param
   );
   assert.equal(parsedUrl.searchQuery, "");
   assert.deepEqual(parsedUrl.productIdentifiers, [{ type: "upc", value: "012345678905" }]);
+});
+
+test("validates all supported product capture request shapes", () => {
+  const sources = [
+    "pasted_url",
+    "share_sheet",
+    "browser_extension",
+    "barcode",
+    "screenshot",
+    "product_photo",
+  ] as const;
+
+  for (const captureSource of sources) {
+    const input = parseBody(productCaptureSchema, {
+      captureSource,
+      url:
+        captureSource === "pasted_url" || captureSource === "browser_extension"
+          ? "https://shop.test/product"
+          : null,
+      rawText: captureSource === "share_sheet" ? "A product from a share sheet" : null,
+      barcode: captureSource === "barcode" ? "012345678905" : null,
+      imageReference:
+        captureSource === "screenshot" || captureSource === "product_photo"
+          ? "capture://image-1"
+          : null,
+      country: "NG",
+      preferredCurrency: "ngn",
+    });
+
+    assert.equal(input.captureSource, captureSource);
+    assert.equal(input.preferredCurrency, "NGN");
+  }
+
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "pasted_url",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "pasted_url",
+        url: "ftp://shop.test/product",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
 });
 
 test("normalizes filter terms and currency while preserving a complete distance filter", () => {
