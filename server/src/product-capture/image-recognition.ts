@@ -9,7 +9,7 @@ import type {
 
 const MAX_IMAGE_DATA_LENGTH = 8_000_000;
 const REQUEST_TIMEOUT_MS = 12_000;
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`;
 
 const confidenceSchema = z.number().finite().min(0).max(1);

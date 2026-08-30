@@ -66,7 +66,7 @@ test("adapts Gemini structured JSON responses to the DealDrop contract", async (
   let requestApiKey = "";
   const provider = createGeminiProductImageRecognitionProvider({
     apiKey: "server-only-key",
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-3.5-flash-lite",
     fetchImpl: async (input, init) => {
       requestUrl = input;
       requestBody = JSON.parse(String(init?.body ?? "")) as Record<string, unknown>;
@@ -87,7 +87,7 @@ test("adapts Gemini structured JSON responses to the DealDrop contract", async (
 
   assert.equal(
     requestUrl,
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
   );
   assert.equal(requestApiKey, "server-only-key");
   assert.equal(imagePart.data, "aGVsbG8=");
