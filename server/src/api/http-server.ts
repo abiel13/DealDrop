@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 import { getMarketplaceCatalog, type MarketplaceAdapterRegistry } from "../marketplaces/catalog";
@@ -75,6 +75,7 @@ import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
 
 const API_PREFIX = "/api/v1";
+const EBAY_MARKETPLACE_DELETION_PATH = `${API_PREFIX}/webhooks/ebay/account-deletion`;
 
 export interface HttpServerOptions {
   adapters?: MarketplaceAdapterRegistry;
@@ -86,6 +87,8 @@ export interface HttpServerOptions {
   security?: ApiSecurityOptions;
   revenueCatWebhookAuthToken?: string;
   revenueCatWebhookHandler?: (payload: unknown) => Promise<boolean>;
+  ebayMarketplaceDeletionEndpoint?: string;
+  ebayMarketplaceDeletionVerificationToken?: string;
 }
 
 function json(
@@ -152,6 +155,38 @@ async function handleRequest(
     url = new URL(rawUrl, "http://localhost");
     path = url.pathname;
     logger.info("HTTP request started", { method, path, requestId });
+
+    if (path === EBAY_MARKETPLACE_DELETION_PATH && (method === "GET" || method === "POST")) {
+      const endpoint = options.ebayMarketplaceDeletionEndpoint?.trim();
+      const verificationToken = options.ebayMarketplaceDeletionVerificationToken?.trim();
+      if (!endpoint || !verificationToken) {
+        throw new ApiError(
+          503,
+          "webhook_unavailable",
+          "eBay marketplace deletion notifications are not configured.",
+        );
+      }
+
+      if (method === "GET") {
+        const challengeCode = url.searchParams.get("challenge_code")?.trim();
+        if (!challengeCode) {
+          throw new ApiValidationError("A challenge_code query parameter is required.");
+        }
+
+        const challengeResponse = createHash("sha256")
+          .update(challengeCode)
+          .update(verificationToken)
+          .update(endpoint)
+          .digest("hex");
+        json(response, 200, { challengeResponse });
+        return;
+      }
+
+      await readJsonBody(request, security.maxBodyBytes);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
 
     if (method === "POST" && path === `${API_PREFIX}/webhooks/revenuecat`) {
       if (!options.revenueCatWebhookHandler || !options.revenueCatWebhookAuthToken) {

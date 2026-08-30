@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
@@ -218,6 +219,48 @@ test("RevenueCat webhook route authenticates and forwards the payload", async ()
     assert.equal(authorizedResponse.status, 200);
     assert.deepEqual(receivedPayload, payload);
     assert.deepEqual(await authorizedResponse.json(), { received: true, handled: true });
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+
+test("eBay marketplace deletion webhook answers challenges and acknowledges notifications", async () => {
+  const endpoint = "https://api.example.com/api/v1/webhooks/ebay/account-deletion";
+  const verificationToken = "ebay-webhook-verification-token-0123456789";
+  const server = createHttpServer(logger, {
+    ebayMarketplaceDeletionEndpoint: endpoint,
+    ebayMarketplaceDeletionVerificationToken: verificationToken,
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+
+  try {
+    const address = server.address() as AddressInfo;
+    const challengeCode = "challenge-code";
+    const challengeResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/webhooks/ebay/account-deletion?challenge_code=${challengeCode}`,
+    );
+    const challengeBody = (await challengeResponse.json()) as { challengeResponse: string };
+    const expectedResponse = createHash("sha256")
+      .update(challengeCode)
+      .update(verificationToken)
+      .update(endpoint)
+      .digest("hex");
+
+    assert.equal(challengeResponse.status, 200);
+    assert.deepEqual(challengeBody, { challengeResponse: expectedResponse });
+
+    const notificationResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/webhooks/ebay/account-deletion`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification: { notificationId: "notification-1" } }),
+      },
+    );
+    assert.equal(notificationResponse.status, 204);
   } finally {
     server.close();
     await once(server, "close");

@@ -57,6 +57,9 @@ async function main() {
     revenueCatWebhookHandler: revenueCat
       ? (payload) => revenueCat.handleWebhook(payload, repository)
       : undefined,
+    ebayMarketplaceDeletionEndpoint: config.ebayMarketplaceDeletionEndpoint ?? undefined,
+    ebayMarketplaceDeletionVerificationToken:
+      config.ebayMarketplaceDeletionVerificationToken ?? undefined,
     security: config.apiSecurity,
     health: createSupabaseHealthProvider({
       client: databaseClient,

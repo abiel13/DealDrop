@@ -16,6 +16,8 @@ export interface ServerConfig {
   revenueCatApiKey: string | null;
   revenueCatProEntitlementId: string;
   revenueCatWebhookAuthToken: string | null;
+  ebayMarketplaceDeletionEndpoint: string | null;
+  ebayMarketplaceDeletionVerificationToken: string | null;
   apiSecurity: ApiSecurityConfig;
 }
 
@@ -61,6 +63,11 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     revenueCatApiKey: optionalValue(env, "REVENUECAT_API_KEY"),
     revenueCatProEntitlementId: optionalValue(env, "REVENUECAT_PRO_ENTITLEMENT_ID") ?? "pro",
     revenueCatWebhookAuthToken: optionalValue(env, "REVENUECAT_WEBHOOK_AUTH_TOKEN"),
+    ebayMarketplaceDeletionEndpoint: optionalValue(env, "EBAY_MARKETPLACE_DELETION_ENDPOINT"),
+    ebayMarketplaceDeletionVerificationToken: optionalValue(
+      env,
+      "EBAY_MARKETPLACE_DELETION_VERIFICATION_TOKEN",
+    ),
     apiSecurity: loadApiSecurityConfig(env, environment),
   };
 }
