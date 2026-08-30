@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useRouter, type Href } from "expo-router";
+import { Link, useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Pressable, View } from "react-native";
@@ -25,6 +25,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const [formError, setFormError] = useState<string | null>(null);
   const {
     control,
@@ -34,6 +35,7 @@ export function LoginScreen() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+  const returnTo = getSafeReturnPath(params.returnTo);
 
   async function onSubmit({ email, password }: LoginFormValues) {
     setFormError(null);
@@ -59,13 +61,13 @@ export function LoginScreen() {
 
       trackProductEventNonBlocking("account_activated", {}, `account-activated:${data.user.id}`);
 
-      if (await consumeFirstUseOnboarding(data.user.id)) {
+      if (!returnTo && (await consumeFirstUseOnboarding(data.user.id))) {
         router.replace("/watchlist-form?onboarding=true" as Href);
         return;
       }
     }
 
-    router.replace(authRoutes.home);
+    router.replace(returnTo ?? authRoutes.home);
   }
 
   return (
@@ -128,7 +130,7 @@ export function LoginScreen() {
 
         <View className="mt-4 flex-row items-center justify-center gap-1">
           <AppText variant="bodySmall">New to DealDrop?</AppText>
-          <Link href={authRoutes.register} asChild>
+          <Link href={getAuthRouteWithReturn(authRoutes.register, returnTo)} asChild>
             <Pressable hitSlop={8}>
               <AppText variant="bodySmall" className="font-semibold text-primary">
                 Create an account
@@ -139,4 +141,14 @@ export function LoginScreen() {
       </View>
     </AuthShell>
   );
+}
+
+function getSafeReturnPath(value: string | string[] | undefined): Href | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) return null;
+  return candidate as Href;
+}
+
+function getAuthRouteWithReturn(route: Href, returnTo: Href | null) {
+  return returnTo ? (`${route}?returnTo=${encodeURIComponent(String(returnTo))}` as Href) : route;
 }

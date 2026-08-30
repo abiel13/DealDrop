@@ -1,4 +1,4 @@
-import { apiClient, type ApiProductCapture } from "@/services/api";
+import { apiClient, type ApiProductCapture, type ApiProductCaptureInput } from "@/services/api";
 
 export interface ProductCaptureDefaults {
   country: string;
@@ -6,12 +6,16 @@ export interface ProductCaptureDefaults {
 }
 
 export async function createPastedProductCapture(url: string, defaults: ProductCaptureDefaults) {
-  const response = await apiClient.createProductCapture({
+  return createProductCapture({
     captureSource: "pasted_url",
     url,
     country: defaults.country,
     preferredCurrency: defaults.currency,
   });
+}
+
+export async function createProductCapture(input: ApiProductCaptureInput) {
+  const response = await apiClient.createProductCapture(input);
   return response.data;
 }
 

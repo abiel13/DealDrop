@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,24 +17,41 @@ import { trackProductEventNonBlocking } from "@/features/analytics/services/anal
 import { formatMarketplaceName } from "@/features/listings/utils/listing.utils";
 import {
   createWatchlist,
+  getWatchlists,
   getSupportedMarketplaces,
 } from "@/features/watchlists/services/watchlist.service";
-import type { WatchlistInput } from "@/features/watchlists/types/watchlist.types";
+import type { Watchlist, WatchlistInput } from "@/features/watchlists/types/watchlist.types";
 import { AppHeader } from "@/features/navigation/components";
-import type { ApiProductCapture, ApiSearchFilters, MarketplaceSource } from "@/services/api";
+import type {
+  ApiProductCapture,
+  ApiProductCaptureInput,
+  ApiSearchFilters,
+  MarketplaceSource,
+} from "@/services/api";
 
 import {
-  createPastedProductCapture,
+  createProductCapture,
   getProductCaptureDefaults,
   getProductCaptureFailureMessage,
   validatePastedProductUrl,
 } from "../services/product-capture.service";
+import { findSharedProductDuplicate } from "../services/share-intent.service";
 
-export function ProductCaptureScreen() {
+export interface ProductCaptureScreenProps {
+  captureSource?: "pasted_url" | "share_sheet";
+  initialCaptureInput?: ApiProductCaptureInput | null;
+  onCancel?: () => void;
+}
+
+export function ProductCaptureScreen({
+  captureSource = "pasted_url",
+  initialCaptureInput = null,
+  onCancel,
+}: ProductCaptureScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialCaptureInput?.url ?? "");
   const [capture, setCapture] = useState<ApiProductCapture | null>(null);
   const [title, setTitle] = useState("");
   const [variant, setVariant] = useState("");
@@ -43,6 +60,9 @@ export function ProductCaptureScreen() {
   const [marketplaceScope, setMarketplaceScope] = useState<"all" | "selected">("all");
   const [marketplaceIds, setMarketplaceIds] = useState<MarketplaceSource[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [duplicateWatchlist, setDuplicateWatchlist] = useState<Watchlist | null>(null);
+  const [duplicateWithoutTargetPrice, setDuplicateWithoutTargetPrice] = useState(false);
+  const autoCaptureKeyRef = useRef<string | null>(null);
 
   const marketplacesQuery = useQuery({
     queryKey: ["marketplaces"],
@@ -54,21 +74,23 @@ export function ProductCaptureScreen() {
   const normalizedProduct = capture?.normalizedProduct;
 
   const captureMutation = useMutation({
-    mutationFn: async () => {
-      const validationError = validatePastedProductUrl(url);
-      if (validationError) throw new Error(validationError);
-      trackProductEventNonBlocking("url_pasted", { captureSource: "pasted_url" });
-      return createPastedProductCapture(url.trim(), defaults);
+    mutationFn: async (input: ApiProductCaptureInput) => {
+      if (input.captureSource === "pasted_url") {
+        trackProductEventNonBlocking("url_pasted", { captureSource: "pasted_url" });
+      }
+      return createProductCapture(input);
     },
     onSuccess: (nextCapture) => {
       setFormError(null);
       setCapture(nextCapture);
 
       if (nextCapture.status === "failed" || !nextCapture.normalizedProduct) {
-        trackProductEventNonBlocking("capture_failed", {
-          captureSource: "pasted_url",
-          reason: getCaptureFailureReason(nextCapture),
-        });
+        if (nextCapture.captureSource === "pasted_url") {
+          trackProductEventNonBlocking("capture_failed", {
+            captureSource: "pasted_url",
+            reason: getCaptureFailureReason(nextCapture),
+          });
+        }
         setFormError(getProductCaptureFailureMessage(nextCapture));
         return;
       }
@@ -78,24 +100,54 @@ export function ProductCaptureScreen() {
       setVariant(product.variant ?? "");
       setCondition(product.condition ?? "");
       setTargetPrice("");
-      trackProductEventNonBlocking("product_identified", {
-        captureSource: "pasted_url",
-        hasPrice: product.price !== null,
-        hasIdentifier: product.identifiers.length > 0,
-        needsConfirmation: nextCapture.status === "needs_confirmation",
-      });
+      if (nextCapture.captureSource === "pasted_url") {
+        trackProductEventNonBlocking("product_identified", {
+          captureSource: "pasted_url",
+          hasPrice: product.price !== null,
+          hasIdentifier: product.identifiers.length > 0,
+          needsConfirmation: nextCapture.status === "needs_confirmation",
+        });
+      }
     },
     onError: (error) => {
-      trackProductEventNonBlocking("capture_failed", {
-        captureSource: "pasted_url",
-        reason: "request_failed",
-      });
+      if (captureSource === "pasted_url") {
+        trackProductEventNonBlocking("capture_failed", {
+          captureSource: "pasted_url",
+          reason: "request_failed",
+        });
+      }
       setFormError(error instanceof Error ? error.message : "We couldn't look up that link.");
     },
   });
 
+  const captureProduct = captureMutation.mutate;
+
+  useEffect(() => {
+    if (captureSource !== "share_sheet" || !initialCaptureInput) return;
+
+    const captureKey = [
+      initialCaptureInput.url,
+      initialCaptureInput.rawText,
+      initialCaptureInput.barcode,
+    ]
+      .map((value) => value ?? "")
+      .join("|");
+    if (autoCaptureKeyRef.current === captureKey) return;
+
+    autoCaptureKeyRef.current = captureKey;
+    setFormError(null);
+    setCapture(null);
+    captureProduct(initialCaptureInput);
+  }, [captureProduct, captureSource, initialCaptureInput]);
+
   const trackingMutation = useMutation({
-    mutationFn: async (withoutTargetPrice: boolean) => {
+    mutationFn: async ({
+      withoutTargetPrice,
+      allowDuplicate,
+    }: {
+      withoutTargetPrice: boolean;
+      allowDuplicate: boolean;
+    }) => {
       if (!user || !normalizedProduct) {
         throw new Error("Confirm a product before tracking it.");
       }
@@ -135,9 +187,36 @@ export function ProductCaptureScreen() {
         marketplaceIds: marketplaceScope === "all" ? [] : marketplaceIds,
       };
 
-      return createWatchlist(input);
+      if (captureSource === "share_sheet" && !allowDuplicate) {
+        const duplicate = findSharedProductDuplicate(
+          await getWatchlists(),
+          input.searchQuery,
+          normalizedProduct.identifiers,
+        );
+        if (duplicate) return { watchlist: null, duplicate, withoutTargetPrice };
+      }
+
+      return {
+        watchlist: await createWatchlist(input),
+        duplicate: null,
+        withoutTargetPrice,
+      };
     },
-    onSuccess: async (watchlist) => {
+    onSuccess: async (result) => {
+      if (result.duplicate) {
+        setDuplicateWatchlist(result.duplicate);
+        setDuplicateWithoutTargetPrice(result.withoutTargetPrice);
+        return;
+      }
+
+      const watchlist = result.watchlist;
+      if (!watchlist) {
+        setFormError("We couldn't create the tracking item yet.");
+        return;
+      }
+
+      setDuplicateWatchlist(null);
+      setDuplicateWithoutTargetPrice(false);
       await queryClient.invalidateQueries({ queryKey: ["watchlists", user?.id] });
       trackProductEventNonBlocking(
         "tracking_created",
@@ -156,9 +235,20 @@ export function ProductCaptureScreen() {
   }
 
   function handleCapture() {
+    const validationError = validatePastedProductUrl(url);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
     setFormError(null);
     setCapture(null);
-    captureMutation.mutate();
+    captureProduct({
+      captureSource: "pasted_url",
+      url: url.trim(),
+      country: defaults.country,
+      preferredCurrency: defaults.currency,
+    });
   }
 
   function selectAllMarketplaces() {
@@ -175,9 +265,11 @@ export function ProductCaptureScreen() {
     setMarketplaceIds(nextIds);
   }
 
-  function handleTrack(withoutTargetPrice = false) {
+  function handleTrack(withoutTargetPrice = false, allowDuplicate = false) {
     setFormError(null);
-    trackingMutation.mutate(withoutTargetPrice);
+    setDuplicateWatchlist(null);
+    setDuplicateWithoutTargetPrice(false);
+    trackingMutation.mutate({ withoutTargetPrice, allowDuplicate });
   }
 
   return (
@@ -190,34 +282,45 @@ export function ProductCaptureScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
-          title="Paste a product link"
+          title={captureSource === "share_sheet" ? "Review shared product" : "Paste a product link"}
           subtitle="DealDrop will identify the product before you start tracking it."
-          onBack={() => router.back()}
+          onBack={onCancel ?? (() => router.back())}
         />
 
-        <Card padding="md" className="gap-4">
-          <View className="gap-1">
-            <AppText variant="label">Product URL</AppText>
-            <AppText variant="bodySmall">
-              Use a public product page from a supported marketplace or store.
+        {captureSource === "pasted_url" ? (
+          <Card padding="md" className="gap-4">
+            <View className="gap-1">
+              <AppText variant="label">Product URL</AppText>
+              <AppText variant="bodySmall">
+                Use a public product page from a supported marketplace or store.
+              </AppText>
+            </View>
+            <Input
+              label=""
+              placeholder="https://example.com/product"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="go"
+              value={url}
+              onChangeText={setUrl}
+              onSubmitEditing={handleCapture}
+            />
+            <Button loading={captureMutation.isPending} onPress={handleCapture}>
+              Find product
+            </Button>
+            {formError && !normalizedProduct && <AppText variant="error">{formError}</AppText>}
+          </Card>
+        ) : (
+          <Card padding="md" className="gap-2">
+            <AppText variant="label">Shared content</AppText>
+            <AppText variant="bodySmall" numberOfLines={4}>
+              {initialCaptureInput?.url ??
+                initialCaptureInput?.rawText ??
+                "Reading shared content…"}
             </AppText>
-          </View>
-          <Input
-            label=""
-            placeholder="https://example.com/product"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            returnKeyType="go"
-            value={url}
-            onChangeText={setUrl}
-            onSubmitEditing={handleCapture}
-          />
-          <Button loading={captureMutation.isPending} onPress={handleCapture}>
-            Find product
-          </Button>
-          {formError && !normalizedProduct && <AppText variant="error">{formError}</AppText>}
-        </Card>
+          </Card>
+        )}
 
         {captureMutation.isPending && <Loading size="small" />}
 
@@ -317,6 +420,25 @@ export function ProductCaptureScreen() {
               value={targetPrice}
               onChangeText={setTargetPrice}
             />
+
+            {duplicateWatchlist && (
+              <Card padding="sm" className="gap-3 border border-warning">
+                <AppText variant="label">This product is already being tracked</AppText>
+                <AppText variant="bodySmall">
+                  Open “{duplicateWatchlist.name}”, or intentionally create another tracker.
+                </AppText>
+                <Button onPress={() => router.replace(watchlistRoute(duplicateWatchlist.id))}>
+                  Open existing tracker
+                </Button>
+                <Button
+                  disabled={trackingMutation.isPending}
+                  variant="outline"
+                  onPress={() => handleTrack(duplicateWithoutTargetPrice, true)}
+                >
+                  Track again anyway
+                </Button>
+              </Card>
+            )}
 
             {formError && <AppText variant="error">{formError}</AppText>}
             <Button loading={trackingMutation.isPending} onPress={() => handleTrack()}>

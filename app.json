@@ -37,7 +37,23 @@
           "imageWidth": 104
         }
       ],
-      "expo-sharing"
+      [
+        "expo-sharing",
+        {
+          "ios": {
+            "enabled": true,
+            "activationRule": {
+              "supportsText": true,
+              "supportsWebUrlWithMaxCount": 1,
+              "supportsWebPageWithMaxCount": 1
+            }
+          },
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/plain", "text/uri-list"]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

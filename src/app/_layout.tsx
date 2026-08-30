@@ -88,6 +88,8 @@ function RootNavigator() {
           <Stack.Screen name="register" />
           <Stack.Screen name="forgot-password" />
         </Stack.Protected>
+
+        <Stack.Screen name="share-product" options={{ headerShown: false }} />
       </Stack>
     </>
   );
