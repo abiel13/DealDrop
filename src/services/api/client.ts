@@ -24,6 +24,12 @@ import type {
   ApiNotification,
   ApiNotificationQuery,
   ApiNotificationPreferences,
+  ApiDealRoom,
+  ApiDealRoomInput,
+  ApiDealRoomItem,
+  ApiDealRoomItemInput,
+  ApiDealRoomItemUpdateInput,
+  ApiDealRoomUpdateInput,
   ApiProductCapture,
   ApiProductCaptureInput,
   ApiProEntitlement,
@@ -142,6 +148,58 @@ export class DealDropApiClient {
 
   async getWorkspaces() {
     return this.request<ApiWorkspace[]>("/workspaces");
+  }
+
+  async getDealRooms() {
+    return this.request<ApiDealRoom[]>("/deal-rooms");
+  }
+
+  async getDealRoom(roomId: string) {
+    return this.request<ApiDealRoom>(`/deal-rooms/${encodeURIComponent(roomId)}`);
+  }
+
+  async getPublicDealRoom(roomId: string) {
+    return this.request<ApiDealRoom>(`/deal-rooms/public/${encodeURIComponent(roomId)}`, {
+      authenticated: false,
+    });
+  }
+
+  async createDealRoom(input: ApiDealRoomInput) {
+    return this.request<ApiDealRoom>("/deal-rooms", { method: "POST", body: input });
+  }
+
+  async updateDealRoom(roomId: string, input: ApiDealRoomUpdateInput) {
+    return this.request<ApiDealRoom>(`/deal-rooms/${encodeURIComponent(roomId)}`, {
+      method: "PATCH",
+      body: input,
+    });
+  }
+
+  async deleteDealRoom(roomId: string) {
+    return this.request<{ deleted: boolean }>(`/deal-rooms/${encodeURIComponent(roomId)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async addDealRoomItem(roomId: string, input: ApiDealRoomItemInput) {
+    return this.request<ApiDealRoomItem>(`/deal-rooms/${encodeURIComponent(roomId)}/items`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async updateDealRoomItem(roomId: string, itemId: string, input: ApiDealRoomItemUpdateInput) {
+    return this.request<ApiDealRoomItem>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}`,
+      { method: "PATCH", body: input },
+    );
+  }
+
+  async deleteDealRoomItem(roomId: string, itemId: string) {
+    return this.request<{ deleted: boolean }>(
+      `/deal-rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async getProEntitlement() {

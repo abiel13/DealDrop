@@ -16,6 +16,10 @@ import type { WatchlistFilters } from "../types/backend";
 import type {
   ApiComparisonManualGroupInput,
   ApiComparisonShortlistInput,
+  ApiDealRoomInput,
+  ApiDealRoomItemInput,
+  ApiDealRoomItemUpdateInput,
+  ApiDealRoomUpdateInput,
   ApiSupplierFilters,
   ApiSupplierInput,
   ApiSupplierUpdateInput,
@@ -50,6 +54,8 @@ import type {
   RawApiSourcingPriceObservation,
   RawApiComparisonManualGroup,
   RawApiComparisonShortlist,
+  RawApiDealRoom,
+  RawApiDealRoomItem,
   RawApiSupplier,
   RawApiSupplierShortlistHistory,
   RawApiWatchlist,
@@ -78,6 +84,10 @@ const SUPPLIER_HISTORY_COLUMNS =
   "id,workspace_id,supplier_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,first_shortlisted_at,last_shortlisted_at,last_shortlisted_by";
 const PRODUCT_CAPTURE_COLUMNS =
   "id,user_id,capture_source,url,raw_text,barcode,barcode_format,image_reference,country,preferred_currency,status,normalized_product,candidate_products,missing_fields,failure_reason,created_at,updated_at,processed_at";
+const DEAL_ROOM_COLUMNS =
+  "id,user_id,name,description,cover_image_url,visibility,created_at,updated_at";
+const DEAL_ROOM_ITEM_COLUMNS =
+  "id,room_id,item_type,product_identity_id,listing_id,watchlist_id,sort_order,created_at,updated_at";
 
 export interface Page<T> {
   items: T[];
@@ -162,6 +172,27 @@ export interface MobileApiRepositoryContract {
   getWorkspace(userId: string, workspaceId: string): Promise<StoredWorkspace | null>;
   createWorkspace(userId: string, input: ApiWorkspaceInput): Promise<StoredWorkspace>;
   getWorkspaceMembers(userId: string, workspaceId: string): Promise<RawApiWorkspaceMember[]>;
+  getDealRooms(userId: string): Promise<RawApiDealRoom[]>;
+  getDealRoom(userId: string | null, roomId: string): Promise<RawApiDealRoom | null>;
+  createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom>;
+  updateDealRoom(
+    userId: string,
+    roomId: string,
+    input: ApiDealRoomUpdateInput,
+  ): Promise<RawApiDealRoom | null>;
+  deleteDealRoom(userId: string, roomId: string): Promise<boolean>;
+  addDealRoomItem(
+    userId: string,
+    roomId: string,
+    input: ApiDealRoomItemInput,
+  ): Promise<RawApiDealRoomItem | null>;
+  updateDealRoomItem(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    input: ApiDealRoomItemUpdateInput,
+  ): Promise<RawApiDealRoomItem | null>;
+  deleteDealRoomItem(userId: string, roomId: string, itemId: string): Promise<boolean>;
   inviteWorkspaceMember(
     userId: string,
     workspaceId: string,
@@ -641,6 +672,207 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       role: input.role,
       created_at: new Date().toISOString(),
     };
+  }
+
+  async getDealRooms(userId: string): Promise<RawApiDealRoom[]> {
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .select(DEAL_ROOM_COLUMNS)
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .returns<Array<Omit<RawApiDealRoom, "items">>>();
+
+    if (error) {
+      throw error;
+    }
+
+    return Promise.all((data ?? []).map((room) => this.withDealRoomItems(room)));
+  }
+
+  async getDealRoom(userId: string | null, roomId: string): Promise<RawApiDealRoom | null> {
+    let query = this.client.from("deal_rooms").select(DEAL_ROOM_COLUMNS).eq("id", roomId);
+
+    query = userId
+      ? query.or(`user_id.eq.${userId},visibility.eq.public`)
+      : query.eq("visibility", "public");
+
+    const { data, error } = await query.maybeSingle<Omit<RawApiDealRoom, "items">>();
+    if (error) {
+      throw error;
+    }
+
+    return data ? this.withDealRoomItems(data) : null;
+  }
+
+  async createDealRoom(userId: string, input: ApiDealRoomInput): Promise<RawApiDealRoom> {
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .insert({
+        user_id: userId,
+        name: input.name,
+        description: input.description ?? null,
+        cover_image_url: input.coverImageUrl ?? null,
+        visibility: input.visibility ?? "private",
+      })
+      .select(DEAL_ROOM_COLUMNS)
+      .single<Omit<RawApiDealRoom, "items">>();
+
+    if (error) {
+      throw error;
+    }
+
+    return { ...data, items: [] };
+  }
+
+  async updateDealRoom(
+    userId: string,
+    roomId: string,
+    input: ApiDealRoomUpdateInput,
+  ): Promise<RawApiDealRoom | null> {
+    const values: Record<string, unknown> = {};
+    if (input.name !== undefined) values.name = input.name;
+    if (input.description !== undefined) values.description = input.description;
+    if (input.coverImageUrl !== undefined) values.cover_image_url = input.coverImageUrl;
+    if (input.visibility !== undefined) values.visibility = input.visibility;
+
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .update(values)
+      .eq("id", roomId)
+      .eq("user_id", userId)
+      .select(DEAL_ROOM_COLUMNS)
+      .maybeSingle<Omit<RawApiDealRoom, "items">>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data ? this.withDealRoomItems(data) : null;
+  }
+
+  async deleteDealRoom(userId: string, roomId: string): Promise<boolean> {
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .delete()
+      .eq("id", roomId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data);
+  }
+
+  async addDealRoomItem(
+    userId: string,
+    roomId: string,
+    input: ApiDealRoomItemInput,
+  ): Promise<RawApiDealRoomItem | null> {
+    if (!(await this.ownsDealRoom(userId, roomId))) {
+      return null;
+    }
+
+    if (!(await this.canAddDealRoomReference(userId, input))) {
+      return null;
+    }
+
+    let existingQuery = this.client
+      .from("deal_room_items")
+      .select(DEAL_ROOM_ITEM_COLUMNS)
+      .eq("room_id", roomId)
+      .eq("item_type", input.itemType);
+    if (input.productIdentityId) {
+      existingQuery = existingQuery.eq("product_identity_id", input.productIdentityId);
+    } else if (input.listingId) {
+      existingQuery = existingQuery.eq("listing_id", input.listingId);
+    } else if (input.watchlistId) {
+      existingQuery = existingQuery.eq("watchlist_id", input.watchlistId);
+    }
+
+    const { data: existing, error: existingError } =
+      await existingQuery.maybeSingle<RawApiDealRoomItem>();
+    if (existingError) {
+      throw existingError;
+    }
+    if (existing) {
+      return this.findDealRoomItem(userId, roomId, existing.id);
+    }
+
+    const { data: lastItem, error: lastItemError } = await this.client
+      .from("deal_room_items")
+      .select("sort_order")
+      .eq("room_id", roomId)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ sort_order: number }>();
+    if (lastItemError) {
+      throw lastItemError;
+    }
+
+    const { data: item, error } = await this.client
+      .from("deal_room_items")
+      .insert({
+        room_id: roomId,
+        item_type: input.itemType,
+        product_identity_id: input.productIdentityId ?? null,
+        listing_id: input.listingId ?? null,
+        watchlist_id: input.watchlistId ?? null,
+        sort_order: (lastItem?.sort_order ?? -1) + 1,
+      })
+      .select(DEAL_ROOM_ITEM_COLUMNS)
+      .single<RawApiDealRoomItem>();
+    if (error) {
+      throw error;
+    }
+
+    return this.findDealRoomItem(userId, roomId, item.id);
+  }
+
+  async updateDealRoomItem(
+    userId: string,
+    roomId: string,
+    itemId: string,
+    input: ApiDealRoomItemUpdateInput,
+  ): Promise<RawApiDealRoomItem | null> {
+    if (!(await this.ownsDealRoom(userId, roomId))) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("deal_room_items")
+      .update({ sort_order: input.sortOrder })
+      .eq("id", itemId)
+      .eq("room_id", roomId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      throw error;
+    }
+
+    return data ? this.findDealRoomItem(userId, roomId, data.id) : null;
+  }
+
+  async deleteDealRoomItem(userId: string, roomId: string, itemId: string): Promise<boolean> {
+    if (!(await this.ownsDealRoom(userId, roomId))) {
+      return false;
+    }
+
+    const { data, error } = await this.client
+      .from("deal_room_items")
+      .delete()
+      .eq("id", itemId)
+      .eq("room_id", roomId)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data);
   }
 
   async getSourcingLists(
@@ -2527,6 +2759,217 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
     if (error) {
       throw error;
     }
+  }
+
+  private async ownsDealRoom(userId: string, roomId: string) {
+    const { data, error } = await this.client
+      .from("deal_rooms")
+      .select("id")
+      .eq("id", roomId)
+      .eq("user_id", userId)
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data);
+  }
+
+  private async canAddDealRoomReference(userId: string, input: ApiDealRoomItemInput) {
+    if (input.itemType === "product") {
+      if (!input.productIdentityId) {
+        return false;
+      }
+
+      const { data, error } = await this.client
+        .from("product_identities")
+        .select("id")
+        .eq("id", input.productIdentityId)
+        .maybeSingle<{ id: string }>();
+      if (error) {
+        throw error;
+      }
+
+      return Boolean(data);
+    }
+
+    if (input.itemType === "tracked_product") {
+      return Boolean(input.watchlistId && (await this.getWatchlist(userId, input.watchlistId)));
+    }
+
+    if (!input.listingId || !(await this.getListingForUser(userId, input.listingId))) {
+      return false;
+    }
+
+    if (input.itemType !== "saved_product") {
+      return true;
+    }
+
+    const { data, error } = await this.client
+      .from("favorites")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("listing_id", input.listingId)
+      .maybeSingle<{ id: string }>();
+    if (error) {
+      throw error;
+    }
+
+    return Boolean(data);
+  }
+
+  private async findDealRoomItem(userId: string, roomId: string, itemId: string) {
+    const room = await this.getDealRoom(userId, roomId);
+    return room?.items.find((item) => item.id === itemId) ?? null;
+  }
+
+  private async withDealRoomItems(room: Omit<RawApiDealRoom, "items">): Promise<RawApiDealRoom> {
+    return {
+      ...room,
+      items: await this.getDealRoomItems(room.id),
+    };
+  }
+
+  private async getDealRoomItems(roomId: string): Promise<RawApiDealRoomItem[]> {
+    const { data: itemRows, error: itemError } = await this.client
+      .from("deal_room_items")
+      .select(DEAL_ROOM_ITEM_COLUMNS)
+      .eq("room_id", roomId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .returns<RawApiDealRoomItem[]>();
+    if (itemError) {
+      throw itemError;
+    }
+
+    const rows = itemRows ?? [];
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const listingIds = [
+      ...new Set(rows.flatMap((row) => (row.listing_id ? [row.listing_id] : []))),
+    ];
+    const watchlistIds = [
+      ...new Set(rows.flatMap((row) => (row.watchlist_id ? [row.watchlist_id] : []))),
+    ];
+    const productIdentityIds = [
+      ...new Set(rows.flatMap((row) => (row.product_identity_id ? [row.product_identity_id] : []))),
+    ];
+
+    let listings: RawApiListing[] = [];
+    if (listingIds.length > 0) {
+      const { data, error } = await this.client
+        .from("listings")
+        .select(LISTING_COLUMNS)
+        .in("id", listingIds)
+        .returns<RawApiListing[]>();
+      if (error) {
+        throw error;
+      }
+      listings = data ?? [];
+    }
+
+    let productListings: RawApiListing[] = [];
+    if (productIdentityIds.length > 0) {
+      const { data, error } = await this.client
+        .from("listings")
+        .select(LISTING_COLUMNS)
+        .in("product_identity_id", productIdentityIds)
+        .order("is_active", { ascending: false })
+        .order("last_seen_at", { ascending: false })
+        .returns<RawApiListing[]>();
+      if (error) {
+        throw error;
+      }
+      productListings = data ?? [];
+    }
+
+    let watchlists: RawApiWatchlist[] = [];
+    if (watchlistIds.length > 0) {
+      const { data, error } = await this.client
+        .from("watchlists")
+        .select(WATCHLIST_COLUMNS)
+        .in("id", watchlistIds)
+        .returns<RawApiWatchlist[]>();
+      if (error) {
+        throw error;
+      }
+      watchlists = data ?? [];
+    }
+
+    let productIdentities: Array<{ id: string; canonical_title: string }> = [];
+    if (productIdentityIds.length > 0) {
+      const { data, error } = await this.client
+        .from("product_identities")
+        .select("id,canonical_title")
+        .in("id", productIdentityIds)
+        .returns<Array<{ id: string; canonical_title: string }>>();
+      if (error) {
+        throw error;
+      }
+      productIdentities = data ?? [];
+    }
+
+    let matchRows: Array<{
+      watchlist_id: string;
+      listing: RawApiListing | RawApiListing[] | null;
+    }> = [];
+    if (watchlistIds.length > 0) {
+      const { data, error } = await this.client
+        .from("matches")
+        .select(`watchlist_id,listing:listings!inner(${MATCH_LISTING_COLUMNS})`)
+        .in("watchlist_id", watchlistIds)
+        .neq("status", "dismissed")
+        .order("matched_at", { ascending: false })
+        .returns<
+          Array<{
+            watchlist_id: string;
+            listing: RawApiListing | RawApiListing[] | null;
+          }>
+        >();
+      if (error) {
+        throw error;
+      }
+      matchRows = data ?? [];
+    }
+
+    const listingById = new Map(
+      [...listings, ...productListings].map((listing) => [listing.id, listing]),
+    );
+    const watchlistById = new Map(watchlists.map((watchlist) => [watchlist.id, watchlist]));
+    const identityById = new Map(productIdentities.map((identity) => [identity.id, identity]));
+    const productListingByIdentity = new Map<string, RawApiListing>();
+    for (const listing of productListings) {
+      if (
+        listing.product_identity_id &&
+        !productListingByIdentity.has(listing.product_identity_id)
+      ) {
+        productListingByIdentity.set(listing.product_identity_id, listing);
+      }
+    }
+    const currentListingByWatchlist = new Map<string, RawApiListing>();
+    for (const match of matchRows) {
+      const listing = unwrap(match.listing);
+      if (listing && !currentListingByWatchlist.has(match.watchlist_id)) {
+        currentListingByWatchlist.set(match.watchlist_id, listing);
+      }
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      listing: row.listing_id ? (listingById.get(row.listing_id) ?? null) : null,
+      current_listing: row.watchlist_id
+        ? (currentListingByWatchlist.get(row.watchlist_id) ?? null)
+        : row.product_identity_id
+          ? (productListingByIdentity.get(row.product_identity_id) ?? null)
+          : null,
+      watchlist: row.watchlist_id ? (watchlistById.get(row.watchlist_id) ?? null) : null,
+      product_identity: row.product_identity_id
+        ? (identityById.get(row.product_identity_id) ?? null)
+        : null,
+    }));
   }
 
   private async getFavoriteIds(userId: string, listingIds: string[]) {

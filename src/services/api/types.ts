@@ -533,6 +533,62 @@ export interface ApiWatchlist {
   updatedAt: string;
 }
 
+export type ApiDealRoomVisibility = "private" | "public";
+export type ApiDealRoomItemType =
+  "product" | "saved_product" | "marketplace_listing" | "tracked_product" | "selected_deal";
+export type ApiDealRoomItemAvailability = "available" | "unavailable" | "unknown";
+
+export interface ApiDealRoomItem {
+  id: string;
+  roomId: string;
+  itemType: ApiDealRoomItemType;
+  productIdentityId: string | null;
+  listingId: string | null;
+  watchlistId: string | null;
+  title: string;
+  imageUrl: string | null;
+  currentPrice: number | null;
+  currency: string | null;
+  availability: ApiDealRoomItemAvailability;
+  source: MarketplaceSource | null;
+  url: string | null;
+  watchlistName: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiDealRoom {
+  id: string;
+  name: string;
+  description: string | null;
+  coverImageUrl: string | null;
+  visibility: ApiDealRoomVisibility;
+  items: ApiDealRoomItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiDealRoomInput {
+  name: string;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  visibility?: ApiDealRoomVisibility;
+}
+
+export type ApiDealRoomUpdateInput = Partial<ApiDealRoomInput>;
+
+export interface ApiDealRoomItemInput {
+  itemType: ApiDealRoomItemType;
+  productIdentityId?: string | null;
+  listingId?: string | null;
+  watchlistId?: string | null;
+}
+
+export interface ApiDealRoomItemUpdateInput {
+  sortOrder: number;
+}
+
 export interface ApiWatchlistInput {
   name: string;
   searchQuery: string;

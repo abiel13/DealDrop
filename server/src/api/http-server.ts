@@ -57,6 +57,10 @@ import {
   inviteWorkspaceMemberSchema,
   createSourcingNoteSchema,
   productCaptureSchema,
+  createDealRoomSchema,
+  updateDealRoomSchema,
+  createDealRoomItemSchema,
+  updateDealRoomItemSchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
@@ -168,12 +172,25 @@ async function handleRequest(
       throw new ApiNotFoundError("The requested endpoint was not found.");
     }
 
+    const routeSegments = path.slice(`${API_PREFIX}/`.length).split("/").filter(Boolean);
+    if (
+      method === "GET" &&
+      routeSegments.length === 3 &&
+      routeSegments[0] === "deal-rooms" &&
+      routeSegments[1] === "public"
+    ) {
+      assertResourceId(routeSegments[2]!);
+      const publicApi = options.mobileApi ?? createMobileApi(options, logger);
+      sendSuccess(response, requestId, await publicApi.getPublicDealRoom(routeSegments[2]!));
+      return;
+    }
+
     const authenticator = options.authenticator;
     if (!authenticator) {
       throw new ApiError(503, "api_unavailable", "The authenticated API is not configured.");
     }
     const user = await authenticator.authenticate(request);
-    const segments = path.slice(`${API_PREFIX}/`.length).split("/").filter(Boolean);
+    const segments = routeSegments;
     const operation = operationForRoute(method, segments);
     const rateLimit = enforceRateLimit(rateLimiter, operation, security, [
       `user:${user.id}`,
@@ -230,6 +247,76 @@ async function routeProtectedRequest(
   maxBodyBytes: number,
 ) {
   const [resource, resourceId, action] = segments;
+
+  if (resource === "deal-rooms" && !resourceId) {
+    if (method === "GET") {
+      sendSuccess(response, requestId, await api.getDealRooms(userId));
+      return;
+    }
+
+    if (method === "POST") {
+      const input = parseBody(createDealRoomSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(response, requestId, await api.createDealRoom(userId, input), undefined, 201);
+      return;
+    }
+  }
+
+  if (resource === "deal-rooms" && resourceId) {
+    assertResourceId(resourceId);
+
+    if (!action && segments.length === 2 && method === "GET") {
+      sendSuccess(response, requestId, await api.getDealRoom(userId, resourceId));
+      return;
+    }
+
+    if (!action && segments.length === 2 && method === "PATCH") {
+      const input = parseBody(updateDealRoomSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(response, requestId, await api.updateDealRoom(userId, resourceId, input));
+      return;
+    }
+
+    if (!action && segments.length === 2 && method === "DELETE") {
+      await api.deleteDealRoom(userId, resourceId);
+      sendSuccess(response, requestId, { deleted: true });
+      return;
+    }
+
+    if (action === "items" && segments.length === 3 && method === "POST") {
+      const input = parseBody(createDealRoomItemSchema, await readJsonBody(request, maxBodyBytes));
+      sendSuccess(
+        response,
+        requestId,
+        await api.addDealRoomItem(userId, resourceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    const itemId = segments[3];
+    if (action === "items" && itemId && segments.length === 4) {
+      assertResourceId(itemId);
+
+      if (method === "PATCH") {
+        const input = parseBody(
+          updateDealRoomItemSchema,
+          await readJsonBody(request, maxBodyBytes),
+        );
+        sendSuccess(
+          response,
+          requestId,
+          await api.updateDealRoomItem(userId, resourceId, itemId, input),
+        );
+        return;
+      }
+
+      if (method === "DELETE") {
+        await api.deleteDealRoomItem(userId, resourceId, itemId);
+        sendSuccess(response, requestId, { deleted: true });
+        return;
+      }
+    }
+  }
 
   if (method === "GET" && resource === "pro" && resourceId === "entitlement" && !action) {
     sendSuccess(response, requestId, await api.getProEntitlement(userId));
