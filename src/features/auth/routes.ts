@@ -26,6 +26,7 @@ export const authRoutes = {
   dealRooms: "/deal-rooms" as Href,
   dealRoomForm: "/deal-room-form" as Href,
   dealRoom: "/deal-room" as Href,
+  dealRoomInvite: "/deal-room-invite" as Href,
   listing: "/listing" as Href,
 };
 
@@ -51,6 +52,10 @@ export function dealRoomFormRoute() {
 
 export function dealRoomRoute(dealRoomId: string) {
   return `/deal-room/${encodeURIComponent(dealRoomId)}` as Href;
+}
+
+export function dealRoomInviteRoute(token: string) {
+  return `${authRoutes.dealRoomInvite}?token=${encodeURIComponent(token)}` as Href;
 }
 
 export function sourcingListProductComparisonRoute(

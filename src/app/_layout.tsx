@@ -90,6 +90,7 @@ function RootNavigator() {
         </Stack.Protected>
 
         <Stack.Screen name="share-product" options={{ headerShown: false }} />
+        <Stack.Screen name="deal-room-invite" options={{ headerShown: false }} />
       </Stack>
     </>
   );

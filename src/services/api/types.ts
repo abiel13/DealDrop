@@ -534,6 +534,7 @@ export interface ApiWatchlist {
 }
 
 export type ApiDealRoomVisibility = "private" | "public";
+export type ApiDealRoomRole = "owner" | "contributor" | "viewer";
 export type ApiDealRoomItemType =
   "product" | "saved_product" | "marketplace_listing" | "tracked_product" | "selected_deal";
 export type ApiDealRoomItemAvailability = "available" | "unavailable" | "unknown";
@@ -553,6 +554,9 @@ export interface ApiDealRoomItem {
   source: MarketplaceSource | null;
   url: string | null;
   watchlistName: string | null;
+  isShortlisted: boolean;
+  voteCount: number;
+  viewerVoted: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -564,6 +568,9 @@ export interface ApiDealRoom {
   description: string | null;
   coverImageUrl: string | null;
   visibility: ApiDealRoomVisibility;
+  role: ApiDealRoomRole;
+  isMember: boolean;
+  memberCount: number;
   items: ApiDealRoomItem[];
   createdAt: string;
   updatedAt: string;
@@ -586,7 +593,51 @@ export interface ApiDealRoomItemInput {
 }
 
 export interface ApiDealRoomItemUpdateInput {
-  sortOrder: number;
+  sortOrder?: number;
+  isShortlisted?: boolean;
+}
+
+export interface ApiDealRoomMember {
+  userId: string;
+  email: string | null;
+  fullName: string | null;
+  role: ApiDealRoomRole;
+  createdAt: string;
+}
+
+export interface ApiDealRoomInvitation {
+  id: string;
+  email: string;
+  role: Exclude<ApiDealRoomRole, "owner">;
+  inviteUrl: string;
+  expiresAt: string;
+}
+
+export interface ApiDealRoomComment {
+  id: string;
+  itemId: string;
+  userId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiDealRoomActivity {
+  id: string;
+  roomId: string;
+  itemId: string | null;
+  actorId: string;
+  actorName: string | null;
+  eventType:
+    | "member_invited"
+    | "member_joined"
+    | "item_added"
+    | "item_shortlisted"
+    | "vote_cast"
+    | "comment_added";
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface ApiWatchlistInput {

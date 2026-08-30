@@ -16,6 +16,12 @@ interface DealRoomItemCardProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  canRemove: boolean;
+  canVote: boolean;
+  canShortlist: boolean;
+  onVote: () => void;
+  onToggleShortlist: () => void;
+  onComments: () => void;
 }
 
 export function DealRoomItemCard({
@@ -27,6 +33,12 @@ export function DealRoomItemCard({
   onMoveUp,
   onMoveDown,
   onRemove,
+  canRemove,
+  canVote,
+  canShortlist,
+  onVote,
+  onToggleShortlist,
+  onComments,
 }: DealRoomItemCardProps) {
   const theme = useTheme();
 
@@ -71,6 +83,30 @@ export function DealRoomItemCard({
               {formatAvailability(item.availability)}
             </AppText>
           </View>
+          <View className="flex-row flex-wrap items-center gap-2">
+            {canVote && (
+              <ItemAction
+                label={item.viewerVoted ? "Preferred" : "Prefer"}
+                icon="star"
+                disabled={disabled}
+                onPress={onVote}
+                selected={item.viewerVoted}
+              />
+            )}
+            {canShortlist && (
+              <ItemAction
+                label={item.isShortlisted ? "Shortlisted" : "Shortlist"}
+                icon="check"
+                disabled={disabled}
+                onPress={onToggleShortlist}
+                selected={item.isShortlisted}
+              />
+            )}
+            <ItemAction label="Comments" icon="info" disabled={disabled} onPress={onComments} />
+            <AppText variant="caption" className="text-text-secondary">
+              {item.voteCount} {item.voteCount === 1 ? "preference" : "preferences"}
+            </AppText>
+          </View>
         </View>
       </Pressable>
 
@@ -92,7 +128,7 @@ export function DealRoomItemCard({
         <ItemAction
           label="Remove"
           icon="delete"
-          disabled={disabled}
+          disabled={disabled || !canRemove}
           onPress={onRemove}
           destructive
         />
@@ -107,12 +143,14 @@ function ItemAction({
   disabled,
   onPress,
   destructive = false,
+  selected = false,
 }: {
   label: string;
-  icon: "delete" | "sort";
+  icon: "check" | "delete" | "info" | "sort" | "star";
   disabled: boolean;
   onPress: () => void;
   destructive?: boolean;
+  selected?: boolean;
 }) {
   const theme = useTheme();
 
@@ -122,7 +160,7 @@ function ItemAction({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       className={`flex-row items-center gap-1 rounded-full px-3 py-2 ${
-        destructive ? "bg-background-muted" : "bg-primary-soft"
+        destructive ? "bg-background-muted" : selected ? "bg-primary" : "bg-primary-soft"
       }`}
       disabled={disabled}
       onPress={onPress}
@@ -133,9 +171,11 @@ function ItemAction({
         color={
           disabled
             ? theme.colors.textTertiary
-            : destructive
-              ? theme.colors.textSecondary
-              : theme.colors.primary
+            : selected
+              ? "white"
+              : destructive
+                ? theme.colors.textSecondary
+                : theme.colors.primary
         }
       />
       <AppText
@@ -143,9 +183,11 @@ function ItemAction({
         className={
           disabled
             ? "text-text-tertiary"
-            : destructive
-              ? "text-text-secondary"
-              : "font-semibold text-primary"
+            : selected
+              ? "font-semibold text-white"
+              : destructive
+                ? "text-text-secondary"
+                : "font-semibold text-primary"
         }
       >
         {label}

@@ -195,6 +195,7 @@ export const createWorkspaceSchema = z
   .strict();
 
 const dealRoomVisibilitySchema = z.enum(["private", "public"]);
+const dealRoomMemberRoleSchema = z.enum(["contributor", "viewer"]);
 
 export const createDealRoomSchema = z
   .object({
@@ -258,7 +259,39 @@ export const createDealRoomItemSchema = z
 
 export const updateDealRoomItemSchema = z
   .object({
-    sortOrder: z.number().int().min(0).max(1_000_000),
+    sortOrder: z.number().int().min(0).max(1_000_000).optional(),
+    isShortlisted: z.boolean().optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, "At least one item field is required.");
+
+export const createDealRoomInvitationSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .email()
+      .max(320)
+      .transform((email) => email.toLowerCase()),
+    role: dealRoomMemberRoleSchema.default("viewer"),
+  })
+  .strict();
+
+export const acceptDealRoomInvitationSchema = z
+  .object({
+    token: z.string().trim().min(32).max(256),
+  })
+  .strict();
+
+export const dealRoomVoteSchema = z
+  .object({
+    prefer: z.boolean(),
+  })
+  .strict();
+
+export const createDealRoomCommentSchema = z
+  .object({
+    body: z.string().trim().min(1).max(2_000),
   })
   .strict();
 

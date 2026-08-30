@@ -61,6 +61,10 @@ import {
   updateDealRoomSchema,
   createDealRoomItemSchema,
   updateDealRoomItemSchema,
+  createDealRoomInvitationSchema,
+  acceptDealRoomInvitationSchema,
+  dealRoomVoteSchema,
+  createDealRoomCommentSchema,
 } from "./validation";
 import type { MobileApiRepositoryContract } from "./mobile-repository";
 import type { HealthProvider, OperationalHealthSnapshot } from "../operations/health";
@@ -248,6 +252,20 @@ async function routeProtectedRequest(
 ) {
   const [resource, resourceId, action] = segments;
 
+  if (
+    resource === "deal-room-invitations" &&
+    resourceId === "accept" &&
+    segments.length === 2 &&
+    method === "POST"
+  ) {
+    const input = parseBody(
+      acceptDealRoomInvitationSchema,
+      await readJsonBody(request, maxBodyBytes),
+    );
+    sendSuccess(response, requestId, await api.acceptDealRoomInvitation(userId, input.token));
+    return;
+  }
+
   if (resource === "deal-rooms" && !resourceId) {
     if (method === "GET") {
       sendSuccess(response, requestId, await api.getDealRooms(userId));
@@ -278,6 +296,31 @@ async function routeProtectedRequest(
     if (!action && segments.length === 2 && method === "DELETE") {
       await api.deleteDealRoom(userId, resourceId);
       sendSuccess(response, requestId, { deleted: true });
+      return;
+    }
+
+    if (action === "members" && segments.length === 3 && method === "GET") {
+      sendSuccess(response, requestId, await api.getDealRoomMembers(userId, resourceId));
+      return;
+    }
+
+    if (action === "invitations" && segments.length === 3 && method === "POST") {
+      const input = parseBody(
+        createDealRoomInvitationSchema,
+        await readJsonBody(request, maxBodyBytes),
+      );
+      sendSuccess(
+        response,
+        requestId,
+        await api.createDealRoomInvitation(userId, resourceId, input),
+        undefined,
+        201,
+      );
+      return;
+    }
+
+    if (action === "activity" && segments.length === 3 && method === "GET") {
+      sendSuccess(response, requestId, await api.getDealRoomActivity(userId, resourceId));
       return;
     }
 
@@ -313,6 +356,49 @@ async function routeProtectedRequest(
       if (method === "DELETE") {
         await api.deleteDealRoomItem(userId, resourceId, itemId);
         sendSuccess(response, requestId, { deleted: true });
+        return;
+      }
+    }
+
+    if (action === "items" && itemId && segments.length === 6 && segments[4] === "comments") {
+      assertResourceId(itemId);
+      const commentId = segments[5];
+      assertResourceId(commentId);
+      if (method === "DELETE") {
+        await api.deleteDealRoomComment(userId, resourceId, commentId);
+        sendSuccess(response, requestId, { deleted: true });
+        return;
+      }
+    }
+
+    if (action === "items" && itemId && segments.length === 5 && segments[4] === "comments") {
+      assertResourceId(itemId);
+      if (method === "GET") {
+        sendSuccess(response, requestId, await api.getDealRoomComments(userId, resourceId, itemId));
+        return;
+      }
+      if (method === "POST") {
+        const input = parseBody(
+          createDealRoomCommentSchema,
+          await readJsonBody(request, maxBodyBytes),
+        );
+        sendSuccess(
+          response,
+          requestId,
+          await api.createDealRoomComment(userId, resourceId, itemId, input.body),
+          undefined,
+          201,
+        );
+        return;
+      }
+    }
+
+    if (action === "items" && itemId && segments.length === 5 && segments[4] === "vote") {
+      assertResourceId(itemId);
+      if (method === "PUT") {
+        const input = parseBody(dealRoomVoteSchema, await readJsonBody(request, maxBodyBytes));
+        await api.setDealRoomItemVote(userId, resourceId, itemId, input.prefer);
+        sendSuccess(response, requestId, { updated: true });
         return;
       }
     }

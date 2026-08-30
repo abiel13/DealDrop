@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { AppIcon } from "@/components/ui/Icon";
+import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
@@ -20,6 +21,9 @@ import type { Watchlist } from "@/features/watchlists/types/watchlist.types";
 import { AppHeader } from "@/features/navigation/components";
 import { useTheme } from "@/providers/ThemeProvider";
 
+import { DealRoomCollaboratorsCard } from "../components/DealRoomCollaboratorsCard";
+import { DealRoomComments } from "../components/DealRoomComments";
+import { DealRoomActivityCard } from "../components/DealRoomActivityCard";
 import { DealRoomItemCard } from "../components/DealRoomItemCard";
 import {
   addDealRoomItem,
@@ -28,6 +32,8 @@ import {
   getDealRoomErrorMessage,
   removeDealRoomItem,
   reorderDealRoomItem,
+  setDealRoomItemShortlisted,
+  voteForDealRoomItem,
 } from "../services/deal-room.service";
 import type { DealRoomItem, DealRoomItemInput } from "../types/deal-room.types";
 
@@ -43,6 +49,7 @@ export function DealRoomDetailScreen() {
     "saved_product",
   );
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [expandedCommentsItemId, setExpandedCommentsItemId] = useState<string | null>(null);
 
   const roomQuery = useQuery({
     queryKey: ["deal-room", user?.id, roomId],
@@ -95,6 +102,26 @@ export function DealRoomDetailScreen() {
     },
     onError: (error) => setOperationError(getDealRoomErrorMessage(error)),
   });
+  const shortlistMutation = useMutation({
+    mutationFn: ({ itemId, isShortlisted }: { itemId: string; isShortlisted: boolean }) =>
+      setDealRoomItemShortlisted(roomId!, itemId, isShortlisted),
+    onSuccess: () => {
+      setOperationError(null);
+      void roomQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["deal-room-activity", roomId] });
+    },
+    onError: (error) => setOperationError(getDealRoomErrorMessage(error)),
+  });
+  const voteMutation = useMutation({
+    mutationFn: ({ itemId, prefer }: { itemId: string; prefer: boolean }) =>
+      voteForDealRoomItem(roomId!, itemId, prefer),
+    onSuccess: () => {
+      setOperationError(null);
+      void roomQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["deal-room-activity", roomId] });
+    },
+    onError: (error) => setOperationError(getDealRoomErrorMessage(error)),
+  });
 
   if (!user) {
     return <Redirect href={authRoutes.login} />;
@@ -131,8 +158,12 @@ export function DealRoomDetailScreen() {
     addMutation.isPending ||
     removeMutation.isPending ||
     reorderMutation.isPending ||
-    deleteMutation.isPending;
+    deleteMutation.isPending ||
+    shortlistMutation.isPending ||
+    voteMutation.isPending;
   const selectableListings = savedListingsQuery.data?.listings ?? [];
+  const canContribute = room.role === "owner" || room.role === "contributor";
+  const canComment = room.isMember && room.role !== "viewer";
 
   function confirmRemove(item: DealRoomItem) {
     Alert.alert("Remove from room?", `Remove “${item.title}” from ${room.name}?`, [
@@ -174,13 +205,13 @@ export function DealRoomDetailScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerClassName="gap-5 px-5 pb-10 pt-6"
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
           title={room.name}
-          subtitle={`${room.visibility === "public" ? "Public" : "Private"} collection · ${items.length} ${items.length === 1 ? "item" : "items"}`}
+          subtitle={`${room.visibility === "public" ? "Public" : "Private"} collection · ${items.length} ${items.length === 1 ? "item" : "items"} · ${room.role}`}
           onBack={() => router.back()}
         />
 
@@ -190,12 +221,14 @@ export function DealRoomDetailScreen() {
           </Card>
         )}
 
-        <Button
-          leftIcon={<AppIcon name="star" size={18} color="white" />}
-          onPress={() => setShowAddPanel((current) => !current)}
-        >
-          {showAddPanel ? "Close add panel" : "Add to this room"}
-        </Button>
+        {canContribute && (
+          <Button
+            leftIcon={<AppIcon name="star" size={18} color="white" />}
+            onPress={() => setShowAddPanel((current) => !current)}
+          >
+            {showAddPanel ? "Close add panel" : "Add to this room"}
+          </Button>
+        )}
 
         {showAddPanel && (
           <Card padding="md" className="gap-4">
@@ -262,6 +295,9 @@ export function DealRoomDetailScreen() {
 
         {operationError && <AppText variant="error">{operationError}</AppText>}
 
+        <DealRoomCollaboratorsCard room={room} />
+        <DealRoomActivityCard roomId={room.id} enabled={room.isMember} />
+
         {items.length === 0 ? (
           <EmptyState
             title="This room is ready for ideas"
@@ -270,33 +306,57 @@ export function DealRoomDetailScreen() {
         ) : (
           <View className="gap-3">
             {items.map((item, index) => (
-              <DealRoomItemCard
-                key={item.id}
-                item={item}
-                disabled={isMutating}
-                canMoveUp={index > 0}
-                canMoveDown={index < items.length - 1}
-                onOpen={() => item.listingId && router.push(listingRoute(item.listingId))}
-                onMoveUp={() => moveItem(index, -1)}
-                onMoveDown={() => moveItem(index, 1)}
-                onRemove={() => confirmRemove(item)}
-              />
+              <View key={item.id} className="gap-2">
+                <DealRoomItemCard
+                  item={item}
+                  disabled={isMutating}
+                  canMoveUp={canContribute && index > 0}
+                  canMoveDown={canContribute && index < items.length - 1}
+                  canVote={room.isMember && room.role !== "viewer"}
+                  canShortlist={canContribute}
+                  onOpen={() => item.listingId && router.push(listingRoute(item.listingId))}
+                  onMoveUp={() => moveItem(index, -1)}
+                  onMoveDown={() => moveItem(index, 1)}
+                  onRemove={() => confirmRemove(item)}
+                  canRemove={canContribute}
+                  onVote={() => voteMutation.mutate({ itemId: item.id, prefer: !item.viewerVoted })}
+                  onToggleShortlist={() =>
+                    shortlistMutation.mutate({
+                      itemId: item.id,
+                      isShortlisted: !item.isShortlisted,
+                    })
+                  }
+                  onComments={() =>
+                    setExpandedCommentsItemId((current) => (current === item.id ? null : item.id))
+                  }
+                />
+                {expandedCommentsItemId === item.id && (
+                  <DealRoomComments
+                    roomId={room.id}
+                    itemId={item.id}
+                    userId={user.id}
+                    canComment={canComment}
+                  />
+                )}
+              </View>
             ))}
           </View>
         )}
 
-        <Pressable
-          accessibilityRole="button"
-          className="flex-row items-center justify-center gap-2 rounded-2xl py-3"
-          disabled={isMutating}
-          onPress={confirmDeleteRoom}
-        >
-          <AppIcon name="delete" size={16} color={theme.colors.textSecondary} />
-          <AppText variant="bodySmall" className="text-text-secondary">
-            Delete this Deal Room
-          </AppText>
-        </Pressable>
-      </ScrollView>
+        {room.role === "owner" && (
+          <Pressable
+            accessibilityRole="button"
+            className="flex-row items-center justify-center gap-2 rounded-2xl py-3"
+            disabled={isMutating}
+            onPress={confirmDeleteRoom}
+          >
+            <AppIcon name="delete" size={16} color={theme.colors.textSecondary} />
+            <AppText variant="bodySmall" className="text-text-secondary">
+              Delete this Deal Room
+            </AppText>
+          </Pressable>
+        )}
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
