@@ -12,6 +12,7 @@ import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import type { MarketplaceComparisonOffer } from "../marketplaces/comparison";
+import { resolveProductIdentityAssignments } from "../product-identity/repository";
 import type {
   SourcingMonitoringTarget,
   SourcingOpportunityAlert,
@@ -117,9 +118,26 @@ export interface StoredListing {
   fetched_at: string;
   raw_data: Record<string, unknown>;
   normalized_data: Record<string, unknown>;
+  product_identity_id?: string | null;
+  product_variant_id?: string | null;
+  identity_match_status?: "matched" | "ambiguous" | "unmatched" | "manual";
+  identity_match_method?: "identifier" | "brand_model" | "title_variant" | "manual" | "none";
+  identity_match_confidence?: number | string | null;
+  product_identity_data?: Record<string, unknown>;
 }
 
-export type StoredListingReference = Pick<StoredListing, "id" | "marketplace_id" | "external_id">;
+export type StoredListingReference = Pick<
+  StoredListing,
+  | "id"
+  | "marketplace_id"
+  | "external_id"
+  | "product_identity_id"
+  | "product_variant_id"
+  | "identity_match_status"
+  | "identity_match_method"
+  | "identity_match_confidence"
+  | "product_identity_data"
+>;
 
 export interface ActiveStoredListing {
   stored: StoredListing;
@@ -433,7 +451,12 @@ export class ListingRepository {
       return [];
     }
 
-    const rows = deduplicateIngestionListings(listings).map((listing) => ({
+    const uniqueListings = deduplicateIngestionListings(listings);
+    const identityAssignments = await resolveProductIdentityAssignments(
+      this.client,
+      uniqueListings,
+    );
+    const rows = uniqueListings.map((listing) => ({
       marketplace_id: listing.source,
       external_id: listing.externalId,
       title: listing.title,
@@ -456,13 +479,44 @@ export class ListingRepository {
       raw_data: {
         ...(listing.metadata ?? {}),
         imageUrls: listing.imageUrls,
+        ...(identityAssignments.has(listingIdentity(listing.source, listing.externalId))
+          ? {
+              productIdentity: identityAssignments.get(
+                listingIdentity(listing.source, listing.externalId),
+              )?.snapshot,
+            }
+          : {}),
       },
+      ...(identityAssignments.has(listingIdentity(listing.source, listing.externalId))
+        ? {
+            product_identity_id:
+              identityAssignments.get(listingIdentity(listing.source, listing.externalId))
+                ?.productIdentityId ?? null,
+            product_variant_id:
+              identityAssignments.get(listingIdentity(listing.source, listing.externalId))
+                ?.productVariantId ?? null,
+            identity_match_status: identityAssignments.get(
+              listingIdentity(listing.source, listing.externalId),
+            )?.snapshot.matchStatus,
+            identity_match_method: identityAssignments.get(
+              listingIdentity(listing.source, listing.externalId),
+            )?.snapshot.matchMethod,
+            identity_match_confidence: identityAssignments.get(
+              listingIdentity(listing.source, listing.externalId),
+            )?.snapshot.confidence,
+            product_identity_data: identityAssignments.get(
+              listingIdentity(listing.source, listing.externalId),
+            )?.snapshot,
+          }
+        : {}),
     }));
 
     const { data, error } = await this.client
       .from("listings")
       .upsert(rows, { onConflict: "marketplace_id,external_id", ignoreDuplicates: false })
-      .select("id,marketplace_id,external_id")
+      .select(
+        "id,marketplace_id,external_id,product_identity_id,product_variant_id,identity_match_status,identity_match_method,identity_match_confidence,product_identity_data",
+      )
       .returns<StoredListingReference[]>();
 
     if (error) {
@@ -476,7 +530,7 @@ export class ListingRepository {
         listing.id,
       ]),
     );
-    const observations = deduplicateIngestionListings(listings)
+    const observations = uniqueListings
       .map((listing) => {
         const currency = normalizeCurrency(listing.currency);
         const listingId = listingIdsByIdentity.get(
@@ -524,7 +578,7 @@ export class ListingRepository {
     const { data, error } = await this.client
       .from("listings")
       .select(
-        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data,normalized_data",
+        "id,marketplace_id,external_id,title,description,price,currency,url,image_url,seller_name,location,category,condition,latitude,longitude,posted_at,fetched_at,raw_data,normalized_data,product_identity_id,product_variant_id,identity_match_status,identity_match_method,identity_match_confidence,product_identity_data",
       )
       .in("marketplace_id", uniqueSources)
       .eq("is_active", true)
@@ -664,7 +718,10 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     ...(isMarketplaceProductMetadata(stored.normalized_data)
       ? { product: stored.normalized_data }
       : {}),
-    metadata: stored.raw_data,
+    metadata: {
+      ...stored.raw_data,
+      ...(stored.product_identity_data ? { productIdentity: stored.product_identity_data } : {}),
+    },
   };
 }
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { normalizeText } from "../shared/normalizer";
 import type { MarketplaceListing } from "../shared/types";
+import { compareProductIdentities, productIdentityFromListing } from "../../product-identity";
 import type {
   ComparisonCriteria,
   ComparisonManualGroup,
@@ -11,18 +12,6 @@ import type {
   MarketplaceListingReference,
   MarketplaceProductComparison,
 } from "./types";
-
-const IDENTIFIER_KEYS = [
-  "asin",
-  "upc",
-  "gtin",
-  "ean",
-  "mpn",
-  "partnumber",
-  "oempartnumber",
-  "productcode",
-  "modelnumber",
-] as const;
 
 export function buildMarketplaceComparison(
   listings: MarketplaceListing[],
@@ -44,11 +33,12 @@ export function buildMarketplaceComparison(
     matchMethod: "identifier" | "model_title";
   }> = [];
   for (const listing of remaining.values()) {
-    const identifier = stableIdentifier(listing);
-    const group = automaticGroups.find((candidate) =>
-      identifier
-        ? stableIdentifier(candidate.listings[0]!) === identifier
-        : conservativeTitleModelMatch(candidate.listings[0]!, listing),
+    const group = automaticGroups.find(
+      (candidate) =>
+        compareProductIdentities(
+          productIdentityFromListing(candidate.listings[0]!),
+          productIdentityFromListing(listing),
+        ).decision === "matched",
     );
 
     if (group) {
@@ -56,7 +46,7 @@ export function buildMarketplaceComparison(
     } else {
       automaticGroups.push({
         listings: [listing],
-        matchMethod: identifier ? "identifier" : "model_title",
+        matchMethod: identityMatchMethod(listing),
       });
     }
   }
@@ -300,96 +290,9 @@ function takeManualGroupListings(
   return listings;
 }
 
-function conservativeTitleModelMatch(left: MarketplaceListing, right: MarketplaceListing) {
-  const leftModel = explicitModel(left);
-  const rightModel = explicitModel(right);
-  if (!leftModel || !rightModel || leftModel !== rightModel) return false;
-
-  const leftBrand = explicitBrand(left);
-  const rightBrand = explicitBrand(right);
-  if (leftBrand && rightBrand && leftBrand !== rightBrand) return false;
-
-  return titleSimilarity(left.title, right.title) >= 0.9;
-}
-
-function stableIdentifier(listing: MarketplaceListing) {
-  const metadata = listing.metadata ?? {};
-  for (const key of IDENTIFIER_KEYS) {
-    const value = readText(metadata, [key, key.toUpperCase()]);
-    const normalized = normalizeIdentifier(value, key);
-    if (normalized) return `${key}:${normalized}`;
-  }
-
-  if (listing.source === "amazon_business") {
-    const asin = listing.externalId.split(":")[0];
-    const normalized = normalizeIdentifier(asin, "asin");
-    if (normalized) return `asin:${normalized}`;
-  }
-
-  return null;
-}
-
-function explicitModel(listing: MarketplaceListing) {
-  const metadata = listing.metadata ?? {};
-  return normalizeModel(
-    readText(metadata, ["model", "modelNumber", "modelnumber", "styleId"]) ??
-      (listing.product?.classificationSource === "marketplace" ||
-      listing.product?.classificationSource === "mixed"
-        ? listing.product.model
-        : null),
-  );
-}
-
-function explicitBrand(listing: MarketplaceListing) {
-  const metadata = listing.metadata ?? {};
-  return normalizeTitle(
-    readText(metadata, ["brand", "manufacturer"]) ??
-      (listing.product?.classificationSource === "marketplace" ||
-      listing.product?.classificationSource === "mixed"
-        ? listing.product.brand
-        : null),
-  );
-}
-
-function normalizeIdentifier(value: string | null, type: string) {
-  if (!value) return null;
-  const normalized = value.trim().toUpperCase();
-  if (!normalized) return null;
-  if (["upc", "gtin", "ean"].includes(type)) {
-    const digits = normalized.replace(/[^0-9]/g, "");
-    return digits || null;
-  }
-  return normalized.replace(/[^A-Z0-9]/g, "") || null;
-}
-
-function normalizeModel(value: string | null) {
-  return value ? normalizeTitle(value) : null;
-}
-
-function normalizeTitle(value: string | null) {
-  return (
-    normalizeText(value)
-      ?.toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim() || null
-  );
-}
-
-function titleSimilarity(left: string, right: string) {
-  const leftTokens = new Set(
-    normalizeTitle(left)
-      ?.split(" ")
-      .filter((token) => token.length > 1),
-  );
-  const rightTokens = new Set(
-    normalizeTitle(right)
-      ?.split(" ")
-      .filter((token) => token.length > 1),
-  );
-  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
-  const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
-  const union = new Set([...leftTokens, ...rightTokens]).size;
-  return union === 0 ? 0 : intersection / union;
+function identityMatchMethod(listing: MarketplaceListing): "identifier" | "model_title" {
+  const identity = productIdentityFromListing(listing);
+  return identity.identifiers.length > 0 || identity.model ? "identifier" : "model_title";
 }
 
 function createAutomaticGroupId(listings: MarketplaceListing[]) {
@@ -501,7 +404,16 @@ function normalizedCurrency(value: string | null) {
 }
 
 function sameCondition(left: string, right: string) {
-  return normalizeTitle(left) === normalizeTitle(right);
+  return (
+    normalizeText(left)
+      ?.toLocaleLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim() ===
+    normalizeText(right)
+      ?.toLocaleLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+  );
 }
 
 function listingKey(listing: MarketplaceListing) {

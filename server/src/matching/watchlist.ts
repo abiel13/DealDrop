@@ -1,6 +1,11 @@
 import { normalizeCurrency, normalizeText } from "../marketplaces/shared/normalizer";
 import { containsText, createSearchIntent, evaluateListingRelevance } from "../listings/relevance";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
+import {
+  compareProductIdentities,
+  productIdentityFromListing,
+  type ProductIdentityInput,
+} from "../product-identity";
 import type {
   MarketplaceWatchlist,
   WatchlistDistanceFilter,
@@ -157,6 +162,17 @@ function matchesCondition(watchlist: MarketplaceWatchlist, listing: MarketplaceL
   return listing.condition !== null && conditions.includes(normalizedMatchText(listing.condition));
 }
 
+function matchesProductIdentity(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
+  const filter = watchlist.filters.productIdentity;
+  if (!filter) return true;
+
+  const comparison = compareProductIdentities(
+    toProductIdentityInput(filter),
+    productIdentityFromListing(listing),
+  );
+  return comparison.decision === "matched" && comparison.confidence >= 0.9;
+}
+
 export function matchesWatchlist(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {
   const relevance = evaluateListingRelevance(
     listing,
@@ -170,6 +186,28 @@ export function matchesWatchlist(watchlist: MarketplaceWatchlist, listing: Marke
     matchesPrice(watchlist.filters.price, listing) &&
     matchesLocation(watchlist.filters.location, listing) &&
     matchesDistance(watchlist.filters.distance, listing) &&
-    matchesCondition(watchlist, listing)
+    matchesCondition(watchlist, listing) &&
+    matchesProductIdentity(watchlist, listing)
   );
+}
+
+function toProductIdentityInput(
+  filter: NonNullable<MarketplaceWatchlist["filters"]["productIdentity"]>,
+): ProductIdentityInput {
+  return {
+    title: filter.title ?? null,
+    brand: filter.brand ?? null,
+    model: filter.model ?? null,
+    category: null,
+    identifiers: filter.identifiers ?? [],
+    variant: {
+      size: filter.variant?.size ?? null,
+      storage: filter.variant?.storage ?? null,
+      color: filter.variant?.color ?? null,
+      generation: filter.variant?.generation ?? null,
+      configuration: filter.variant?.configuration ?? null,
+      raw: filter.variant?.raw ?? null,
+    },
+    condition: filter.condition ?? null,
+  };
 }

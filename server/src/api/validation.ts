@@ -234,6 +234,37 @@ export const watchlistFiltersSchema = z
       .strict()
       .optional(),
     conditions: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+    productIdentity: z
+      .object({
+        title: z.string().trim().min(1).max(300).optional(),
+        brand: z.string().trim().min(1).max(120).optional(),
+        model: z.string().trim().min(1).max(160).optional(),
+        identifiers: z
+          .array(
+            z
+              .object({
+                type: z.enum(["upc", "gtin", "ean", "mpn", "asin", "model", "style"]),
+                value: z.string().trim().min(1).max(128),
+              })
+              .strict(),
+          )
+          .max(20)
+          .optional(),
+        variant: z
+          .object({
+            size: z.string().trim().max(120).nullable().optional(),
+            storage: z.string().trim().max(120).nullable().optional(),
+            color: z.string().trim().max(120).nullable().optional(),
+            generation: z.string().trim().max(120).nullable().optional(),
+            configuration: z.string().trim().max(200).nullable().optional(),
+            raw: z.string().trim().max(300).nullable().optional(),
+          })
+          .strict()
+          .optional(),
+        condition: z.string().trim().min(1).max(100).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine(

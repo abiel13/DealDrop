@@ -120,17 +120,23 @@ export class MobileApiService {
   async search(input: SearchInput): Promise<ApiSearchResult> {
     const response = await this.coordinator.search(input);
     const storedListings = await this.dependencies.repository.persistListings(response.listings);
-    const storedIds = new Map(
+    const storedListingsByIdentity = new Map(
       storedListings.map((listing) => [
         listingIdentity(listing.marketplace_id, listing.external_id),
-        listing.id,
+        listing,
       ]),
     );
 
     return {
       listings: response.listings.map((listing) => ({
-        ...toApiListing(listing),
-        id: storedIds.get(listingIdentity(listing.source, listing.externalId)) ?? null,
+        ...toApiListing(listing, {
+          id:
+            storedListingsByIdentity.get(listingIdentity(listing.source, listing.externalId))?.id ??
+            null,
+          productIdentityData: storedListingsByIdentity.get(
+            listingIdentity(listing.source, listing.externalId),
+          )?.product_identity_data,
+        }),
       })),
       intent: response.intent,
       filteredCount: response.filteredCount,
