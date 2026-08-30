@@ -47,6 +47,15 @@ const optionalPercent = z
     "Enter a percentage from 0 to 100 or leave this blank.",
   );
 
+const optionalRoiPercent = z
+  .string()
+  .refine(
+    (value) =>
+      value === "" ||
+      (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 10000),
+    "Enter a percentage from 0 to 10000 or leave this blank.",
+  );
+
 const productSchema = z
   .object({
     category: z.string().trim().min(1, "Add a category."),
@@ -73,6 +82,8 @@ const productSchema = z
     estimatedDutiesTaxes: optionalAmount,
     otherSourcingCost: optionalAmount,
     desiredRetailPrice: optionalAmount,
+    estimatedResaleFees: optionalAmount,
+    desiredRoiPercent: optionalRoiPercent,
     minimumDesiredMarginPercent: optionalPercent,
     maxLandedUnitCost: optionalAmount,
     alertCostBasis: z.enum(["marketplace_price", "landed_unit_cost"]),
@@ -132,6 +143,8 @@ const emptyProduct: FormValues["products"][number] = {
   estimatedDutiesTaxes: "",
   otherSourcingCost: "",
   desiredRetailPrice: "",
+  estimatedResaleFees: "",
+  desiredRoiPercent: "",
   minimumDesiredMarginPercent: "",
   maxLandedUnitCost: "",
   alertCostBasis: "marketplace_price",
@@ -222,6 +235,8 @@ export function SourcingListFormScreen() {
         const estimatedDutiesTaxes = amount(product.estimatedDutiesTaxes);
         const otherSourcingCost = amount(product.otherSourcingCost);
         const desiredRetailPrice = amount(product.desiredRetailPrice);
+        const estimatedResaleFees = amount(product.estimatedResaleFees);
+        const desiredRoiPercent = amount(product.desiredRoiPercent);
         const maxLandedUnitCost = amount(product.maxLandedUnitCost);
 
         return {
@@ -248,6 +263,9 @@ export function SourcingListFormScreen() {
           otherSourcingCostCurrency: otherSourcingCost === null ? null : currency,
           desiredRetailPrice,
           desiredRetailPriceCurrency: desiredRetailPrice === null ? null : currency,
+          estimatedResaleFees,
+          estimatedResaleFeesCurrency: estimatedResaleFees === null ? null : currency,
+          desiredRoiPercent,
           minimumDesiredMarginPercent: amount(product.minimumDesiredMarginPercent),
           maxLandedUnitCost,
           maxLandedUnitCostCurrency: maxLandedUnitCost === null ? null : currency,
@@ -429,7 +447,8 @@ export function SourcingListFormScreen() {
               <AppText variant="label">Unit economics</AppText>
               <AppText variant="caption">
                 Enter manual order-level costs in one currency. Blank costs stay unknown; enter 0
-                when a cost is known to be zero.
+                when a cost is known to be zero. Pro profit intelligence uses only these explicit
+                assumptions.
               </AppText>
               <Controller
                 control={control}
@@ -500,12 +519,44 @@ export function SourcingListFormScreen() {
                   render={({ field: { onBlur, onChange, value } }) => (
                     <Input
                       className="flex-1"
-                      label="Desired retail / unit"
+                      label="Expected resale / unit"
                       keyboardType="decimal-pad"
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
                       error={errors.products?.[index]?.desiredRetailPrice?.message}
+                    />
+                  )}
+                />
+              </View>
+              <View className="flex-row gap-3">
+                <Controller
+                  control={control}
+                  name={`products.${index}.estimatedResaleFees`}
+                  render={({ field: { onBlur, onChange, value } }) => (
+                    <Input
+                      className="flex-1"
+                      label="Resale fees total"
+                      keyboardType="decimal-pad"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      error={errors.products?.[index]?.estimatedResaleFees?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name={`products.${index}.desiredRoiPercent`}
+                  render={({ field: { onBlur, onChange, value } }) => (
+                    <Input
+                      className="flex-1"
+                      label="Desired ROI %"
+                      keyboardType="decimal-pad"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      error={errors.products?.[index]?.desiredRoiPercent?.message}
                     />
                   )}
                 />
@@ -532,7 +583,7 @@ export function SourcingListFormScreen() {
                   render={({ field: { onBlur, onChange, value } }) => (
                     <Input
                       className="flex-1"
-                      label="Minimum margin %"
+                      label="Desired margin %"
                       keyboardType="decimal-pad"
                       onBlur={onBlur}
                       onChangeText={onChange}

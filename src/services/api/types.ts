@@ -609,6 +609,35 @@ export type ApiSourcingWorkflowStatus =
 
 export type ApiSourcingListStatus = "active" | "paused" | "completed";
 export type ApiSourcingAlertCostBasis = "marketplace_price" | "landed_unit_cost";
+export type ApiProfessionalEconomicsBasis = "configured_expected_buy_cost" | "marketplace_offer";
+export type ApiProfessionalEconomicsCompleteness =
+  "complete" | "partial" | "currency_mismatch" | "unavailable";
+
+export interface ApiProfessionalEconomicsMoney {
+  amount: number;
+  currency: string;
+}
+
+export interface ApiProfessionalEconomics {
+  basis: ApiProfessionalEconomicsBasis;
+  quantity: number;
+  currency: string | null;
+  expectedBuyUnitCost: ApiProfessionalEconomicsMoney | null;
+  landedUnitCost: ApiProfessionalEconomicsMoney | null;
+  knownAdditionalCost: ApiProfessionalEconomicsMoney | null;
+  resaleFeesTotal: ApiProfessionalEconomicsMoney | null;
+  expectedSalePrice: ApiProfessionalEconomicsMoney | null;
+  estimatedProfitTotal: ApiProfessionalEconomicsMoney | null;
+  estimatedProfitPerUnit: ApiProfessionalEconomicsMoney | null;
+  roiPercent: number | null;
+  marginPercent: number | null;
+  maximumBuyPrice: ApiProfessionalEconomicsMoney | null;
+  desiredRoiPercent: number | null;
+  desiredMarginPercent: number | null;
+  completeness: ApiProfessionalEconomicsCompleteness;
+  missingComponents: string[];
+  isEstimate: boolean;
+}
 
 export interface ApiSourcingListProduct {
   id: string;
@@ -634,8 +663,12 @@ export interface ApiSourcingListProduct {
   desiredRetailPrice: number | null;
   desiredRetailPriceCurrency: string | null;
   minimumDesiredMarginPercent: number | null;
+  desiredRoiPercent: number | null;
+  estimatedResaleFees: number | null;
+  estimatedResaleFeesCurrency: string | null;
   maxLandedUnitCost: number | null;
   maxLandedUnitCostCurrency: string | null;
+  professionalEconomics: ApiProfessionalEconomics;
   alertCostBasis: ApiSourcingAlertCostBasis;
   alertEnabled: boolean;
   alertTargetPriceReached: boolean;
@@ -698,6 +731,9 @@ export interface ApiSourcingListProductInput {
   desiredRetailPrice?: number | null;
   desiredRetailPriceCurrency?: string | null;
   minimumDesiredMarginPercent?: number | null;
+  desiredRoiPercent?: number | null;
+  estimatedResaleFees?: number | null;
+  estimatedResaleFeesCurrency?: string | null;
   maxLandedUnitCost?: number | null;
   maxLandedUnitCostCurrency?: string | null;
   alertCostBasis?: ApiSourcingAlertCostBasis;
@@ -831,6 +867,7 @@ export interface ApiProductComparison {
   currenciesCompared: string[];
   rawAndLandedWinnersDiffer: boolean;
   recommendation?: ApiProductRecommendation | null;
+  professionalEconomics?: ApiProfessionalEconomics | null;
 }
 
 export type ApiAlternativeReasonCode =

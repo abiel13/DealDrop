@@ -56,6 +56,30 @@ export interface RecommendationTarget {
   basis: RecommendationPriceBasis;
 }
 
+export type RecommendationProfessionalEconomicsCompleteness =
+  "complete" | "partial" | "currency_mismatch" | "unavailable";
+
+export interface RecommendationProfessionalEconomics {
+  basis: "configured_expected_buy_cost" | "marketplace_offer";
+  quantity: number;
+  currency: string | null;
+  expectedBuyUnitCost: RecommendationMoney | null;
+  landedUnitCost: RecommendationMoney | null;
+  knownAdditionalCost: RecommendationMoney | null;
+  resaleFeesTotal: RecommendationMoney | null;
+  expectedSalePrice: RecommendationMoney | null;
+  estimatedProfitTotal: RecommendationMoney | null;
+  estimatedProfitPerUnit: RecommendationMoney | null;
+  roiPercent: number | null;
+  marginPercent: number | null;
+  maximumBuyPrice: RecommendationMoney | null;
+  desiredRoiPercent: number | null;
+  desiredMarginPercent: number | null;
+  completeness: RecommendationProfessionalEconomicsCompleteness;
+  missingComponents: readonly string[];
+  isEstimate: boolean;
+}
+
 export interface RecommendationInput {
   currentOffer: RecommendationOffer;
   competingOffers?: readonly RecommendationOffer[];
@@ -66,6 +90,7 @@ export interface RecommendationInput {
   preferredCondition?: string | null;
   targetQuantity?: number | null;
   preferredMarketplaces?: readonly string[];
+  professionalEconomics?: RecommendationProfessionalEconomics | null;
 }
 
 export interface RecommendationSupportingMetrics {
@@ -234,6 +259,13 @@ export function buildProductRecommendation(input: RecommendationInput): ProductR
       supportingMetrics,
     );
   }
+
+  const professionalEconomicsFallback = addProfessionalEconomicsFactors(
+    current,
+    input.professionalEconomics,
+    factors,
+    supportingMetrics,
+  );
 
   if (maximumPrice) {
     if (currentValue.amount > maximumPrice.amount) {
@@ -476,7 +508,146 @@ export function buildProductRecommendation(input: RecommendationInput): ProductR
     );
   }
 
-  return insufficientRecommendation(current.id, factors, supportingMetrics);
+  return (
+    professionalEconomicsFallback ??
+    insufficientRecommendation(current.id, factors, supportingMetrics)
+  );
+}
+
+function addProfessionalEconomicsFactors(
+  current: RecommendationOffer,
+  economics: RecommendationProfessionalEconomics | null | undefined,
+  factors: RecommendationFactor[],
+  supportingMetrics: RecommendationSupportingMetrics,
+) {
+  if (!economics || economics.completeness === "unavailable") return null;
+
+  if (economics.completeness !== "complete") {
+    factors.push({
+      key: "professional_economics",
+      impact: "unknown",
+      label: "Pro profit intelligence",
+      detail:
+        economics.completeness === "currency_mismatch"
+          ? "Profit, ROI, margin, and maximum buy price are unavailable because the configured values use different currencies; no conversion was applied."
+          : "Profit, ROI, margin, and maximum buy price are unavailable until " +
+            (economics.missingComponents.join(", ").toLowerCase() || "the remaining economics") +
+            " are known.",
+    });
+    return null;
+  }
+
+  const profit = economics.estimatedProfitTotal;
+  const roi = economics.roiPercent;
+  const margin = economics.marginPercent;
+  const desiredRoiMet =
+    economics.desiredRoiPercent === null || (roi !== null && roi >= economics.desiredRoiPercent);
+  const desiredMarginMet =
+    economics.desiredMarginPercent === null ||
+    (margin !== null && margin >= economics.desiredMarginPercent);
+  const currentBuy = money(current.price, current.currency);
+  const hasCurrentBuyCurrencyMismatch =
+    economics.maximumBuyPrice !== null &&
+    currentBuy !== null &&
+    economics.maximumBuyPrice.currency !== currentBuy.currency;
+
+  if (profit === null || roi === null || margin === null) {
+    factors.push({
+      key: "professional_economics",
+      impact: "unknown",
+      label: "Pro profit intelligence",
+      detail:
+        "The configured economics are complete enough to store, but profit, ROI, or margin could not be calculated safely.",
+    });
+    return null;
+  }
+
+  if (profit.amount <= 0 || !desiredRoiMet || !desiredMarginMet) {
+    const failedCriteria = [
+      profit.amount <= 0 ? "estimated profit is " + formatMoney(profit) : null,
+      !desiredRoiMet ? "ROI is " + formatProfessionalPercent(roi) : null,
+      !desiredMarginMet ? "margin is " + formatProfessionalPercent(margin) : null,
+    ].filter((value): value is string => Boolean(value));
+    factors.push({
+      key: "professional_economics",
+      impact: "rules_out",
+      label: "Pro profit intelligence",
+      detail:
+        "Configured resale economics do not meet the sourcing goal: " +
+        failedCriteria.join(", ") +
+        ".",
+    });
+    return finalizeRecommendation(
+      "skip",
+      "strong",
+      "Skip this offer: " +
+        failedCriteria.join(", ") +
+        " based on your configured resale economics.",
+      current.id,
+      factors,
+      supportingMetrics,
+    );
+  }
+
+  if (economics.maximumBuyPrice !== null && !hasCurrentBuyCurrencyMismatch) {
+    if (currentBuy && currentBuy.amount > economics.maximumBuyPrice.amount) {
+      factors.push({
+        key: "professional_economics",
+        impact: "rules_out",
+        label: "Maximum buy price",
+        detail:
+          "The current buy cost of " +
+          formatMoney(currentBuy) +
+          " is above your calculated maximum of " +
+          formatMoney(economics.maximumBuyPrice) +
+          ".",
+      });
+      return finalizeRecommendation(
+        "skip",
+        "strong",
+        "Skip this offer: its buy cost is above your calculated maximum buy price of " +
+          formatMoney(economics.maximumBuyPrice) +
+          ".",
+        current.id,
+        factors,
+        supportingMetrics,
+      );
+    }
+  }
+
+  factors.push({
+    key: "professional_economics",
+    impact: hasCurrentBuyCurrencyMismatch ? "unknown" : "supports",
+    label: "Pro profit intelligence",
+    detail: hasCurrentBuyCurrencyMismatch
+      ? "Profit and return metrics are available, but the maximum buy price uses a different currency from the current offer and was not compared."
+      : "Configured economics estimate " +
+        formatMoney(profit) +
+        " profit total (" +
+        formatProfessionalPercent(roi) +
+        " ROI, " +
+        formatProfessionalPercent(margin) +
+        " margin)" +
+        (economics.maximumBuyPrice
+          ? " and a maximum buy price of " + formatMoney(economics.maximumBuyPrice)
+          : "") +
+        ".",
+  });
+
+  return finalizeRecommendation(
+    "buy_now",
+    "moderate",
+    "Buy now: configured resale economics estimate " +
+      formatMoney(profit) +
+      " profit total (" +
+      formatProfessionalPercent(roi) +
+      " ROI and " +
+      formatProfessionalPercent(margin) +
+      " margin).",
+    current.id,
+    factors,
+    supportingMetrics,
+  );
 }
 
 function insufficientRecommendation(
@@ -521,6 +692,10 @@ function finalizeRecommendation(
     factors,
     supportingMetrics,
   };
+}
+
+function formatProfessionalPercent(value: number) {
+  return value.toFixed(2) + "%";
 }
 
 function valueForOffer(offer: RecommendationOffer, basis: RecommendationPriceBasis) {
