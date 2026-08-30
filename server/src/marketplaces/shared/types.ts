@@ -80,7 +80,7 @@ export interface MarketplaceSearchRequest {
 }
 
 export type MarketplaceProductIdentifierType =
-  "asin" | "upc" | "ean" | "isbn" | "sku" | "part_number" | "oem_part_number";
+  "asin" | "upc" | "ean" | "gtin" | "isbn" | "sku" | "part_number" | "oem_part_number";
 
 export interface MarketplaceProductIdentifier {
   type: MarketplaceProductIdentifierType;

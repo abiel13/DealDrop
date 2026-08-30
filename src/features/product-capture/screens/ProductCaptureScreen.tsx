@@ -25,6 +25,7 @@ import { AppHeader } from "@/features/navigation/components";
 import type {
   ApiProductCapture,
   ApiProductCaptureInput,
+  ApiNormalizedCapturedProduct,
   ApiSearchFilters,
   MarketplaceSource,
 } from "@/services/api";
@@ -38,28 +39,42 @@ import {
 import { findSharedProductDuplicate } from "../services/share-intent.service";
 
 export interface ProductCaptureScreenProps {
-  captureSource?: "pasted_url" | "share_sheet";
+  captureSource?: "pasted_url" | "share_sheet" | "barcode";
   initialCaptureInput?: ApiProductCaptureInput | null;
+  initialCapture?: ApiProductCapture | null;
   initialUrl?: string | null;
   autoCapture?: boolean;
   onCancel?: () => void;
+  onRetryCapture?: () => void;
 }
 
 export function ProductCaptureScreen({
   captureSource = "pasted_url",
   initialCaptureInput = null,
+  initialCapture = null,
   initialUrl = null,
   autoCapture = false,
   onCancel,
+  onRetryCapture,
 }: ProductCaptureScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const initialCandidateProducts = initialCapture?.candidateProducts ?? [];
+  const initialSelectedProduct =
+    initialCandidateProducts.length === 0
+      ? (initialCapture?.normalizedProduct ?? null)
+      : initialCandidateProducts.length === 1
+        ? (initialCandidateProducts[0] ?? null)
+        : null;
   const [url, setUrl] = useState(initialCaptureInput?.url ?? initialUrl ?? "");
-  const [capture, setCapture] = useState<ApiProductCapture | null>(null);
-  const [title, setTitle] = useState("");
-  const [variant, setVariant] = useState("");
-  const [condition, setCondition] = useState("");
+  const [capture, setCapture] = useState<ApiProductCapture | null>(initialCapture);
+  const [selectedProduct, setSelectedProduct] = useState<ApiNormalizedCapturedProduct | null>(
+    initialSelectedProduct,
+  );
+  const [title, setTitle] = useState(initialSelectedProduct?.title ?? "");
+  const [variant, setVariant] = useState(initialSelectedProduct?.variant ?? "");
+  const [condition, setCondition] = useState(initialSelectedProduct?.condition ?? "");
   const [targetPrice, setTargetPrice] = useState("");
   const [marketplaceScope, setMarketplaceScope] = useState<"all" | "selected">("all");
   const [marketplaceIds, setMarketplaceIds] = useState<MarketplaceSource[]>([]);
@@ -75,7 +90,9 @@ export function ProductCaptureScreen({
     staleTime: 5 * 60 * 1000,
   });
   const defaults = useMemo(() => getProductCaptureDefaults(), []);
-  const normalizedProduct = capture?.normalizedProduct;
+  const candidateProducts = capture?.candidateProducts ?? [];
+  const normalizedProduct =
+    selectedProduct ?? (candidateProducts.length === 0 ? capture?.normalizedProduct : null);
 
   const captureMutation = useMutation({
     mutationFn: async (input: ApiProductCaptureInput) => {
@@ -88,10 +105,14 @@ export function ProductCaptureScreen({
       setFormError(null);
       setCapture(nextCapture);
 
+      setSelectedProduct(
+        nextCapture.candidateProducts.length === 0 ? nextCapture.normalizedProduct : null,
+      );
+
       if (nextCapture.status === "failed" || !nextCapture.normalizedProduct) {
-        if (nextCapture.captureSource === "pasted_url") {
+        if (nextCapture.captureSource === "pasted_url" || nextCapture.captureSource === "barcode") {
           trackProductEventNonBlocking("capture_failed", {
-            captureSource: "pasted_url",
+            captureSource: nextCapture.captureSource,
             reason: getCaptureFailureReason(nextCapture),
           });
         }
@@ -104,12 +125,13 @@ export function ProductCaptureScreen({
       setVariant(product.variant ?? "");
       setCondition(product.condition ?? "");
       setTargetPrice("");
-      if (nextCapture.captureSource === "pasted_url") {
+      if (nextCapture.captureSource === "pasted_url" || nextCapture.captureSource === "barcode") {
         trackProductEventNonBlocking("product_identified", {
-          captureSource: "pasted_url",
+          captureSource: nextCapture.captureSource,
           hasPrice: product.price !== null,
           hasIdentifier: product.identifiers.length > 0,
-          needsConfirmation: nextCapture.status === "needs_confirmation",
+          needsConfirmation:
+            nextCapture.status === "needs_confirmation" || nextCapture.candidateProducts.length > 1,
         });
       }
     },
@@ -275,6 +297,14 @@ export function ProductCaptureScreen({
     setMarketplaceIds(nextIds);
   }
 
+  function selectCandidate(product: ApiNormalizedCapturedProduct) {
+    setSelectedProduct(product);
+    setTitle(product.title ?? "");
+    setVariant(product.variant ?? "");
+    setCondition(product.condition ?? "");
+    setFormError(null);
+  }
+
   function handleTrack(withoutTargetPrice = false, allowDuplicate = false) {
     setFormError(null);
     setDuplicateWatchlist(null);
@@ -292,7 +322,13 @@ export function ProductCaptureScreen({
         showsVerticalScrollIndicator={false}
       >
         <AppHeader
-          title={captureSource === "share_sheet" ? "Review shared product" : "Paste a product link"}
+          title={
+            captureSource === "share_sheet"
+              ? "Review shared product"
+              : captureSource === "barcode"
+                ? "Review scanned product"
+                : "Paste a product link"
+          }
           subtitle="DealDrop will identify the product before you start tracking it."
           onBack={onCancel ?? (() => router.back())}
         />
@@ -321,7 +357,7 @@ export function ProductCaptureScreen({
             </Button>
             {formError && !normalizedProduct && <AppText variant="error">{formError}</AppText>}
           </Card>
-        ) : (
+        ) : captureSource === "share_sheet" ? (
           <Card padding="md" className="gap-2">
             <AppText variant="label">Shared content</AppText>
             <AppText variant="bodySmall" numberOfLines={4}>
@@ -330,9 +366,50 @@ export function ProductCaptureScreen({
                 "Reading shared content…"}
             </AppText>
           </Card>
-        )}
+        ) : null}
 
         {captureMutation.isPending && <Loading size="small" />}
+
+        {candidateProducts.length > 0 && !selectedProduct && (
+          <Card padding="md" className="gap-4">
+            <View className="gap-1">
+              <AppText variant="label">Choose the matching product</AppText>
+              <AppText variant="bodySmall">
+                The barcode matched more than one result. Select the product you want to track.
+              </AppText>
+            </View>
+            {candidateProducts.map((product, index) => (
+              <Pressable
+                key={`${product.marketplaceSource ?? "source"}-${product.canonicalUrl ?? index}`}
+                accessibilityRole="button"
+                className="gap-3 rounded-2xl border border-border bg-surface p-3"
+                onPress={() => selectCandidate(product)}
+              >
+                {product.imageUrls[0] && (
+                  <Image
+                    accessibilityLabel={`${product.title ?? "Product"} image`}
+                    className="h-36 w-full rounded-xl bg-background-muted"
+                    resizeMode="cover"
+                    source={{ uri: product.imageUrls[0] }}
+                  />
+                )}
+                <View className="gap-1">
+                  <AppText variant="label">{product.title ?? "Product result"}</AppText>
+                  <AppText variant="caption">
+                    {[product.merchant, product.sourceDomain, product.marketplaceSource]
+                      .filter(Boolean)
+                      .join(" · ") || "Source details unavailable"}
+                  </AppText>
+                  {product.price !== null && (
+                    <AppText variant="bodySmall" className="font-semibold text-primary">
+                      {formatPrice(product.price, product.currency)}
+                    </AppText>
+                  )}
+                </View>
+              </Pressable>
+            ))}
+          </Card>
+        )}
 
         {normalizedProduct && (
           <Card padding="md" className="gap-5">
@@ -371,7 +448,7 @@ export function ProductCaptureScreen({
               )}
             </View>
 
-            {capture.status === "needs_confirmation" && capture.failureReason && (
+            {capture?.status === "needs_confirmation" && capture.failureReason && (
               <AppText variant="bodySmall" className="text-warning">
                 {capture.failureReason}
               </AppText>
@@ -467,7 +544,14 @@ export function ProductCaptureScreen({
         )}
 
         {capture?.status === "failed" && capture.failureReason && (
-          <ErrorState title="Product unavailable" description={capture.failureReason} />
+          <View className="gap-3">
+            <ErrorState title="Product unavailable" description={capture.failureReason} />
+            {onRetryCapture && (
+              <Button variant="outline" onPress={onRetryCapture}>
+                Scan another barcode
+              </Button>
+            )}
+          </View>
         )}
       </KeyboardAwareScrollView>
     </SafeAreaView>

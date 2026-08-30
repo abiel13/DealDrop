@@ -71,7 +71,7 @@ const SUPPLIER_COLUMNS =
 const SUPPLIER_HISTORY_COLUMNS =
   "id,workspace_id,supplier_id,sourcing_list_product_id,marketplace_id,external_id,listing_id,offer_snapshot,first_shortlisted_at,last_shortlisted_at,last_shortlisted_by";
 const PRODUCT_CAPTURE_COLUMNS =
-  "id,user_id,capture_source,url,raw_text,barcode,image_reference,country,preferred_currency,status,normalized_product,missing_fields,failure_reason,created_at,updated_at,processed_at";
+  "id,user_id,capture_source,url,raw_text,barcode,barcode_format,image_reference,country,preferred_currency,status,normalized_product,candidate_products,missing_fields,failure_reason,created_at,updated_at,processed_at";
 
 export interface Page<T> {
   items: T[];
@@ -1725,6 +1725,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
         url: input.url ?? null,
         raw_text: input.rawText ?? null,
         barcode: input.barcode ?? null,
+        barcode_format: input.barcodeFormat ?? null,
         image_reference: input.imageReference ?? null,
         country: input.country,
         preferred_currency: input.preferredCurrency,
@@ -1749,6 +1750,7 @@ export class MobileApiRepository implements MobileApiRepositoryContract {
       .update({
         status: input.status,
         normalized_product: input.normalizedProduct,
+        candidate_products: input.candidateProducts,
         missing_fields: input.missingFields,
         failure_reason: input.failureReason,
         processed_at: input.processedAt,

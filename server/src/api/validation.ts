@@ -78,6 +78,7 @@ export const productCaptureSchema = z
       .regex(/^[A-Za-z0-9][A-Za-z0-9 -]{2,63}$/)
       .nullable()
       .optional(),
+    barcodeFormat: z.enum(["ean13", "ean8", "upc_a", "upc_e", "itf14"]).nullable().optional(),
     imageReference: productCaptureText(2_048),
     pageMetadata: productCapturePageMetadataSchema.nullable().optional(),
     country: z.string().trim().min(2).max(100),
@@ -95,6 +96,40 @@ export const productCaptureSchema = z
         message: "At least one product capture input is required.",
         path: ["captureSource"],
       });
+    }
+
+    if (input.captureSource === "barcode" && !input.barcode) {
+      context.addIssue({
+        code: "custom",
+        message: "A barcode value is required for barcode capture.",
+        path: ["barcode"],
+      });
+    }
+
+    if (input.barcodeFormat && input.captureSource !== "barcode") {
+      context.addIssue({
+        code: "custom",
+        message: "barcodeFormat is only supported for barcode capture.",
+        path: ["barcodeFormat"],
+      });
+    }
+
+    if (input.barcode && input.barcodeFormat) {
+      const isDigitsOnly = /^\d+$/.test(input.barcode);
+      const validLength =
+        (input.barcodeFormat === "ean13" && input.barcode.length === 13) ||
+        (input.barcodeFormat === "ean8" && input.barcode.length === 8) ||
+        (input.barcodeFormat === "upc_a" && input.barcode.length === 12) ||
+        (input.barcodeFormat === "upc_e" && [6, 8].includes(input.barcode.length)) ||
+        (input.barcodeFormat === "itf14" && input.barcode.length === 14);
+
+      if (!isDigitsOnly || !validLength) {
+        context.addIssue({
+          code: "custom",
+          message: "The barcode value does not match its scanned format.",
+          path: ["barcode"],
+        });
+      }
     }
   });
 
@@ -515,6 +550,7 @@ export const searchBodySchema = z
               "asin",
               "upc",
               "ean",
+              "gtin",
               "isbn",
               "sku",
               "part_number",
