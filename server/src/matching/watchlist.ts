@@ -3,6 +3,7 @@ import { containsText, createSearchIntent, evaluateListingRelevance } from "../l
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import {
   compareProductIdentities,
+  normalizeProductIdentityInput,
   productIdentityFromListing,
   type ProductIdentityInput,
 } from "../product-identity";
@@ -14,6 +15,50 @@ import type {
 } from "../types/backend";
 
 const EARTH_RADIUS_KM = 6_371;
+const IDENTITY_VARIANT_KEYS = [
+  "size",
+  "storage",
+  "color",
+  "generation",
+  "configuration",
+  "raw",
+] as const;
+const LISTING_COLOR_HINTS = [
+  ["space gray", "space gray"],
+  ["space grey", "space gray"],
+  ["starlight", "starlight"],
+  ["midnight", "midnight"],
+  ["graphite", "graphite"],
+  ["silver", "silver"],
+  ["black", "black"],
+  ["white", "white"],
+  ["gold", "gold"],
+  ["blue", "blue"],
+  ["green", "green"],
+  ["purple", "purple"],
+  ["pink", "pink"],
+  ["red", "red"],
+] as const;
+const PRODUCT_ACCESSORY_TERMS = [
+  "case",
+  "cover",
+  "charger",
+  "adapter",
+  "cable",
+  "keyboard",
+  "battery",
+  "sleeve",
+  "stand",
+  "dock",
+  "replacement part",
+  "repair part",
+  "screen assembly",
+  "display assembly",
+  "replacement screen",
+  "screen replacement",
+  "lcd",
+  "digitizer",
+] as const;
 
 function normalizedMatchText(value: string | null | undefined) {
   return normalizeText(value)?.toLocaleLowerCase() ?? "";
@@ -166,11 +211,96 @@ function matchesProductIdentity(watchlist: MarketplaceWatchlist, listing: Market
   const filter = watchlist.filters.productIdentity;
   if (!filter) return true;
 
-  const comparison = compareProductIdentities(
-    toProductIdentityInput(filter),
-    productIdentityFromListing(listing),
+  const requested = normalizeProductIdentityInput(toProductIdentityInput(filter));
+  if (isProductAccessoryListing(requested.title ?? watchlist.searchQuery, listing)) {
+    return false;
+  }
+
+  const candidate = productIdentityForWatchlist(listing);
+  const comparison = compareProductIdentities(requested, candidate);
+  if (comparison.decision === "matched" && comparison.confidence >= 0.9) {
+    return true;
+  }
+
+  if (hasProductIdentityConflict(requested, candidate)) {
+    return false;
+  }
+
+  if (requested.identifiers.length > 0) {
+    return false;
+  }
+
+  const listingText = normalizedMatchText(
+    [listing.title, listing.description].filter(Boolean).join(" "),
   );
-  return comparison.decision === "matched" && comparison.confidence >= 0.9;
+  if (requested.title && !containsText(listingText, requested.title)) {
+    return false;
+  }
+  if (requested.brand && !candidate.brand && !containsText(listingText, requested.brand)) {
+    return false;
+  }
+  if (requested.model && !candidate.model && !containsText(listingText, requested.model)) {
+    return false;
+  }
+
+  return true;
+}
+
+function productIdentityForWatchlist(listing: MarketplaceListing) {
+  const identity = productIdentityFromListing(listing);
+  const color = identity.variant.color ?? inferListingColor(listing);
+
+  return {
+    ...identity,
+    variant: {
+      ...identity.variant,
+      color,
+    },
+  };
+}
+
+function hasProductIdentityConflict(left: ProductIdentityInput, right: ProductIdentityInput) {
+  if (
+    left.identifiers.length > 0 &&
+    !left.identifiers.some((identifier) =>
+      right.identifiers.some(
+        (candidate) => candidate.type === identifier.type && candidate.value === identifier.value,
+      ),
+    )
+  ) {
+    return true;
+  }
+
+  if (left.brand && right.brand && left.brand !== right.brand) {
+    return true;
+  }
+  if (left.model && right.model && left.model !== right.model) {
+    return true;
+  }
+  if (left.condition && right.condition && left.condition !== right.condition) {
+    return true;
+  }
+
+  return IDENTITY_VARIANT_KEYS.some((key) => {
+    const requestedValue = left.variant[key];
+    const candidateValue = right.variant[key];
+    return Boolean(requestedValue && candidateValue && requestedValue !== candidateValue);
+  });
+}
+
+function inferListingColor(listing: MarketplaceListing) {
+  const text = normalizedMatchText([listing.title, listing.description].filter(Boolean).join(" "));
+  return LISTING_COLOR_HINTS.find(([term]) => containsText(text, term))?.[1] ?? null;
+}
+
+function isProductAccessoryListing(requestedTitle: string, listing: MarketplaceListing) {
+  const requestedText = normalizedMatchText(requestedTitle);
+  if (PRODUCT_ACCESSORY_TERMS.some((term) => containsText(requestedText, term))) {
+    return false;
+  }
+
+  const text = normalizedMatchText([listing.title, listing.description].filter(Boolean).join(" "));
+  return PRODUCT_ACCESSORY_TERMS.some((term) => containsText(text, term));
 }
 
 export function matchesWatchlist(watchlist: MarketplaceWatchlist, listing: MarketplaceListing) {

@@ -114,6 +114,94 @@ test("matches aliases, enforces currency-only filters, and rejects excluded keyw
   );
 });
 
+test("matches captured product identities when marketplace attributes are unavailable", () => {
+  const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
+    searchQuery: "MacBook Pro",
+    filters: {
+      productIdentity: {
+        title: "MacBook Pro",
+        brand: "Apple",
+        variant: { color: "Silver" },
+      },
+      price: { max: 180, currency: "USD" },
+    },
+  });
+
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-macbook", {
+        title: "Apple MacBook Pro 13-inch Retina laptop",
+        price: 169,
+        condition: "Used",
+        category: "Apple Laptops",
+      }),
+    ),
+    true,
+  );
+});
+
+test("rejects captured product identities with explicit variant conflicts and accessories", () => {
+  const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
+    searchQuery: "MacBook Pro",
+    filters: {
+      productIdentity: {
+        title: "MacBook Pro",
+        brand: "Apple",
+        variant: { color: "Silver" },
+      },
+      price: { max: 180, currency: "USD" },
+    },
+  });
+
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-space-gray", {
+        title: "Apple MacBook Pro Space Gray laptop",
+        price: 169,
+        condition: "Used",
+        category: "Apple Laptops",
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-screen", {
+        title: "Apple MacBook Pro LCD screen assembly",
+        price: 129,
+        condition: "Used",
+        category: "Apple Laptops",
+      }),
+    ),
+    false,
+  );
+});
+
+test("keeps stable identifier product identity filters strict", () => {
+  const watchlist = createWatchlist([MARKETPLACE_IDS.ebay], {
+    searchQuery: "Sony WH-1000XM5",
+    filters: {
+      productIdentity: {
+        title: "Sony WH-1000XM5",
+        identifiers: [{ type: "mpn", value: "WH-1000XM5" }],
+      },
+    },
+  });
+
+  assert.equal(
+    matchesWatchlist(
+      watchlist,
+      createListing(MARKETPLACE_IDS.ebay, "ebay-headphones", {
+        title: "Sony WH-1000XM5 wireless headphones",
+      }),
+    ),
+    false,
+  );
+});
+
 test("rejects listings with an unsupported condition", () => {
   const watchlist = createWatchlist([MARKETPLACE_IDS.etsy], {
     filters: { conditions: ["new"] },
