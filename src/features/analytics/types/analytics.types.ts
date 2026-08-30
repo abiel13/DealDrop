@@ -28,6 +28,15 @@ export type AnalyticsEventProperties = {
   pro_upgrade_viewed: AnalyticsProperties & { surface: string };
   pro_upgrade_cta_tapped: AnalyticsProperties & { surface: string };
   pro_feature_used: AnalyticsProperties & { feature: string };
+  url_pasted: AnalyticsProperties & { captureSource: "pasted_url" };
+  product_identified: AnalyticsProperties & {
+    captureSource: "pasted_url";
+    hasPrice: boolean;
+    hasIdentifier: boolean;
+    needsConfirmation: boolean;
+  };
+  tracking_created: AnalyticsProperties & { watchlistId: string };
+  capture_failed: AnalyticsProperties & { captureSource: "pasted_url"; reason: string };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventProperties;

@@ -116,6 +116,15 @@ export function identifyProductCapture(input: ProductCaptureRequest): ProductCap
     sourceDomain: parsedUrl?.hostname.toLowerCase() ?? null,
     identifiers: barcodeIdentifier ? [barcodeIdentifier] : [],
     imageReference: cleanText(input.imageReference),
+    imageUrls: [],
+    price: null,
+    currency: null,
+    variant: null,
+    condition: null,
+    merchant: null,
+    marketplaceSource: null,
+    availability: null,
+    deliveryInformation: null,
     // Classification belongs to marketplace adapters. Capture only establishes a
     // generic product identity and leaves this field intentionally unclassified.
     product: null,

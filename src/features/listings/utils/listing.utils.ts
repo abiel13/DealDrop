@@ -62,6 +62,7 @@ export function formatListingRecency(value: string | null) {
 
 export function formatMarketplaceName(marketplaceId: string) {
   const marketplaceNames: Record<string, string> = {
+    amazon_business: "Amazon Business",
     ebay: "eBay",
     etsy: "Etsy",
     rakuten: "Rakuten Ichiba",

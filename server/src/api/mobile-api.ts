@@ -23,6 +23,10 @@ import {
 } from "../watchlists/validation";
 import type { ProductEventInput } from "../analytics/events";
 import { identifyProductCapture } from "../product-capture/identify";
+import {
+  createProductCaptureResolver,
+  type ProductCaptureResolver,
+} from "../product-capture/resolve";
 import { ApiError, ApiNotFoundError, ApiProRequiredError, ApiValidationError } from "./errors";
 import { EMPTY_PRO_ENTITLEMENT } from "./pro";
 import { encodeApiCursor } from "./pagination";
@@ -88,17 +92,25 @@ export interface MobileApiDependencies {
     error(message: string, context?: Record<string, unknown>): void;
   };
   coordinator?: MarketplaceSearchCoordinator;
+  productCaptureResolver?: ProductCaptureResolver;
 }
 
 export interface SearchInput extends MarketplaceSearchCoordinatorRequest {}
 
 export class MobileApiService {
   private readonly coordinator: MarketplaceSearchCoordinator;
+  private readonly productCaptureResolver: ProductCaptureResolver;
 
   constructor(private readonly dependencies: MobileApiDependencies) {
     this.coordinator =
       dependencies.coordinator ??
       new MarketplaceSearchCoordinator(dependencies.adapters, dependencies.logger);
+    this.productCaptureResolver =
+      dependencies.productCaptureResolver ??
+      createProductCaptureResolver({
+        adapters: dependencies.adapters,
+        logger: dependencies.logger,
+      });
   }
 
   getMarketplaces(): ApiMarketplace[] {
@@ -180,7 +192,10 @@ export class MobileApiService {
     const created = await repository.createProductCapture.call(repository, userId, input);
 
     try {
-      const identification = identifyProductCapture(input);
+      const identification = await this.productCaptureResolver.resolve(
+        input,
+        identifyProductCapture(input),
+      );
       const updated = await repository.updateProductCapture.call(repository, userId, created.id, {
         ...identification,
         processedAt: new Date().toISOString(),

@@ -313,6 +313,14 @@ export function WatchlistsScreen() {
               Create watchlist
             </Button>
 
+            <Button
+              size="md"
+              variant="outline"
+              onPress={() => router.push(authRoutes.productCapture)}
+            >
+              Paste a product link
+            </Button>
+
             <SearchBar
               accessibilityLabel="Search watchlists"
               leftIcon={<AppIcon name="search" size={19} color={theme.colors.textTertiary} />}
@@ -336,9 +344,14 @@ export function WatchlistsScreen() {
               }
             />
             {!search && (
-              <Button variant="secondary" onPress={() => router.push(watchlistFormRoute())}>
-                Create your first watchlist
-              </Button>
+              <View className="gap-3">
+                <Button variant="secondary" onPress={() => router.push(watchlistFormRoute())}>
+                  Create your first watchlist
+                </Button>
+                <Button variant="outline" onPress={() => router.push(authRoutes.productCapture)}>
+                  Paste a product link
+                </Button>
+              </View>
             )}
           </View>
         }

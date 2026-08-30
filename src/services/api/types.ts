@@ -49,7 +49,7 @@ export interface ApiProductCaptureInput {
 }
 
 export interface ApiCapturedProductIdentifier {
-  type: "upc" | "ean" | "barcode";
+  type: "upc" | "ean" | "gtin" | "asin" | "mpn" | "sku" | "isbn" | "barcode";
   value: string;
 }
 
@@ -59,6 +59,15 @@ export interface ApiNormalizedCapturedProduct {
   sourceDomain: string | null;
   identifiers: ApiCapturedProductIdentifier[];
   imageReference: string | null;
+  imageUrls: string[];
+  price: number | null;
+  currency: string | null;
+  variant: string | null;
+  condition: string | null;
+  merchant: string | null;
+  marketplaceSource: MarketplaceSource | null;
+  availability: string | null;
+  deliveryInformation: string | null;
   product: ApiProductMetadata | null;
 }
 
@@ -825,7 +834,11 @@ export type ApiProductEventName =
   | "watchlist_completed"
   | "pro_upgrade_viewed"
   | "pro_upgrade_cta_tapped"
-  | "pro_feature_used";
+  | "pro_feature_used"
+  | "url_pasted"
+  | "product_identified"
+  | "tracking_created"
+  | "capture_failed";
 
 export interface ApiProductEventInput {
   eventName: ApiProductEventName;
