@@ -12,7 +12,7 @@ import type { Listing, ListingPage, ListingSearchResult } from "../types/listing
 function toListing(
   listing: ApiListing,
   matchedAt: string | null = listing.matchedAt,
-  match: Pick<ApiMatch, "id" | "status" | "feedback"> | null = null,
+  match: Pick<ApiMatch, "id" | "status" | "feedback" | "watchlist"> | null = null,
 ): Listing | null {
   if (!listing.id) {
     return null;
@@ -44,6 +44,7 @@ function toListing(
     recommendation: listing.recommendation,
     product_identity: listing.productIdentity ?? null,
     match_id: match?.id ?? null,
+    watchlist_id: match?.watchlist.id ?? null,
     match_status: match?.status ?? null,
     feedback: match?.feedback ?? null,
     product: listing.product,

@@ -1,14 +1,26 @@
+import { useEffect } from "react";
 import { View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
 import { AppText } from "@/components/ui/Text";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import type { ApiProductRecommendation } from "@/services/api";
 
 export function RecommendationCard({
   recommendation,
+  surface,
 }: {
   recommendation: ApiProductRecommendation;
+  surface: "listing" | "sourcing_comparison";
 }) {
+  useEffect(() => {
+    trackProductEventNonBlocking("recommendation_viewed", {
+      surface,
+      decision: recommendation.decision ?? "insufficient_data",
+      confidence: recommendation.confidence,
+    });
+  }, [recommendation.confidence, recommendation.decision, surface]);
+
   const decisionLabel = recommendation.decision
     ? recommendation.decision === "buy_now"
       ? "Buy now"

@@ -4,6 +4,7 @@ export interface PremiumConfigurationIssue {
   code:
     | "missing-api-key"
     | "placeholder-api-key"
+    | "test-api-key"
     | "missing-entitlement-id"
     | "placeholder-entitlement-id"
     | "unsupported-platform";
@@ -15,12 +16,14 @@ export interface PremiumConfigurationInput {
   platform: PremiumPlatform;
   apiKey?: string;
   entitlementId?: string;
+  production?: boolean;
 }
 
 export interface PremiumEnvironmentInput {
   androidApiKey?: string;
   iosApiKey?: string;
   entitlementId?: string;
+  production?: boolean;
 }
 
 const PLACEHOLDER_VALUES = new Set([
@@ -38,6 +41,7 @@ export function getPremiumConfigurationIssue({
   platform,
   apiKey,
   entitlementId,
+  production,
 }: PremiumConfigurationInput): PremiumConfigurationIssue | null {
   if (platform === "unsupported") {
     return {
@@ -68,6 +72,14 @@ export function getPremiumConfigurationIssue({
     };
   }
 
+  if (production && apiKey.trim().toLowerCase().startsWith("test_")) {
+    return {
+      code: "test-api-key",
+      variableName: apiKeyVariableName,
+      message: `Replace the RevenueCat test-store key for ${apiKeyVariableName} with a production app key before building.`,
+    };
+  }
+
   if (!entitlementId?.trim()) {
     return {
       code: "missing-entitlement-id",
@@ -93,17 +105,20 @@ export function getPremiumEnvironmentIssues({
   androidApiKey,
   iosApiKey,
   entitlementId,
+  production,
 }: PremiumEnvironmentInput) {
   const issues = [
     getPremiumConfigurationIssue({
       platform: "android",
       apiKey: androidApiKey,
       entitlementId,
+      production,
     }),
     getPremiumConfigurationIssue({
       platform: "ios",
       apiKey: iosApiKey,
       entitlementId,
+      production,
     }),
   ].filter((issue): issue is PremiumConfigurationIssue => issue !== null);
 

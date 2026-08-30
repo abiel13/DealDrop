@@ -12,6 +12,7 @@ import { AppIcon } from "@/components/ui/Icon";
 import { KeyboardAwareScrollView } from "@/components/ui/KeyboardAwareScrollView";
 import { Loading } from "@/components/ui/Loading";
 import { AppText } from "@/components/ui/Text";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes, listingRoute } from "@/features/auth/routes";
 import { getSavedListings } from "@/features/listings/services/listing.service";
@@ -211,12 +212,22 @@ export function DealRoomDetailScreen() {
     ]);
   }
 
-  function sharePublicRoom() {
+  async function sharePublicRoom() {
     setShareError(null);
-    void Share.share({
-      message: getPublicDealRoomUrl(room.publicSlug),
-      title: `Share ${room.name} on DealDrop`,
-    }).catch(() => setShareError("We couldn't open sharing for this room."));
+    try {
+      const result = await Share.share({
+        message: getPublicDealRoomUrl(room.publicSlug),
+        title: `Share ${room.name} on DealDrop`,
+      });
+      if (result.action === Share.sharedAction) {
+        trackProductEventNonBlocking("deal_room_shared", {
+          dealRoomId: room.id,
+          visibility: room.visibility,
+        });
+      }
+    } catch {
+      setShareError("We couldn't open sharing for this room.");
+    }
   }
 
   function selectListing(listing: Listing) {
@@ -275,7 +286,7 @@ export function DealRoomDetailScreen() {
                 Anyone with the link can view this collection without the app.
               </AppText>
             </View>
-            <Button variant="outline" onPress={sharePublicRoom}>
+            <Button variant="outline" onPress={() => void sharePublicRoom()}>
               Share public link
             </Button>
             {shareError && <AppText variant="error">{shareError}</AppText>}

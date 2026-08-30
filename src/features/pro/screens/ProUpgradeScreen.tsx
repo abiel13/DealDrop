@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Linking, ScrollView, View } from "react-native";
+import { PAYWALL_RESULT } from "react-native-purchases-ui";
+import { ScrollView, View } from "react-native";
 import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -12,8 +13,8 @@ import { useAuth } from "@/features/auth/hooks/AuthProvider";
 import { authRoutes } from "@/features/auth/routes";
 import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { usePro } from "../hooks/ProProvider";
+import { getProErrorMessage } from "../services/pro.service";
 import type { ProSurface } from "../types/pro.types";
-import { getAccountLinks } from "@/features/profile/utils/legal-links";
 import { useTheme } from "@/providers/ThemeProvider";
 
 const outcomes: { icon: AppIconName; title: string; description: string }[] = [
@@ -48,10 +49,9 @@ export interface ProUpgradeScreenProps {
 export function ProUpgradeScreen({ surface, onBack, onRetry }: ProUpgradeScreenProps) {
   const theme = useTheme();
   const { user } = useAuth();
-  const { error } = usePro();
-  const accountLinks = getAccountLinks();
+  const { error, isProcessing, presentPaywall, restorePurchases } = usePro();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [isOpeningSupport, setIsOpeningSupport] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     trackProductEventNonBlocking("pro_upgrade_viewed", { surface });
@@ -61,24 +61,46 @@ export function ProUpgradeScreen({ surface, onBack, onRetry }: ProUpgradeScreenP
     return <Redirect href={authRoutes.login} />;
   }
 
-  async function contactDealDrop() {
+  async function startProPurchase() {
     trackProductEventNonBlocking("pro_upgrade_cta_tapped", { surface });
     setActionMessage(null);
 
-    if (!accountLinks.support) {
-      setActionMessage(
-        "Pro pilot access is available for early businesses. Contact your DealDrop administrator to get started.",
-      );
-      return;
-    }
-
-    setIsOpeningSupport(true);
     try {
-      await Linking.openURL(accountLinks.support);
-    } catch {
-      setActionMessage("We couldn't open support right now. Please try again later.");
+      const result = await presentPaywall();
+      if (result === PAYWALL_RESULT.PURCHASED) {
+        trackProductEventNonBlocking("pro_purchase_completed", { surface });
+        setActionMessage("DealDrop Pro is now active for this account.");
+      } else if (result === PAYWALL_RESULT.RESTORED) {
+        setActionMessage("Your Pro purchase was restored.");
+      } else if (result === PAYWALL_RESULT.CANCELLED) {
+        trackProductEventNonBlocking("pro_purchase_cancelled", { surface });
+      } else if (result === PAYWALL_RESULT.ERROR) {
+        setActionMessage("We couldn't complete the Pro purchase. Please try again.");
+      }
+    } catch (purchaseError: unknown) {
+      setActionMessage(
+        getProErrorMessage(purchaseError, "We couldn't open Pro subscription options."),
+      );
+    }
+  }
+
+  async function restorePro() {
+    setActionMessage(null);
+    setIsRestoring(true);
+
+    try {
+      const restored = await restorePurchases();
+      if (restored) {
+        setActionMessage("Your Pro purchase was restored.");
+      } else {
+        setActionMessage("No active Pro purchase was found for this account.");
+      }
+    } catch (restoreError: unknown) {
+      setActionMessage(
+        getProErrorMessage(restoreError, "We couldn't restore Pro purchases. Please try again."),
+      );
     } finally {
-      setIsOpeningSupport(false);
+      setIsRestoring(false);
     }
   }
 
@@ -132,10 +154,10 @@ export function ProUpgradeScreen({ surface, onBack, onRetry }: ProUpgradeScreenP
         </Card>
 
         <View className="gap-2 rounded-2xl bg-surface-muted px-4 py-4">
-          <AppText variant="label">Pilot-ready access</AppText>
+          <AppText variant="label">Professional access</AppText>
           <AppText variant="bodySmall">
-            Early businesses can receive temporary Pro access while the workflow is being validated.
-            No enterprise contract or custom billing setup is required to get started.
+            Start with the plan shown in the secure store checkout. Early businesses can still
+            receive temporary pilot access while the workflow is being validated.
           </AppText>
         </View>
 
@@ -148,16 +170,32 @@ export function ProUpgradeScreen({ surface, onBack, onRetry }: ProUpgradeScreenP
         {actionMessage && <AppText className="text-primary">{actionMessage}</AppText>}
 
         <View className="gap-3">
-          <Button loading={isOpeningSupport} onPress={() => void contactDealDrop()}>
-            Talk to us about a Pro pilot
+          <Button
+            loading={isProcessing}
+            disabled={isRestoring}
+            onPress={() => void startProPurchase()}
+          >
+            Start DealDrop Pro
+          </Button>
+          <Button
+            variant="outline"
+            loading={isRestoring}
+            disabled={isProcessing}
+            onPress={() => void restorePro()}
+          >
+            Restore Pro purchases
           </Button>
           {onRetry && (
-            <Button variant="outline" disabled={isOpeningSupport} onPress={() => void onRetry()}>
+            <Button
+              variant="ghost"
+              disabled={isProcessing || isRestoring}
+              onPress={() => void onRetry()}
+            >
               Check Pro access again
             </Button>
           )}
           {onBack && (
-            <Button variant="ghost" disabled={isOpeningSupport} onPress={onBack}>
+            <Button variant="ghost" disabled={isProcessing || isRestoring} onPress={onBack}>
               Back to DealDrop
             </Button>
           )}

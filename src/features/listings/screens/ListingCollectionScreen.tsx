@@ -185,7 +185,14 @@ export function ListingCollectionScreen({ mode }: { mode: ListingCollectionMode 
           <ListingCard
             listing={item}
             disabled={disabled}
-            onPress={() => router.push(listingRoute(item.id))}
+            onPress={() =>
+              router.push(
+                listingRoute(item.id, {
+                  matchId: item.match_id,
+                  watchlistId: item.watchlist_id,
+                }),
+              )
+            }
             onFavoriteToggle={() =>
               favoriteMutation.mutate({ listingId: item.id, isFavorite: !item.is_favorite })
             }

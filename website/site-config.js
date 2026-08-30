@@ -1,9 +1,9 @@
 window.DEALDROP_SITE_CONFIG = Object.freeze({
   siteUrl: "https://get-deal-drop.com",
   // Set this to the deployed API base URL before publishing public room links.
-  apiUrl: "",
+  apiUrl: "https://api.get-deal-drop.com/api/v1",
   appUrl: "",
   iosStoreUrl: "",
   androidStoreUrl: "",
-  supportUrl: "",
+  supportUrl: "https://get-deal-drop.com/support",
 });

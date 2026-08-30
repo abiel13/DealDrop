@@ -32,7 +32,8 @@ Chrome internal pages, file URLs, private pages, and pages without useful produc
 1. Bump `version` in `manifest.json`.
 2. Create the production `config.js` from `config.example.js` using public deployment values. Keep it out of source control.
 3. Confirm the production API allows the exact published `chrome-extension://<extension-id>` origin.
-4. Test sign-in, capture, target-price save, save-without-target, unsupported-page handling, token refresh, and **Open in DealDrop**.
-5. Zip the extension directory with `manifest.json`, `popup.html`, `popup.css`, `popup.js`, and the configured `config.js` for the Chrome Web Store submission. Do not include repository files or server credentials.
+4. Run `npm run build:extension`. It validates the public configuration and exact extension origin, then stages only release files in `dist/extension`.
+5. Test sign-in, capture, target-price save, save-without-target, unsupported-page handling, token refresh, and **Open in DealDrop** from the staged extension.
+6. Zip `dist/extension` for the Chrome Web Store submission. Do not include repository files or server credentials.
 
 The extension uses the same Supabase email/password session and DealDrop bearer API as the mobile client. Access and refresh tokens are stored in extension-scoped `chrome.storage.local`; passwords are never stored. A user must sign in again if the refresh session is revoked.

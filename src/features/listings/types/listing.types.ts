@@ -17,7 +17,7 @@ export type ListingFilter = "all" | "favorites" | "with_images" | "dismissed";
 
 export interface Listing {
   id: string;
-  marketplace_id: string;
+  marketplace_id: MarketplaceSource;
   title: string;
   description: string | null;
   price: number | null;
@@ -41,6 +41,7 @@ export interface Listing {
   recommendation: ApiProductRecommendation | null;
   product_identity: ApiProductIdentity | null;
   match_id: string | null;
+  watchlist_id: string | null;
   match_status: "unread" | "read" | "dismissed" | null;
   feedback: "relevant" | "not_relevant" | null;
   product: ApiProductMetadata | null;

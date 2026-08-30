@@ -40,6 +40,18 @@ test("requires an entitlement identifier for each platform", () => {
   assert.equal(issue?.variableName, "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID");
 });
 
+test("rejects RevenueCat test-store keys for production builds", () => {
+  const issues = getPremiumEnvironmentIssues({
+    androidApiKey: "test_android_key",
+    iosApiKey: "appl_real_public_key",
+    entitlementId: "premium",
+    production: true,
+  });
+
+  assert.equal(issues[0]?.code, "test-api-key");
+  assert.equal(issues[0]?.variableName, "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY");
+});
+
 test("reports unsupported platforms instead of attempting native billing", () => {
   assert.equal(getPremiumPlatform("web"), "unsupported");
   assert.equal(

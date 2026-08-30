@@ -14,13 +14,22 @@ export const PRODUCT_EVENT_NAMES = [
   "watchlist_paused",
   "watchlist_resumed",
   "watchlist_completed",
+  "premium_upgrade_viewed",
+  "premium_upgrade_cta_tapped",
+  "premium_purchase_completed",
+  "premium_purchase_cancelled",
   "pro_upgrade_viewed",
   "pro_upgrade_cta_tapped",
+  "pro_purchase_completed",
+  "pro_purchase_cancelled",
   "pro_feature_used",
   "url_pasted",
   "product_identified",
   "tracking_created",
   "capture_failed",
+  "recommendation_viewed",
+  "deal_room_created",
+  "deal_room_shared",
 ] as const;
 
 export type ProductEventName = (typeof PRODUCT_EVENT_NAMES)[number];
@@ -47,13 +56,22 @@ const PROPERTY_KEYS: Record<ProductEventName, readonly string[]> = {
   watchlist_paused: ["watchlistId"],
   watchlist_resumed: ["watchlistId"],
   watchlist_completed: ["watchlistId"],
+  premium_upgrade_viewed: ["surface"],
+  premium_upgrade_cta_tapped: ["surface"],
+  premium_purchase_completed: ["surface"],
+  premium_purchase_cancelled: ["surface"],
   pro_upgrade_viewed: ["surface"],
   pro_upgrade_cta_tapped: ["surface"],
+  pro_purchase_completed: ["surface"],
+  pro_purchase_cancelled: ["surface"],
   pro_feature_used: ["feature"],
   url_pasted: ["captureSource"],
   product_identified: ["captureSource", "hasPrice", "hasIdentifier", "needsConfirmation"],
   tracking_created: ["watchlistId"],
   capture_failed: ["captureSource", "reason"],
+  recommendation_viewed: ["surface", "decision", "confidence"],
+  deal_room_created: ["dealRoomId", "visibility"],
+  deal_room_shared: ["dealRoomId", "visibility"],
 };
 
 const propertyValueSchema = z.union([
@@ -98,7 +116,13 @@ export const productEventSchema = z
       }
     }
 
-    for (const key of ["watchlistId", "matchId", "notificationId", "listingId"] as const) {
+    for (const key of [
+      "watchlistId",
+      "matchId",
+      "notificationId",
+      "listingId",
+      "dealRoomId",
+    ] as const) {
       const value = event.properties[key];
       if (value !== undefined && (typeof value !== "string" || !isUuid(value))) {
         context.addIssue({
@@ -124,6 +148,36 @@ export const productEventSchema = z
           code: "custom",
           message: "platform must be ios, android, or web.",
           path: ["properties", "platform"],
+        });
+      }
+    }
+
+    if (event.eventName === "recommendation_viewed") {
+      const decision = event.properties.decision;
+      const confidence = event.properties.confidence;
+      if (!["buy_now", "wait", "skip", "insufficient_data"].includes(String(decision))) {
+        context.addIssue({
+          code: "custom",
+          message: "decision must be buy_now, wait, skip, or insufficient_data.",
+          path: ["properties", "decision"],
+        });
+      }
+      if (!["strong", "moderate", "insufficient_data"].includes(String(confidence))) {
+        context.addIssue({
+          code: "custom",
+          message: "confidence must be strong, moderate, or insufficient_data.",
+          path: ["properties", "confidence"],
+        });
+      }
+    }
+
+    if (event.eventName === "deal_room_created" || event.eventName === "deal_room_shared") {
+      const visibility = event.properties.visibility;
+      if (visibility !== "private" && visibility !== "public") {
+        context.addIssue({
+          code: "custom",
+          message: "visibility must be private or public.",
+          path: ["properties", "visibility"],
         });
       }
     }

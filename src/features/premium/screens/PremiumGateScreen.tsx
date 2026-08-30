@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PAYWALL_RESULT } from "react-native-purchases-ui";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import { AppIcon } from "@/components/ui/Icon";
 import type { AppIconName } from "@/components/ui/Icon";
 import { AppText } from "@/components/ui/Text";
 import { useAuth } from "@/features/auth/hooks/AuthProvider";
+import { trackProductEventNonBlocking } from "@/features/analytics/services/analytics.service";
 import { authRoutes } from "@/features/auth/routes";
 import { useTheme } from "@/providers/ThemeProvider";
 import { supabase } from "@/lib/supabase";
@@ -49,17 +50,26 @@ export function PremiumGateScreen() {
   const [isOpeningPaywall, setIsOpeningPaywall] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
 
+  useEffect(() => {
+    trackProductEventNonBlocking("premium_upgrade_viewed", { surface: "app_gate" });
+  }, []);
+
   if (!user) {
     return <Redirect href={authRoutes.login} />;
   }
 
   async function handleStartTrial() {
+    trackProductEventNonBlocking("premium_upgrade_cta_tapped", { surface: "app_gate" });
     setActionError(null);
     setIsOpeningPaywall(true);
 
     try {
       const result = await presentPaywall();
-      if (result === PAYWALL_RESULT.ERROR) {
+      if (result === PAYWALL_RESULT.PURCHASED) {
+        trackProductEventNonBlocking("premium_purchase_completed", { surface: "app_gate" });
+      } else if (result === PAYWALL_RESULT.CANCELLED) {
+        trackProductEventNonBlocking("premium_purchase_cancelled", { surface: "app_gate" });
+      } else if (result === PAYWALL_RESULT.ERROR) {
         setActionError("Subscription options are temporarily unavailable. Please try again.");
       }
     } catch (paywallError: unknown) {

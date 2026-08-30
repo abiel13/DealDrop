@@ -310,7 +310,14 @@ export function WatchlistDetailsScreen() {
           <ListingCard
             listing={item}
             disabled={disabled}
-            onPress={() => router.push(listingRoute(item.id))}
+            onPress={() =>
+              router.push(
+                listingRoute(item.id, {
+                  matchId: item.match_id,
+                  watchlistId: watchlist.id,
+                }),
+              )
+            }
             onFavoriteToggle={() =>
               favoriteMutation.mutate({ listingId: item.id, isFavorite: !item.is_favorite })
             }

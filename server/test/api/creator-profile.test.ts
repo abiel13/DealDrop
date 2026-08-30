@@ -110,6 +110,8 @@ test("public creator endpoint exposes curated rooms without private identity", a
     assert.equal(rooms[0]?.publicSlug, ROOM_SLUG);
     assert.equal("id" in (rooms[0] ?? {}), false);
     assert.deepEqual((rooms[0]?.items as Array<Record<string, unknown>>)[0], {
+      productIdentityId: null,
+      listingId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       title: "Budget mirrorless camera",
       imageUrl: "https://images.example.test/camera.jpg",
       currentPrice: 399,
