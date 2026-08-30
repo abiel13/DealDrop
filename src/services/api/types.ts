@@ -47,6 +47,8 @@ export interface ApiProductCaptureInput {
   barcode?: string | null;
   barcodeFormat?: ApiProductCaptureBarcodeFormat | null;
   imageReference?: string | null;
+  imageData?: string | null;
+  imageMimeType?: "image/jpeg" | "image/png" | "image/webp" | null;
   pageMetadata?: ApiProductCapturePageMetadata | null;
   country: string;
   preferredCurrency: string;
@@ -55,6 +57,42 @@ export interface ApiProductCaptureInput {
 export interface ApiCapturedProductIdentifier {
   type: "upc" | "ean" | "gtin" | "asin" | "mpn" | "sku" | "isbn" | "barcode";
   value: string;
+}
+
+export interface ApiProductRecognitionField<T extends string | number = string> {
+  value: T;
+  confidence: number;
+}
+
+export interface ApiProductRecognitionIdentifier extends ApiProductRecognitionField<string> {
+  type: Exclude<ApiCapturedProductIdentifier["type"], "barcode">;
+}
+
+export interface ApiProductRecognitionCandidate {
+  title: string;
+  brand: string | null;
+  model: string | null;
+  variant: string | null;
+  color: string | null;
+  size: string | null;
+  identifiers: ApiProductRecognitionIdentifier[];
+  confidence: number;
+}
+
+export interface ApiProductRecognitionResult {
+  provider: string;
+  overallConfidence: number;
+  brand: ApiProductRecognitionField<string> | null;
+  productName: ApiProductRecognitionField<string> | null;
+  model: ApiProductRecognitionField<string> | null;
+  variant: ApiProductRecognitionField<string> | null;
+  color: ApiProductRecognitionField<string> | null;
+  size: ApiProductRecognitionField<string> | null;
+  price: ApiProductRecognitionField<number> | null;
+  currency: ApiProductRecognitionField<string> | null;
+  condition: ApiProductRecognitionField<string> | null;
+  identifiers: ApiProductRecognitionIdentifier[];
+  candidates: ApiProductRecognitionCandidate[];
 }
 
 export interface ApiProductCapturePageMetadata {
@@ -79,12 +117,15 @@ export interface ApiNormalizedCapturedProduct {
   price: number | null;
   currency: string | null;
   variant: string | null;
+  color?: string | null;
+  size?: string | null;
   condition: string | null;
   merchant: string | null;
   marketplaceSource: MarketplaceSource | null;
   availability: string | null;
   deliveryInformation: string | null;
   product: ApiProductMetadata | null;
+  recognition?: ApiProductRecognitionResult | null;
 }
 
 export interface ApiProductCapture {
@@ -852,6 +893,8 @@ export type ApiProductEventName =
   | "watchlist_completed"
   | "pro_upgrade_viewed"
   | "pro_upgrade_cta_tapped"
+  | "pro_purchase_completed"
+  | "pro_purchase_cancelled"
   | "pro_feature_used"
   | "url_pasted"
   | "product_identified"

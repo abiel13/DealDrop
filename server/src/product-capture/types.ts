@@ -17,6 +17,9 @@ export interface ProductCaptureRequest {
   barcode?: string | null;
   barcodeFormat?: ProductCaptureBarcodeFormat | null;
   imageReference?: string | null;
+  /** Transient base64 image content. It is never persisted in product_captures. */
+  imageData?: string | null;
+  imageMimeType?: "image/jpeg" | "image/png" | "image/webp" | null;
   pageMetadata?: ProductCapturePageMetadata | null;
   country: string;
   preferredCurrency: string;
@@ -44,6 +47,42 @@ export interface ProductCaptureIdentifier {
   value: string;
 }
 
+export interface ProductRecognitionField<T extends string | number = string> {
+  value: T;
+  confidence: number;
+}
+
+export interface ProductRecognitionIdentifier extends ProductRecognitionField<string> {
+  type: Exclude<ProductCaptureIdentifierType, "barcode">;
+}
+
+export interface ProductRecognitionCandidate {
+  title: string;
+  brand: string | null;
+  model: string | null;
+  variant: string | null;
+  color: string | null;
+  size: string | null;
+  identifiers: ProductRecognitionIdentifier[];
+  confidence: number;
+}
+
+export interface ProductRecognitionResult {
+  provider: string;
+  overallConfidence: number;
+  brand: ProductRecognitionField<string> | null;
+  productName: ProductRecognitionField<string> | null;
+  model: ProductRecognitionField<string> | null;
+  variant: ProductRecognitionField<string> | null;
+  color: ProductRecognitionField<string> | null;
+  size: ProductRecognitionField<string> | null;
+  price: ProductRecognitionField<number> | null;
+  currency: ProductRecognitionField<string> | null;
+  condition: ProductRecognitionField<string> | null;
+  identifiers: ProductRecognitionIdentifier[];
+  candidates: ProductRecognitionCandidate[];
+}
+
 export interface NormalizedCapturedProduct {
   title: string | null;
   canonicalUrl: string | null;
@@ -54,12 +93,15 @@ export interface NormalizedCapturedProduct {
   price: number | null;
   currency: string | null;
   variant: string | null;
+  color?: string | null;
+  size?: string | null;
   condition: string | null;
   merchant: string | null;
   marketplaceSource: MarketplaceSource | null;
   availability: string | null;
   deliveryInformation: string | null;
   product: MarketplaceProductMetadata | null;
+  recognition?: ProductRecognitionResult | null;
 }
 
 export interface ProductCaptureIdentification {

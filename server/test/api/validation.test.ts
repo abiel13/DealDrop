@@ -145,6 +145,31 @@ test("validates scanned barcode formats and GTIN search identifiers", () => {
   );
 });
 
+test("validates transient image recognition input without accepting it for other capture sources", () => {
+  const image = parseBody(productCaptureSchema, {
+    captureSource: "product_photo",
+    imageReference: "capture://image-5",
+    imageData: "aGVsbG8=",
+    imageMimeType: "image/jpeg",
+    country: "NG",
+    preferredCurrency: "NGN",
+  });
+  assert.equal(image.imageMimeType, "image/jpeg");
+
+  assert.throws(
+    () =>
+      parseBody(productCaptureSchema, {
+        captureSource: "pasted_url",
+        url: "https://shop.test/product",
+        imageData: "aGVsbG8=",
+        imageMimeType: "image/jpeg",
+        country: "NG",
+        preferredCurrency: "NGN",
+      }),
+    /request body is invalid/i,
+  );
+});
+
 test("normalizes filter terms and currency while preserving a complete distance filter", () => {
   const filters = parseBody(watchlistFiltersSchema, {
     aliases: [" ILCE-7M3 "],

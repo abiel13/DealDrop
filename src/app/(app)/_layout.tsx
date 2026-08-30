@@ -42,6 +42,10 @@ export default function AppLayout() {
         name="scan-barcode"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
+      <Stack.Screen
+        name="capture-image"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
       <Stack.Screen name="listing/[id]" options={{ animation: "slide_from_right" }} />
     </Stack>
   );

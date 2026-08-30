@@ -80,6 +80,13 @@ export const productCaptureSchema = z
       .optional(),
     barcodeFormat: z.enum(["ean13", "ean8", "upc_a", "upc_e", "itf14"]).nullable().optional(),
     imageReference: productCaptureText(2_048),
+    imageData: z
+      .string()
+      .regex(/^[A-Za-z0-9+/]+={0,2}$/, "imageData must be base64 encoded.")
+      .max(8_000_000)
+      .nullable()
+      .optional(),
+    imageMimeType: z.enum(["image/jpeg", "image/png", "image/webp"]).nullable().optional(),
     pageMetadata: productCapturePageMetadataSchema.nullable().optional(),
     country: z.string().trim().min(2).max(100),
     preferredCurrency: z
@@ -90,7 +97,13 @@ export const productCaptureSchema = z
   })
   .strict()
   .superRefine((input, context) => {
-    if (!input.url && !input.rawText && !input.barcode && !input.imageReference) {
+    if (
+      !input.url &&
+      !input.rawText &&
+      !input.barcode &&
+      !input.imageReference &&
+      !input.imageData
+    ) {
       context.addIssue({
         code: "custom",
         message: "At least one product capture input is required.",
@@ -130,6 +143,32 @@ export const productCaptureSchema = z
           path: ["barcode"],
         });
       }
+    }
+
+    const isImageCapture =
+      input.captureSource === "screenshot" || input.captureSource === "product_photo";
+    if ((input.imageData || input.imageMimeType) && !isImageCapture) {
+      context.addIssue({
+        code: "custom",
+        message: "Image data is only supported for screenshot or product-photo capture.",
+        path: ["imageData"],
+      });
+    }
+
+    if (isImageCapture && !input.imageData && !input.imageReference) {
+      context.addIssue({
+        code: "custom",
+        message: "An image is required for screenshot or product-photo capture.",
+        path: ["imageData"],
+      });
+    }
+
+    if (input.imageData && !input.imageMimeType) {
+      context.addIssue({
+        code: "custom",
+        message: "imageMimeType is required when imageData is provided.",
+        path: ["imageMimeType"],
+      });
     }
   });
 

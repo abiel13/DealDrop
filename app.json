@@ -37,6 +37,14 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow DealDrop to recognize products from your screenshots and photos.",
+          "cameraPermission": "Allow DealDrop to recognize products from a photo.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#F5F4F8",

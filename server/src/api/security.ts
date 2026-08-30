@@ -180,7 +180,7 @@ export function resolveApiSecurityConfig(options: ApiSecurityOptions = {}): ApiS
     rateLimitWindowMs: 60_000,
     rateLimits: { ...DEFAULT_API_RATE_LIMITS },
     maxConcurrentSearches: 8,
-    maxBodyBytes: 1_000_000,
+    maxBodyBytes: 8_000_000,
     maxUrlBytes: 8_192,
     requestTimeoutMs: 30_000,
     trustProxy: false,
@@ -258,7 +258,7 @@ export function loadApiSecurityConfig(
     maxBodyBytes: boundedInteger(
       env.API_MAX_BODY_BYTES,
       "API_MAX_BODY_BYTES",
-      1_000_000,
+      8_000_000,
       1_024,
       10_000_000,
     ),

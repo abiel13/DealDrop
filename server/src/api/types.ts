@@ -681,6 +681,27 @@ export interface RawApiListing {
   normalized_data?: Record<string, unknown>;
 }
 
+export interface RawApiProductCapture {
+  id: string;
+  user_id: string;
+  capture_source: ApiProductCaptureSource;
+  url: string | null;
+  raw_text: string | null;
+  barcode: string | null;
+  barcode_format: ProductCaptureRequest["barcodeFormat"];
+  image_reference: string | null;
+  country: string;
+  preferred_currency: string;
+  status: ApiProductCaptureStatus;
+  normalized_product: ApiNormalizedCapturedProduct | null;
+  candidate_products: ApiNormalizedCapturedProduct[];
+  missing_fields: string[];
+  failure_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  processed_at: string | null;
+}
+
 export interface RawApiWatchlist {
   id: string;
   user_id: string;
