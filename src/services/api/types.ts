@@ -177,6 +177,56 @@ export interface ApiMarketplaceCapabilities {
   supportsDeliveredCost?: boolean;
 }
 
+export type ApiMarketplaceSignalProvenance = "marketplace" | "dealdrop" | "unavailable";
+
+export interface ApiMarketplaceSignal<T> {
+  value: T | null;
+  provenance: ApiMarketplaceSignalProvenance;
+}
+
+export interface ApiMarketplaceSellerRating {
+  value: number;
+  scale: number | null;
+  label: string | null;
+}
+
+export interface ApiMarketplaceSellerHistory {
+  summary: string | null;
+  accountCreatedAt: string | null;
+}
+
+export interface ApiMarketplaceListingQualitySignals {
+  seller: {
+    name: ApiMarketplaceSignal<string>;
+    id: ApiMarketplaceSignal<string>;
+    rating: ApiMarketplaceSignal<ApiMarketplaceSellerRating>;
+    reviewCount: ApiMarketplaceSignal<number>;
+    history: ApiMarketplaceSignal<ApiMarketplaceSellerHistory>;
+    verified: ApiMarketplaceSignal<boolean>;
+    professional: ApiMarketplaceSignal<boolean>;
+  };
+  condition: ApiMarketplaceSignal<string>;
+  availability: {
+    status: ApiMarketplaceSignal<"available" | "limited" | "unavailable">;
+    rawStatus: ApiMarketplaceSignal<string>;
+    quantity: ApiMarketplaceSignal<number>;
+  };
+  delivery: {
+    summary: ApiMarketplaceSignal<string>;
+    estimatedAt: ApiMarketplaceSignal<string>;
+  };
+  returnPolicy: {
+    accepted: ApiMarketplaceSignal<boolean>;
+    windowDays: ApiMarketplaceSignal<number>;
+    summary: ApiMarketplaceSignal<string>;
+  };
+  buyerProtection: {
+    available: ApiMarketplaceSignal<boolean>;
+    programs: ApiMarketplaceSignal<string[]>;
+    summary: ApiMarketplaceSignal<string>;
+  };
+}
+
 export interface ApiMarketplace {
   source: MarketplaceSource;
   enabled: boolean;
@@ -206,6 +256,7 @@ export interface ApiListing {
   priceHistory: ApiPriceHistorySummary | null;
   priceTarget: ApiPriceTarget | null;
   product: ApiProductMetadata | null;
+  qualitySignals: ApiMarketplaceListingQualitySignals | null;
   relevance: ApiListingRelevance | null;
   productIdentity?: ApiProductIdentity | null;
   sourcePrice?: number | null;
@@ -317,6 +368,11 @@ export interface ApiListingRelevance {
   excluded: boolean;
   reasons: string[];
   warnings: string[];
+  qualityAssessment?: {
+    marketplaceProvided: string[];
+    dealDropDerived: string[];
+    unavailable: string[];
+  };
 }
 
 export interface ApiSearchIntent {
@@ -708,6 +764,7 @@ export interface ApiComparisonOffer {
   condition: string | null;
   deliveryInformation: string | null;
   availability: string | null;
+  qualitySignals?: ApiMarketplaceListingQualitySignals | null;
   qualification: ApiComparisonQualification;
   qualificationReasons: string[];
   isShortlisted: boolean;

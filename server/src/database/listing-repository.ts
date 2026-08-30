@@ -10,6 +10,10 @@ import {
 import { deduplicateIngestionListings } from "./listing-ingestion";
 import type { MarketplaceListing } from "../marketplaces/shared/adapter";
 import { isMarketplaceProductMetadata } from "../listings/relevance";
+import {
+  createUnknownListingQualitySignals,
+  isMarketplaceListingQualitySignals,
+} from "../marketplaces/shared/quality";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../marketplaces/shared/types";
 import type { MarketplaceComparisonOffer } from "../marketplaces/comparison";
 import { resolveProductIdentityAssignments } from "../product-identity/repository";
@@ -536,6 +540,7 @@ export class ListingRepository {
       raw_data: {
         ...(listing.metadata ?? {}),
         imageUrls: listing.imageUrls,
+        ...(listing.qualitySignals ? { qualitySignals: listing.qualitySignals } : {}),
         ...(identityAssignments.has(listingIdentity(listing.source, listing.externalId))
           ? {
               productIdentity: identityAssignments.get(
@@ -793,6 +798,9 @@ function toMarketplaceListing(stored: StoredListing): MarketplaceListing {
     ...(isMarketplaceProductMetadata(stored.normalized_data)
       ? { product: stored.normalized_data }
       : {}),
+    qualitySignals: isMarketplaceListingQualitySignals(stored.raw_data.qualitySignals)
+      ? stored.raw_data.qualitySignals
+      : createUnknownListingQualitySignals(),
     metadata: {
       ...stored.raw_data,
       ...(stored.product_identity_data ? { productIdentity: stored.product_identity_data } : {}),

@@ -312,6 +312,8 @@ export function ListingDetailsScreen() {
           </Card>
         )}
 
+        <ListingQualityContext signals={listing.quality_signals} />
+
         {listing.description?.trim() && (
           <Card padding="md" className="gap-3">
             <AppText variant="title">Description</AppText>
@@ -378,6 +380,79 @@ export function ListingDetailsScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ListingQualityContext({ signals }: { signals: Listing["quality_signals"] }) {
+  if (!signals) return null;
+
+  const rating = signals.seller.rating.value;
+  const ratingText = rating
+    ? `${rating.value}${rating.scale ? `/${rating.scale}` : ""}${rating.label ? ` (${rating.label})` : ""}`
+    : null;
+  const sellerStatus = [
+    signals.seller.verified.value === true ? "Verified seller" : null,
+    signals.seller.professional.value === true ? "Professional seller" : null,
+  ].filter((value): value is string => Boolean(value));
+  const availability = signals.availability.status.value;
+  const rawAvailability = signals.availability.rawStatus.value;
+  const returnAccepted = signals.returnPolicy.accepted.value;
+  const protectionPrograms = signals.buyerProtection.programs.value?.join(", ") ?? null;
+
+  return (
+    <Card padding="md" className="gap-3">
+      <AppText variant="title">Purchase context</AppText>
+      <AppText variant="caption" className="text-text-secondary">
+        These details come from the marketplace when available. Missing information is shown as
+        unavailable and is not treated as a negative signal.
+      </AppText>
+
+      <DetailRow label="Seller rating" value={ratingText ?? "Unavailable"} />
+      <DetailRow
+        label="Seller reviews"
+        value={
+          signals.seller.reviewCount.value === null
+            ? "Unavailable"
+            : String(signals.seller.reviewCount.value)
+        }
+      />
+      <DetailRow label="Seller status" value={sellerStatus.join(" · ") || "Unavailable"} />
+      <DetailRow label="Availability" value={rawAvailability ?? availability ?? "Unavailable"} />
+      {signals.availability.quantity.value !== null && (
+        <DetailRow label="Available quantity" value={String(signals.availability.quantity.value)} />
+      )}
+      <DetailRow label="Delivery" value={signals.delivery.summary.value ?? "Unavailable"} />
+      {signals.delivery.estimatedAt.value && (
+        <DetailRow label="Estimated delivery" value={signals.delivery.estimatedAt.value} />
+      )}
+      <DetailRow
+        label="Returns"
+        value={
+          returnAccepted === null
+            ? "Unavailable"
+            : returnAccepted
+              ? signals.returnPolicy.windowDays.value !== null
+                ? `Accepted · ${signals.returnPolicy.windowDays.value} days`
+                : "Accepted"
+              : "Not accepted"
+        }
+      />
+      {signals.returnPolicy.summary.value && (
+        <DetailRow label="Return policy" value={signals.returnPolicy.summary.value} />
+      )}
+      <DetailRow
+        label="Buyer protection"
+        value={
+          signals.buyerProtection.summary.value ??
+          protectionPrograms ??
+          (signals.buyerProtection.available.value === null
+            ? "Unavailable"
+            : signals.buyerProtection.available.value
+              ? "Available"
+              : "Not provided")
+        }
+      />
+    </Card>
   );
 }
 

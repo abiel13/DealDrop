@@ -19,6 +19,7 @@ export function normalizeEbayListing(listing: ParsedEbayListing): MarketplaceLis
     latitude: null,
     longitude: null,
     postedAt: listing.postedAt,
+    qualitySignals: listing.qualitySignals,
     metadata: listing.metadata,
   };
 }

@@ -133,26 +133,20 @@ function createOffer(
   options: MarketplaceComparisonBuildOptions,
 ): MarketplaceComparisonOffer {
   const metadata = listing.metadata ?? {};
-  const availableQuantity = readInteger(metadata, [
-    "availableQuantity",
-    "quantity",
-    "inventory",
-    "stock",
-  ]);
-  const availability = readText(metadata, ["availability", "stockStatus"]);
-  const deliveryInformation = readText(metadata, [
-    "deliveryInformation",
-    "delivery",
-    "estimatedDelivery",
-  ]);
-  const sellerId = readText(metadata, [
-    "sellerId",
-    "seller_id",
-    "merchantId",
-    "merchant_id",
-    "shopId",
-    "shop_id",
-  ]);
+  const qualitySignals = listing.qualitySignals;
+  const availableQuantity =
+    qualitySignals?.availability.quantity.value ??
+    readInteger(metadata, ["availableQuantity", "quantity", "inventory", "stock"]);
+  const availability =
+    qualitySignals?.availability.rawStatus.value ??
+    readText(metadata, ["availability", "stockStatus"]);
+  const deliveryInformation =
+    qualitySignals?.delivery.summary.value ??
+    readText(metadata, ["deliveryInformation", "delivery", "estimatedDelivery"]);
+  const sellerId =
+    qualitySignals?.seller.id.value ??
+    readText(metadata, ["sellerId", "seller_id", "merchantId", "merchant_id", "shopId", "shop_id"]);
+  const condition = qualitySignals?.condition.value ?? listing.condition;
   const cost = calculateListingDeliveredCost(listing, criteria, options);
   const shipping = toMoney(cost.components.shipping.amount, cost.components.shipping.currency);
   const landed = cost.completeness === "complete" ? cost.estimatedDeliveredUnitCost : null;
@@ -176,9 +170,10 @@ function createOffer(
     landedUnitCost: landed?.amount ?? null,
     landedUnitCostCurrency: landed?.currency ?? null,
     cost,
-    condition: listing.condition,
+    condition,
     deliveryInformation,
     availability,
+    qualitySignals: listing.qualitySignals ?? null,
     qualification: qualification.status,
     qualificationReasons: qualification.reasons,
     isShortlisted: options.shortlistedKeys?.has(listingKey(listing)) ?? false,

@@ -1,6 +1,7 @@
 import type { MarketplaceListing, MarketplaceSource } from "../shared/types";
 import type { ExchangeRate } from "../../pricing/currency";
 import type { DeliveredCostResult } from "../../pricing/delivered-cost";
+import type { MarketplaceListingQualitySignals } from "../shared/quality";
 
 export interface MarketplaceListingReference {
   source: MarketplaceSource;
@@ -56,6 +57,7 @@ export interface MarketplaceComparisonOffer extends MarketplaceListingReference 
   condition: string | null;
   deliveryInformation: string | null;
   availability: string | null;
+  qualitySignals?: MarketplaceListingQualitySignals | null;
   qualification: ComparisonQualification;
   qualificationReasons: string[];
   isShortlisted: boolean;

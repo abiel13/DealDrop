@@ -1,4 +1,5 @@
 import { EtsyParseError } from "./errors";
+import { normalizeListingQuality } from "../shared/quality";
 import type { EtsySearchResponse, ParsedEtsyListing } from "./types";
 
 export type EtsyParseReporter = (error: EtsyParseError) => void;
@@ -52,6 +53,11 @@ function parseEtsyListing(value: unknown): ParsedEtsyListing {
     throw new EtsyParseError("Etsy listing is missing its ID, title, or URL.");
   }
 
+  const shop = asObjectOrNull(listing.shop);
+  const sellerName = parseSellerName(listing);
+  const condition = text(listing.condition);
+  const quality = parseQuality(listing, shop, sellerName, condition);
+
   return {
     externalId,
     title,
@@ -60,17 +66,76 @@ function parseEtsyListing(value: unknown): ParsedEtsyListing {
     currency: parseCurrency(listing.price, listing.currency_code),
     url,
     imageUrls: parseImageUrls(listing.images, listing.listing_images),
-    sellerName: parseSellerName(listing),
+    sellerName,
     location: parseLocation(listing),
     category: text(listing.category),
-    condition: text(listing.condition),
+    condition,
     postedAt: parseTimestamp(listing.creation_timestamp ?? listing.created_timestamp),
+    qualitySignals: quality,
     metadata: {
       ...(number(listing.shop_id) !== null ? { shopId: number(listing.shop_id) } : {}),
       ...(number(listing.taxonomy_id) !== null ? { taxonomyId: number(listing.taxonomy_id) } : {}),
       ...(number(listing.quantity) !== null ? { quantity: number(listing.quantity) } : {}),
       ...(text(listing.state) ? { state: text(listing.state) } : {}),
     },
+  };
+}
+
+function parseQuality(
+  listing: Record<string, unknown>,
+  shop: Record<string, unknown> | null,
+  sellerName: string | null,
+  condition: string | null,
+) {
+  const ratingValue = number(
+    shop?.review_average ?? listing.shop_review_average ?? listing.seller_rating,
+  );
+  const reviewCount = number(
+    shop?.review_count ?? listing.shop_review_count ?? listing.shop_reviews_count,
+  );
+  const returnPolicy = asObjectOrNull(listing.return_policy) || asObjectOrNull(listing.returns);
+  const protection = parseBuyerProtection(listing.buyer_protection);
+
+  return normalizeListingQuality({
+    sellerName,
+    sellerId: identifierValue(listing.shop_id ?? shop?.shop_id),
+    sellerRating:
+      ratingValue === null ? null : { value: ratingValue, scale: 5, label: "shop review average" },
+    sellerReviewCount: reviewCount,
+    sellerHistorySummary: text(shop?.seller_history) || text(listing.seller_history),
+    sellerAccountCreatedAt: text(shop?.account_created_at),
+    sellerVerified: booleanValue(shop?.is_verified ?? listing.shop_is_verified),
+    sellerProfessional: booleanValue(shop?.is_business ?? listing.shop_is_business),
+    condition,
+    availabilityRawStatus: text(listing.state),
+    availabilityQuantity: number(listing.quantity),
+    deliverySummary:
+      text(listing.delivery_information) ||
+      text(listing.estimated_delivery) ||
+      text(listing.shipping_profile),
+    deliveryEstimatedAt: text(listing.estimated_delivery_date),
+    returnAccepted: booleanValue(returnPolicy?.returns_accepted ?? returnPolicy?.accepted),
+    returnWindowDays: number(returnPolicy?.return_window_days ?? returnPolicy?.window_days),
+    returnSummary: text(returnPolicy?.description) || text(returnPolicy?.summary),
+    buyerProtectionAvailable: protection.available,
+    buyerProtectionPrograms: protection.programs,
+    buyerProtectionSummary: protection.summary,
+  });
+}
+
+function parseBuyerProtection(value: unknown) {
+  const protection = asObjectOrNull(value);
+  if (!protection) {
+    return { available: booleanValue(value), programs: null, summary: text(value) };
+  }
+
+  const programs = Array.isArray(protection.programs)
+    ? protection.programs.filter((program): program is string => typeof program === "string")
+    : null;
+  return {
+    available: booleanValue(protection.available ?? protection.is_available),
+    programs,
+    summary: text(protection.summary) || text(protection.description) || text(protection.name),
   };
 }
 
@@ -99,6 +164,13 @@ function parseSellerName(listing: Record<string, unknown>) {
     text(asObjectOrNull(listing.shop)?.shop_name) ||
     text(asObjectOrNull(listing.user)?.login_name)
   );
+}
+
+function identifierValue(value: unknown) {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+    return String(value);
+  }
+  return text(value);
 }
 
 function parseLocation(listing: Record<string, unknown>) {
@@ -176,5 +248,14 @@ function number(value: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  return null;
+}
+
+function booleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (/^(true|yes|accepted|available)$/i.test(value.trim())) return true;
+    if (/^(false|no|declined|unavailable)$/i.test(value.trim())) return false;
+  }
   return null;
 }

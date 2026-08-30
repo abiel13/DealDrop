@@ -1,3 +1,5 @@
+import type { MarketplaceListingQualitySignals } from "../shared/quality";
+
 export interface RakutenSearchResponse {
   count?: unknown;
   page?: unknown;
@@ -22,5 +24,6 @@ export interface ParsedRakutenItem {
   sellerName: string | null;
   category: string | null;
   postedAt: string | null;
+  qualitySignals: MarketplaceListingQualitySignals;
   metadata: Record<string, unknown>;
 }

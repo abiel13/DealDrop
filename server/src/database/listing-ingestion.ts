@@ -64,6 +64,7 @@ function mergeListings(existing: MarketplaceListing, incoming: MarketplaceListin
     location: incoming.location ?? existing.location,
     category: incoming.category ?? existing.category,
     condition: incoming.condition ?? existing.condition,
+    qualitySignals: incoming.qualitySignals ?? existing.qualitySignals,
     latitude: incoming.latitude ?? existing.latitude,
     longitude: incoming.longitude ?? existing.longitude,
     postedAt: incoming.postedAt ?? existing.postedAt,

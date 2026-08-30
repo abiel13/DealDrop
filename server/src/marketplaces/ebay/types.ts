@@ -1,3 +1,5 @@
+import type { MarketplaceListingQualitySignals } from "../shared/quality";
+
 export interface EbayImage {
   imageUrl?: unknown;
 }
@@ -49,5 +51,6 @@ export interface ParsedEbayListing {
   category: string | null;
   condition: string | null;
   postedAt: string | null;
+  qualitySignals: MarketplaceListingQualitySignals;
   metadata: Record<string, unknown>;
 }

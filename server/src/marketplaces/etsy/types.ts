@@ -1,3 +1,5 @@
+import type { MarketplaceListingQualitySignals } from "../shared/quality";
+
 export interface EtsySearchResponse {
   count?: unknown;
   results?: unknown;
@@ -16,5 +18,6 @@ export interface ParsedEtsyListing {
   category: string | null;
   condition: string | null;
   postedAt: string | null;
+  qualitySignals: MarketplaceListingQualitySignals;
   metadata: Record<string, unknown>;
 }

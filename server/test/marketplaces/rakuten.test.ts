@@ -102,6 +102,40 @@ test("parses and normalizes Rakuten product identity, price, images, availabilit
     latitude: null,
     longitude: null,
     postedAt: null,
+    qualitySignals: {
+      seller: {
+        name: { value: "Camera Shop", provenance: "marketplace" },
+        id: { value: "shop", provenance: "marketplace" },
+        rating: { value: null, provenance: "unavailable" },
+        reviewCount: { value: null, provenance: "unavailable" },
+        history: { value: null, provenance: "unavailable" },
+        verified: { value: null, provenance: "unavailable" },
+        professional: { value: null, provenance: "unavailable" },
+      },
+      condition: { value: null, provenance: "unavailable" },
+      availability: {
+        status: { value: "available", provenance: "dealdrop" },
+        rawStatus: { value: "available", provenance: "marketplace" },
+        quantity: { value: null, provenance: "unavailable" },
+      },
+      delivery: {
+        summary: {
+          value: "International shipping areas: US, NG",
+          provenance: "marketplace",
+        },
+        estimatedAt: { value: null, provenance: "unavailable" },
+      },
+      returnPolicy: {
+        accepted: { value: null, provenance: "unavailable" },
+        windowDays: { value: null, provenance: "unavailable" },
+        summary: { value: null, provenance: "unavailable" },
+      },
+      buyerProtection: {
+        available: { value: null, provenance: "unavailable" },
+        programs: { value: null, provenance: "unavailable" },
+        summary: { value: null, provenance: "unavailable" },
+      },
+    },
     metadata: {
       genreId: "123",
       genreName: "カメラ",

@@ -38,6 +38,7 @@ export function normalizeAmazonBusinessListing(
     latitude: null,
     longitude: null,
     postedAt: null,
+    qualitySignals: listing.qualitySignals,
     metadata: {
       ...listing.metadata,
       ...(listing.availability ? { availability: listing.availability } : {}),

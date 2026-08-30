@@ -1,4 +1,5 @@
 import { AmazonBusinessParseError } from "./errors";
+import { normalizeListingQuality } from "../shared/quality";
 import type {
   AmazonBusinessOffersResponse,
   AmazonBusinessSearchPage,
@@ -132,6 +133,14 @@ function parseOffer(
   const availability = parseTextish(offer.availability);
   const deliveryInformation = parseTextish(offer.deliveryInformation);
   const shippingOptions = parseTextish(offer.shippingOptions);
+  const sellerName =
+    text(merchant?.name) ||
+    text(merchant?.displayName) ||
+    text(offer.merchantName) ||
+    text(offer.sellerName);
+  const condition = text(offer.productCondition) || text(offer.condition);
+  const returnPolicy = asObjectOrNull(offer.returnPolicy) || asObjectOrNull(offer.returns);
+  const buyerProtection = parseBuyerProtection(offer.buyerProtection);
 
   return {
     asin,
@@ -144,15 +153,40 @@ function parseOffer(
     currency: money?.currency ?? null,
     url: context.url || context.productUrl || null,
     imageUrls: context.imageUrls ?? [],
-    sellerName:
-      text(merchant?.name) ||
-      text(merchant?.displayName) ||
-      text(offer.merchantName) ||
-      text(offer.sellerName),
+    sellerName,
     category: context.category ?? null,
-    condition: text(offer.productCondition) || text(offer.condition),
+    condition,
     availability,
     deliveryInformation,
+    qualitySignals: normalizeListingQuality({
+      sellerName,
+      sellerId: text(merchant?.merchantId) || text(offer.merchantId),
+      sellerRating: parseSellerRating(
+        merchant?.rating ?? merchant?.sellerRating ?? offer.sellerRating,
+      ),
+      sellerReviewCount: numberValue(
+        merchant?.reviewCount ?? merchant?.feedbackCount ?? offer.sellerReviewCount,
+      ),
+      sellerHistorySummary: text(merchant?.sellerHistory) || text(offer.sellerHistory),
+      sellerAccountCreatedAt: text(merchant?.accountCreatedAt),
+      sellerVerified: booleanValue(merchant?.verified ?? merchant?.isVerified),
+      sellerProfessional: booleanValue(merchant?.professionalSeller ?? merchant?.isBusinessSeller),
+      condition,
+      availabilityRawStatus: availability,
+      availabilityQuantity: numberValue(
+        offer.availableQuantity ?? offer.quantity ?? offer.inventory,
+      ),
+      deliverySummary: deliveryInformation || shippingOptions,
+      deliveryEstimatedAt: parseTextish(offer.estimatedDeliveryDate),
+      returnAccepted: booleanValue(returnPolicy?.returnsAccepted ?? returnPolicy?.accepted),
+      returnWindowDays: numberValue(
+        returnPolicy?.returnWindowDays ?? returnPolicy?.windowDays ?? returnPolicy?.returnPeriod,
+      ),
+      returnSummary: parseTextish(returnPolicy?.description ?? returnPolicy?.summary),
+      buyerProtectionAvailable: buyerProtection.available,
+      buyerProtectionPrograms: buyerProtection.programs,
+      buyerProtectionSummary: buyerProtection.summary,
+    }),
     metadata: {
       ...(offerId ? { offerId } : {}),
       ...(text(merchant?.merchantId) ? { merchantId: text(merchant?.merchantId) } : {}),
@@ -198,6 +232,7 @@ function createListing(
     condition: offer?.condition ?? null,
     availability: offer?.availability ?? null,
     deliveryInformation: offer?.deliveryInformation ?? null,
+    qualitySignals: offer?.qualitySignals ?? normalizeListingQuality({}),
     metadata: {
       amazonBusiness: true,
       asin: product.asin,
@@ -297,6 +332,34 @@ function parseTextish(value: unknown): string | null {
   return null;
 }
 
+function parseSellerRating(value: unknown) {
+  const object = asObjectOrNull(value);
+  const ratingValue = numberValue(object?.value ?? object?.rating ?? value);
+  if (ratingValue === null) return null;
+
+  return {
+    value: ratingValue,
+    scale: numberValue(object?.scale ?? object?.max ?? object?.outOf),
+    label: text(object?.label) || "seller rating",
+  };
+}
+
+function parseBuyerProtection(value: unknown) {
+  const protection = asObjectOrNull(value);
+  if (!protection) {
+    return { available: booleanValue(value), programs: null, summary: text(value) };
+  }
+
+  const programs = Array.isArray(protection.programs)
+    ? protection.programs.filter((program): program is string => typeof program === "string")
+    : null;
+  return {
+    available: booleanValue(protection.available ?? protection.isAvailable),
+    programs,
+    summary: text(protection.summary) || text(protection.description) || text(protection.name),
+  };
+}
+
 function asObject(value: unknown, label: string): Record<string, unknown> {
   const object = asObjectOrNull(value);
   if (!object) throw new AmazonBusinessParseError(`${label} is not an object.`);
@@ -317,4 +380,13 @@ function numberValue(value: unknown) {
   const number =
     typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(number) ? number : null;
+}
+
+function booleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (/^(true|yes|accepted|available)$/i.test(value.trim())) return true;
+    if (/^(false|no|declined|unavailable)$/i.test(value.trim())) return false;
+  }
+  return null;
 }
